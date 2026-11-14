@@ -9,10 +9,11 @@
     "environment": { "level": 1, "reasons": ["Humedad de cabina 72 %, por encima de 60 %"] }
   },
   "trends": [
-    { "indicator": "pushup_reps", "projected_7d": 14, "crosses_threshold_in_days": 4 }
+    { "indicator": "pushup_reps", "projected_7d": 14, "crosses_threshold_in_days": 4, "threshold": 16.2, "threshold_level": 2, "slope_per_day": -0.6 }
   ],
   "recommendations": [
     "Repetir la medida de pulso en reposo dentro de 10 minutos",
     "Revisar el control de humedad de la cabina"
-  ]
+  ],
+  "earth_summary": null
 }

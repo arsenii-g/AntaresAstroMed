@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -18,13 +19,28 @@ class IndicatorResult:
     level: int | None  # None = sin dato; nunca se trata como verde
     code: str | None  # p. ej. "HR_HIGH"; None si está en rango o sin dato
     reason: str | None  # texto para el frontend; None si está en rango
+    cut: float | None = None  # corte superado; None si está en rango o sin dato
 
 
-@lru_cache(maxsize=1)
+def demo_mode() -> bool:
+    """SPACEHEALTH_DEMO=1 activa los cortes de demo de thresholds.json."""
+    return os.environ.get("SPACEHEALTH_DEMO") == "1"
+
+
 def load_thresholds(path: str | None = None) -> dict:
-    """Lee los umbrales. Se cachea: el archivo solo se lee una vez."""
-    with Path(path or THRESHOLDS_PATH).open(encoding="utf-8") as f:
-        return json.load(f)["indicators"]
+    """Umbrales por indicador, con los de demo encima si demo_mode()."""
+    return _load(str(path or THRESHOLDS_PATH), demo_mode())
+
+
+@lru_cache(maxsize=4)
+def _load(path: str, demo: bool) -> dict:
+    with Path(path).open(encoding="utf-8") as f:
+        data = json.load(f)
+    indicators = data["indicators"]
+    if demo:
+        for name, override in data.get("demo", {}).items():
+            indicators[name] = {**indicators[name], **override}
+    return indicators
 
 
 def level_for(indicator: str, value: float | None, thresholds: dict | None = None) -> IndicatorResult:
@@ -55,7 +71,7 @@ def level_for(indicator: str, value: float | None, thresholds: dict | None = Non
 
     unit = spec["unit"]
     reason = f"{spec['label']} {_fmt(value)} {unit}, {relation} {_fmt(cut)} {unit}"
-    return IndicatorResult(indicator, system, value, level, f"{spec['code']}_{direction}", reason)
+    return IndicatorResult(indicator, system, value, level, f"{spec['code']}_{direction}", reason, cut)
 
 
 def _band(value: float, cuts: list, *, above: bool, inclusive: bool) -> int:

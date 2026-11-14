@@ -6,12 +6,16 @@
     "inclusive: true cambia 'mayor que' por 'mayor o igual' y 'menor que' por 'menor o igual'.",
     "null: ese nivel no se usa en este indicador.",
     "Guia = 'SpaceHealth: guia del equipo (NASA Space Apps 2026)'. 'Criterio propio' = valor de demo sin fuente externa.",
-    "nasa_ref: requisito de NASA que fija el corte, o null si NASA no publica un limite numerico para ese indicador."
+    "nasa_ref: requisito de NASA que fija el corte, o null si NASA no publica un limite numerico para ese indicador.",
+    "label_en, unit_en: nombre y unidad en inglés, para el resumen a Tierra.",
+    "demo: cortes que sustituyen a los normales si la variable de entorno SPACEHEALTH_DEMO vale 1."
   ],
   "indicators": {
     "heart_rate_bpm": {
       "label": "Pulso",
       "unit": "lat/min",
+      "label_en": "Heart rate",
+      "unit_en": "bpm",
       "system": "cardiovascular",
       "code": "HR",
       "high": [
@@ -30,6 +34,8 @@
     "body_temp_c": {
       "label": "Temperatura corporal",
       "unit": "°C",
+      "label_en": "Body temperature",
+      "unit_en": "°C",
       "system": "cardiovascular",
       "code": "BODY_TEMP",
       "high": [
@@ -48,6 +54,8 @@
     "systolic_mmhg": {
       "label": "Tensión sistólica",
       "unit": "mmHg",
+      "label_en": "Systolic blood pressure",
+      "unit_en": "mmHg",
       "system": "cardiovascular",
       "code": "BP_SYS",
       "inclusive": true,
@@ -67,6 +75,8 @@
     "diastolic_mmhg": {
       "label": "Tensión diastólica",
       "unit": "mmHg",
+      "label_en": "Diastolic blood pressure",
+      "unit_en": "mmHg",
       "system": "cardiovascular",
       "code": "BP_DIA",
       "inclusive": true,
@@ -86,6 +96,8 @@
     "glucose_mg_dl": {
       "label": "Glucosa",
       "unit": "mg/dL",
+      "label_en": "Glucose",
+      "unit_en": "mg/dL",
       "system": "cardiovascular",
       "code": "GLUCOSE",
       "high": [
@@ -104,6 +116,8 @@
     "mood": {
       "label": "Ánimo",
       "unit": "/5",
+      "label_en": "Mood",
+      "unit_en": "/5",
       "system": "neuro",
       "code": "MOOD",
       "high": [
@@ -122,6 +136,8 @@
     "pushup_drop_pct": {
       "label": "Caída de flexiones respecto a su media",
       "unit": "%",
+      "label_en": "Push-up drop vs. own baseline",
+      "unit_en": "%",
       "system": "musculoskeletal",
       "code": "PUSHUPS",
       "high": [
@@ -140,6 +156,8 @@
     "still_for_s": {
       "label": "Tiempo sin moverse",
       "unit": "s",
+      "label_en": "Time without moving",
+      "unit_en": "s",
       "system": "musculoskeletal",
       "code": "INACTIVITY",
       "inclusive": true,
@@ -159,6 +177,8 @@
     "cabin_temp_c": {
       "label": "Temperatura de cabina",
       "unit": "°C",
+      "label_en": "Cabin temperature",
+      "unit_en": "°C",
       "system": "environment",
       "code": "CABIN_TEMP",
       "high": [
@@ -177,6 +197,8 @@
     "humidity_pct": {
       "label": "Humedad de cabina",
       "unit": "%",
+      "label_en": "Cabin humidity",
+      "unit_en": "%",
       "system": "environment",
       "code": "HUMIDITY",
       "high": [
@@ -195,6 +217,8 @@
     "heat_index_c": {
       "label": "Índice de calor",
       "unit": "°C",
+      "label_en": "Heat index",
+      "unit_en": "°C",
       "system": "environment",
       "code": "HEAT_INDEX",
       "high": [
@@ -213,6 +237,8 @@
     "condensation_margin_c": {
       "label": "Margen sobre el punto de rocío",
       "unit": "°C",
+      "label_en": "Margin above dew point",
+      "unit_en": "°C",
       "system": "environment",
       "code": "CONDENSATION",
       "high": [
@@ -227,6 +253,16 @@
       ],
       "source": "Guia: riesgo de condensacion medio con margen de 2 a 5 °C y alto por debajo de 2 °C.",
       "nasa_ref": null
+    }
+  },
+  "demo": {
+    "still_for_s": {
+      "high": [
+        30,
+        90,
+        null
+      ],
+      "source": "Guía: el evento inactivity usa 30 s en la demo y 600 s en uso real. Nivel 2 (90 s): criterio propio, misma proporción que 600 y 1800 s."
     }
   }
 }

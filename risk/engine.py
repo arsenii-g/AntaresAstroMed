@@ -3,8 +3,11 @@
 Pasos (guía del equipo, sección 5):
   1. Nivel por indicador contra thresholds.json (indicators.py).
   2. Nivel por sistema: el peor de sus indicadores.
-  3. Tendencia a 7 días: pendiente (día 2), de momento lista vacía.
-  4. Recomendaciones: una contramedida por cada ámbar o peor.
+  3. Tendencia a 7 días: regresión lineal de tensión, glucosa, ánimo y
+     flexiones (trends.py).
+  4. Recomendaciones: una contramedida por cada ámbar o peor, y un aviso por
+     cada tendencia que cruce un umbral en 7 días.
+  5. Resumen en inglés para Tierra cuando el nivel global es 3 (summary.py).
 
 Un dato ausente es "sin dato", nunca verde. Si un sistema no tiene ningún dato,
 su nivel es None.
@@ -15,14 +18,16 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from .indicators import IndicatorResult, level_for
-from .recommendations import recommendations_for
+from .recommendations import recommendations_for, trend_recommendations
+from .summary import earth_summary
+from .trends import trends_for
 
 SYSTEMS = ("cardiovascular", "neuro", "musculoskeletal", "environment")
 
 # Antigüedad máxima de un dato para darlo por válido (criterio propio).
 TELEMETRY_MAX_AGE = timedelta(seconds=60)   # llega cada 5 s
 CHECK_MAX_AGE = timedelta(hours=24)         # un chequeo manual al día
-EXERCISE_BASELINE_WINDOW = timedelta(days=7)
+HISTORY_WINDOW = timedelta(days=7)          # basal de flexiones y tendencias
 
 
 def evaluate(
@@ -37,8 +42,9 @@ def evaluate(
         telemetry: mensajes ① de telemetría (contracts/telemetry.example.json),
             todos del mismo crew_id. Cualquier campo puede venir como None.
         events: eventos ① (crew_checkin, inactivity, exercise_summary) del
-            mismo crew_id.
-        manual_checks: chequeos manuales ② del mismo crew_id.
+            mismo crew_id, de los últimos 7 días.
+        manual_checks: chequeos manuales ② del mismo crew_id. Para la
+            tendencia, la API debe pasar los de los últimos 7 días.
         now: hora actual, datetime con zona horaria UTC.
 
     Returns:
@@ -49,14 +55,16 @@ def evaluate(
     """
     now = _aware(now)
     telemetry = _sorted_recent(telemetry, now, TELEMETRY_MAX_AGE)
-    manual_checks = _sorted_recent(manual_checks, now, CHECK_MAX_AGE)
-    events = _sorted_recent(events, now, EXERCISE_BASELINE_WINDOW)
+    checks_week = _sorted_recent(manual_checks, now, HISTORY_WINDOW)
+    checks_today = [c for c in checks_week if _parse_ts(c.get("ts")) >= now - CHECK_MAX_AGE]
+    events = _sorted_recent(events, now, HISTORY_WINDOW)
 
     results = (
         _telemetry_indicators(telemetry)
-        + _check_indicators(manual_checks)
+        + _check_indicators(checks_today)
         + _exercise_indicators(events)
     )
+    trends = trends_for(checks_week, events, now, _parse_ts)
 
     systems = {}
     for name in SYSTEMS:
@@ -70,13 +78,20 @@ def evaluate(
         }
 
     levels = [s["level"] for s in systems.values() if s["level"] is not None]
+    overall = max(levels) if levels else None
+    crew_id = _find_crew_id(telemetry, events, checks_week)
+    recommendations = recommendations_for(results)
+    for text in trend_recommendations(trends, results):
+        if text not in recommendations:
+            recommendations.append(text)
     return {
-        "crew_id": _find_crew_id(telemetry, events, manual_checks),
+        "crew_id": crew_id,
         "ts": _iso(now),
-        "overall_level": max(levels) if levels else None,
+        "overall_level": overall,
         "systems": systems,
-        "trends": [],
-        "recommendations": recommendations_for(results),
+        "trends": [t.as_dict() for t in trends],
+        "recommendations": recommendations,
+        "earth_summary": earth_summary(crew_id, _iso(now), overall, systems, results, trends),
     }
 
 
@@ -131,7 +146,7 @@ def _blood_pressure(checks: list[dict], indicator: str, get) -> IndicatorResult:
         return last
     return IndicatorResult(
         last.indicator, last.system, last.value, 1, last.code,
-        f"{last.reason} (primera medida; se confirma con una segunda)",
+        f"{last.reason} (primera medida; se confirma con una segunda)", last.cut,
     )
 
 
