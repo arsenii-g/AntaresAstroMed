@@ -6,10 +6,13 @@
     "cardiovascular": { "level": 1, "reasons": ["Pulso 118 lat/min, cerca de 120"] },
     "neuro": { "level": 0, "reasons": [] },
     "musculoskeletal": { "level": 0, "reasons": [] },
-    "sleep_environment": { "level": 2, "reasons": ["Menos de 5 h de sueño 3 días seguidos"] }
+    "environment": { "level": 1, "reasons": ["Humedad de cabina 68 %, cerca de 70 %"] }
   },
   "trends": [
-    { "indicator": "sleep_hours", "projected_7d": 4.6, "crosses_threshold_in_days": 2 }
+    { "indicator": "pushup_reps", "projected_7d": 14, "crosses_threshold_in_days": 4 }
   ],
-  "recommendations": ["Reducir la luz antes de dormir"]
+  "recommendations": [
+    "Repetir la medida de pulso en reposo dentro de 10 minutos",
+    "Revisar el control de humedad de la cabina"
+  ]
 }

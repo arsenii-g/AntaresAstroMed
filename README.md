@@ -71,4 +71,6 @@ git rebase origin/main
 
 ## Límites
 
+Fuera de alcance: no hay modo sueño ni medida de respiración (ni el modo descanso del HC-SR04, que ahora solo cuenta flexiones). Los cuatro sistemas del motor son cardiovascular, neuro, músculo-esquelético y entorno de cabina.
+
 Es una demo con sensores de un kit educativo: ninguna medida es de grado médico y los umbrales son de demo, a contrastar con NASA HRP.
