@@ -94,3 +94,17 @@ def test_sin_dato_no_es_verde():
 def test_indicadores_con_limite_de_nasa():
     con_nasa = {k for k, v in load_thresholds().items() if v["nasa_ref"]}
     assert con_nasa == {"cabin_temp_c", "humidity_pct", "pushup_drop_pct"}
+
+
+def test_restate_usa_el_corte_mas_cercano_si_el_suyo_es_null():
+    from risk.indicators import level_for, restate
+    low = level_for("glucose_mg_dl", 50)                 # cortes bajos [null, 70, 54]
+    assert low.level == 3
+    assert restate(low, 1, "test").cut == 70             # el nivel 1 no tiene corte bajo: no inventa 54
+    assert restate(low, 2, "test").cut == 70
+
+
+def test_texto_y_bool_cuentan_como_sin_dato():
+    from risk.indicators import level_for
+    assert level_for("heart_rate_bpm", "80").level is None
+    assert level_for("heart_rate_bpm", True).level is None

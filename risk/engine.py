@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from .indicators import IndicatorResult, level_for, load_thresholds, restate, with_unit, _fmt
+from .indicators import IndicatorResult, as_number, level_for, load_thresholds, restate, with_unit, _fmt
 from .recommendations import recommendations_for, trend_recommendations
 from .summary import earth_summary
 from .trends import trends_for
@@ -46,15 +46,19 @@ def evaluate(
             mismo crew_id, de los últimos 7 días.
         manual_checks: chequeos manuales ② del mismo crew_id. Para la
             tendencia, la API debe pasar los de los últimos 7 días.
-        now: hora actual, datetime con zona horaria UTC.
+        now: hora actual, datetime CON zona horaria: datetime.now(timezone.utc).
+            Sin zona lanza ValueError: un datetime.now() local en UTC+1 haría
+            que toda la telemetría pareciera de hace una hora.
 
     Returns:
         La evaluación ③ (contracts/assessment.example.json). El nivel de un
         sistema sin ningún dato, y overall_level si no hay ninguno, es None.
 
-    Nunca lanza excepciones por datos ausentes o incompletos.
+    Nunca lanza excepciones por datos ausentes, incompletos o con basura.
     """
-    now = _aware(now)
+    if not isinstance(now, datetime) or now.tzinfo is None:
+        raise ValueError("evaluate(now=...) needs a timezone-aware datetime: datetime.now(timezone.utc)")
+    now = now.astimezone(timezone.utc)
     telemetry = _sorted_recent(telemetry, now, TELEMETRY_MAX_AGE)
     checks_week = _sorted_recent(manual_checks, now, HISTORY_WINDOW)
     checks_today = [c for c in checks_week if _parse_ts(c.get("ts")) >= now - CHECK_MAX_AGE]
@@ -99,18 +103,16 @@ def evaluate(
 # --- indicadores ---------------------------------------------------------------
 
 def _telemetry_indicators(telemetry: list[dict], events: list[dict], now: datetime) -> list[IndicatorResult]:
-    vitals = lambda m: m.get("vitals") or {}
-    motion = lambda m: m.get("motion") or {}
-    cabin = lambda m: m.get("cabin") or {}
+    motion = lambda m: _obj(m.get("motion"))
+    cabin = lambda m: _obj(m.get("cabin"))
 
     def margin(m):
-        c = cabin(m)
-        if c.get("temp_c") is None or c.get("dew_point_c") is None:
+        temp, dew = as_number(cabin(m).get("temp_c")), as_number(cabin(m).get("dew_point_c"))
+        if temp is None or dew is None:
             return None
-        return round(c["temp_c"] - c["dew_point_c"], 1)
+        return round(temp - dew, 1)
 
     getters = {
-        "body_temp_c": lambda m: vitals(m).get("body_temp_c"),
         "still_for_s": lambda m: motion(m).get("still_for_s"),
         "cabin_temp_c": lambda m: cabin(m).get("temp_c"),
         "humidity_pct": lambda m: cabin(m).get("humidity_pct"),
@@ -118,41 +120,61 @@ def _telemetry_indicators(telemetry: list[dict], events: list[dict], now: dateti
         "condensation_margin_c": margin,
     }
     # El dato más reciente que no sea None dentro de la ventana de 60 s.
-    return [_heart_rate(telemetry, events, now)] + [
+    return [_heart_rate(telemetry, events, now), _sustained(telemetry, "body_temp_c")] + [
         level_for(name, _latest(telemetry, get)) for name, get in getters.items()
     ]
 
 
-def _heart_rate(telemetry: list[dict], events: list[dict], now: datetime) -> IndicatorResult:
-    """Pulso con dos reglas extra (criterio propio, ver risk/README.md):
+def _vital(message: dict, name: str):
+    return as_number(_obj(message.get("vitals")).get(name))
 
-    1. Sostenido: el nivel 2 o 3 necesita sustain_readings lecturas seguidas
-       en ese nivel o peor. Se toma la menos grave de las últimas lecturas,
-       así un pico suelto de la fotorresistencia no da rojo.
-    2. Tras ejercicio: si el tripulante se está moviendo o hizo flexiones en
-       los últimos exercise_recovery_s, el pulso alto baja un nivel (mínimo
-       ámbar): subir el pulso con el esfuerzo es normal.
+
+def _sustained(telemetry: list[dict], indicator: str) -> IndicatorResult:
+    """Nivel de un signo vital con la regla de lecturas sostenidas (criterio
+    propio, ver risk/README.md, sección 3):
+
+    - Ámbar con una sola lectura: avisar pronto no cuesta nada.
+    - Naranja o rojo solo si las sustain_readings últimas lecturas están en
+      ese nivel o peor. Mientras no, ámbar: nunca verde, para que un fallo
+      del sensor no esconda un problema real.
+    - Lecturas altas y bajas mezcladas en la ventana: ámbar y revisar el
+      sensor, porque la señal no es fiable.
     """
+    need = load_thresholds()[indicator].get("sustain_readings", 1)
+    window = [level_for(indicator, v) for m in telemetry if (v := _vital(m, indicator)) is not None][-need:]
+    if not window:
+        return level_for(indicator, None)
+    latest = window[-1]
+    flagged = [r for r in window if r.level]
+    if len({r.code for r in flagged}) > 1:
+        return restate(flagged[-1], 1, "inconsistent readings; check the sensor")
+    worst = max(reversed(window), key=lambda r: r.level)      # si empatan, la más reciente
+    if worst.level < 2:
+        return latest
+    floor = min(r.level for r in window) if len(window) == need else 0
+    if floor >= 2:
+        held = next(r for r in reversed(window) if r.level == floor)
+        return restate(held, floor, f"sustained over {need} readings")
+    high = sum(1 for r in window if r.level >= 2)
+    return restate(worst, 1, f"not sustained yet: {high} of {need} readings")
+
+
+def _heart_rate(telemetry: list[dict], events: list[dict], now: datetime) -> IndicatorResult:
+    """Pulso: lecturas sostenidas (_sustained) y, además, margen tras
+    ejercicio (criterio propio): si el tripulante se está moviendo o hizo
+    flexiones en los últimos exercise_recovery_s, un pulso alto en naranja
+    baja a ámbar, porque subir el pulso con el esfuerzo es normal. El rojo
+    (más de 150 lpm) no se rebaja: eso ya no se explica por unas flexiones.
+    """
+    result = _sustained(telemetry, "heart_rate_bpm")
     spec = load_thresholds()["heart_rate_bpm"]
-    need = spec.get("sustain_readings", 1)
-    readings = [hr for m in telemetry if (hr := (m.get("vitals") or {}).get("heart_rate_bpm")) is not None]
-    if not readings:
-        return level_for("heart_rate_bpm", None)
-
-    last = [level_for("heart_rate_bpm", v) for v in readings[-need:]]
-    result = min(reversed(last), key=lambda r: r.level)      # la menos grave; si empatan, la más reciente
-    if result.level >= 2 and len(last) < need:
-        result = restate(result, 1, f"not sustained yet: {len(last)} of {need} readings")
-    elif result.level >= 2:
-        result = restate(result, result.level, f"sustained over {need} readings")
-
-    if result.level >= 2 and result.code == "HR_HIGH" and _recovering(telemetry, events, now, spec):
-        result = restate(result, result.level - 1, "after exercise; recheck at rest")
+    if result.level == 2 and result.code == "HR_HIGH" and _recovering(telemetry, events, now, spec):
+        result = restate(result, 1, "after exercise; recheck at rest")
     return result
 
 
 def _recovering(telemetry, events, now, spec) -> bool:
-    moving = (telemetry[-1].get("motion") or {}).get("activity") == "moving" if telemetry else False
+    moving = bool(telemetry) and _obj(telemetry[-1].get("motion")).get("activity") == "moving"
     window = timedelta(seconds=spec.get("exercise_recovery_s", 0))
     recent_set = any(
         e.get("type") == "exercise_summary" and (ts := _parse_ts(e.get("ts"))) is not None
@@ -165,11 +187,11 @@ def _recovering(telemetry, events, now, spec) -> bool:
 def _check_indicators(today: list[dict], week: list[dict]) -> list[IndicatorResult]:
     """today: chequeos de las últimas 24 h (dan el valor actual). week: los de
     7 días (dan la medida anterior de la tensión y la media del ánimo)."""
-    bp = lambda c: c.get("blood_pressure") or {}
+    bp = lambda c: _obj(c.get("blood_pressure"))
     return [
-        _blood_pressure(today, week, "systolic_mmhg", lambda c: bp(c).get("systolic")),
-        _blood_pressure(today, week, "diastolic_mmhg", lambda c: bp(c).get("diastolic")),
-        level_for("glucose_mg_dl", _latest(today, lambda c: c.get("glucose_mg_dl"))),
+        _blood_pressure(today, week, "systolic_mmhg", lambda c: as_number(bp(c).get("systolic"))),
+        _blood_pressure(today, week, "diastolic_mmhg", lambda c: as_number(bp(c).get("diastolic"))),
+        level_for("glucose_mg_dl", _latest(today, lambda c: as_number(c.get("glucose_mg_dl")))),
         _mood(today, week),
     ]
 
@@ -198,12 +220,12 @@ def _mood(today: list[dict], week: list[dict]) -> IndicatorResult:
     """Ánimo con los cortes fijos y, además, frente a la media del propio
     tripulante: ámbar si hoy está personal_drop puntos o más por debajo de la
     media de los chequeos anteriores de 7 días (criterio propio)."""
-    get = lambda c: c.get("mood")
+    get = lambda c: as_number(c.get("mood"))
     fixed = level_for("mood", _latest(today, get))
     if fixed.value is None or fixed.level:
         return fixed
     spec = load_thresholds()["mood"]
-    values = [get(c) for c in week if isinstance(get(c), (int, float))]
+    values = [v for c in week if (v := get(c)) is not None]
     previous = values[:-1]
     if len(previous) < spec.get("personal_min_checks", 3):
         return fixed
@@ -221,11 +243,11 @@ def _exercise_indicators(events: list[dict]) -> list[IndicatorResult]:
     """Caída de flexiones de la última serie frente a la media de las anteriores
     de los últimos 7 días. Sin series previas no hay basal y no se evalúa."""
     reps = [
-        (e.get("data") or {}).get("reps")
+        as_number(_obj(e.get("data")).get("reps"))
         for e in events
         if e.get("type") == "exercise_summary"
     ]
-    reps = [r for r in reps if isinstance(r, (int, float))]
+    reps = [r for r in reps if r is not None]
     if len(reps) < 2:
         return []
     baseline = sum(reps[:-1]) / len(reps[:-1])
@@ -245,14 +267,36 @@ def _latest(messages: list[dict], get):
     return None
 
 
+def _obj(value) -> dict:
+    """value si es un dict; si no (None, lista, texto…), un dict vacío."""
+    return value if isinstance(value, dict) else {}
+
+
 def _sorted_recent(messages: list[dict] | None, now: datetime, max_age: timedelta) -> list[dict]:
-    out = []
-    for m in messages or []:
+    """Mensajes dentro de la ventana, ordenados por ts, sin basura y sin
+    duplicados. Un duplicado es el mismo (device_id, ts, type), como en la
+    placa: si la API guarda dos veces un reintento, cuenta una sola vez."""
+    out, seen = [], set()
+    for m in messages if isinstance(messages, list) else []:
+        if not isinstance(m, dict):
+            continue
         ts = _parse_ts(m.get("ts"))
-        if ts is not None and now - max_age <= ts <= now + timedelta(seconds=5):
-            out.append((ts, m))
+        key = (m.get("device_id"), m.get("ts"), m.get("type"))
+        if ts is None or not now - max_age <= ts <= now + timedelta(seconds=5) or _seen(key, seen):
+            continue
+        out.append((ts, m))
     out.sort(key=lambda pair: pair[0])
     return [m for _, m in out]
+
+
+def _seen(key: tuple, seen: set) -> bool:
+    try:
+        if key in seen:
+            return True
+        seen.add(key)
+    except TypeError:          # device_id o type que no se pueden comparar: no se deduplica
+        pass
+    return False
 
 
 def _parse_ts(value) -> datetime | None:
@@ -267,7 +311,7 @@ def _parse_ts(value) -> datetime | None:
 def _find_crew_id(*sources: list[dict]) -> str | None:
     for messages in sources:
         for message in reversed(messages):
-            if message.get("crew_id"):
+            if isinstance(message.get("crew_id"), str) and message["crew_id"]:
                 return message["crew_id"]
     return None
 

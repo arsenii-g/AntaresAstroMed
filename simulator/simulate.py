@@ -35,6 +35,7 @@ Solo usa la biblioteca estándar.
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import math
 import os
@@ -354,7 +355,7 @@ class Sender:
                 status, raw = resp.status, resp.read()
         except urllib.error.HTTPError as err:
             return err.code
-        except (urllib.error.URLError, TimeoutError, ConnectionError):
+        except (urllib.error.URLError, http.client.HTTPException, TimeoutError, ConnectionError):
             return None
         try:
             reply = json.loads(raw) if raw else None
@@ -380,6 +381,12 @@ def run(args: argparse.Namespace) -> None:
         os.environ["SPACEHEALTH_DEMO"] = "1"
     rng = random.Random(args.seed)
     start = datetime.now(timezone.utc).replace(microsecond=0)
+    if args.fast and args.url:
+        # Con --fast los ts avanzan 5 s por envío sin esperar. Contra una API real
+        # acabarían en el futuro y el motor los descarta: se empieza en el pasado.
+        if args.count is None:
+            sys.exit("--fast with --url needs --count")
+        start -= timedelta(seconds=args.count * INTERVAL_S)
     sender = Sender(args.url, args.api_key) if args.url else None
     checks, history_e = make_history(args.scenario, args.history_days, start, rng)
     history_t: list[dict] = []
