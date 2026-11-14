@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from .indicators import IndicatorResult, level_for
+from .indicators import IndicatorResult, level_for, load_thresholds, restate, with_unit, _fmt
 from .recommendations import recommendations_for, trend_recommendations
 from .summary import earth_summary
 from .trends import trends_for
@@ -61,8 +61,8 @@ def evaluate(
     events = _sorted_recent(events, now, HISTORY_WINDOW)
 
     results = (
-        _telemetry_indicators(telemetry)
-        + _check_indicators(checks_today)
+        _telemetry_indicators(telemetry, events, now)
+        + _check_indicators(checks_today, checks_week)
         + _exercise_indicators(events)
     )
     trends = trends_for(checks_week, events, now, _parse_ts)
@@ -98,7 +98,7 @@ def evaluate(
 
 # --- indicadores ---------------------------------------------------------------
 
-def _telemetry_indicators(telemetry: list[dict]) -> list[IndicatorResult]:
+def _telemetry_indicators(telemetry: list[dict], events: list[dict], now: datetime) -> list[IndicatorResult]:
     vitals = lambda m: m.get("vitals") or {}
     motion = lambda m: m.get("motion") or {}
     cabin = lambda m: m.get("cabin") or {}
@@ -110,7 +110,6 @@ def _telemetry_indicators(telemetry: list[dict]) -> list[IndicatorResult]:
         return round(c["temp_c"] - c["dew_point_c"], 1)
 
     getters = {
-        "heart_rate_bpm": lambda m: vitals(m).get("heart_rate_bpm"),
         "body_temp_c": lambda m: vitals(m).get("body_temp_c"),
         "still_for_s": lambda m: motion(m).get("still_for_s"),
         "cabin_temp_c": lambda m: cabin(m).get("temp_c"),
@@ -119,26 +118,70 @@ def _telemetry_indicators(telemetry: list[dict]) -> list[IndicatorResult]:
         "condensation_margin_c": margin,
     }
     # El dato más reciente que no sea None dentro de la ventana de 60 s.
-    return [level_for(name, _latest(telemetry, get)) for name, get in getters.items()]
-
-
-def _check_indicators(checks: list[dict]) -> list[IndicatorResult]:
-    bp = lambda c: c.get("blood_pressure") or {}
-    results = [
-        _blood_pressure(checks, "systolic_mmhg", lambda c: bp(c).get("systolic")),
-        _blood_pressure(checks, "diastolic_mmhg", lambda c: bp(c).get("diastolic")),
-        level_for("glucose_mg_dl", _latest(checks, lambda c: c.get("glucose_mg_dl"))),
-        level_for("mood", _latest(checks, lambda c: c.get("mood"))),
+    return [_heart_rate(telemetry, events, now)] + [
+        level_for(name, _latest(telemetry, get)) for name, get in getters.items()
     ]
-    return results
 
 
-def _blood_pressure(checks: list[dict], indicator: str, get) -> IndicatorResult:
+def _heart_rate(telemetry: list[dict], events: list[dict], now: datetime) -> IndicatorResult:
+    """Pulso con dos reglas extra (criterio propio, ver risk/README.md):
+
+    1. Sostenido: el nivel 2 o 3 necesita sustain_readings lecturas seguidas
+       en ese nivel o peor. Se toma la menos grave de las últimas lecturas,
+       así un pico suelto de la fotorresistencia no da rojo.
+    2. Tras ejercicio: si el tripulante se está moviendo o hizo flexiones en
+       los últimos exercise_recovery_s, el pulso alto baja un nivel (mínimo
+       ámbar): subir el pulso con el esfuerzo es normal.
+    """
+    spec = load_thresholds()["heart_rate_bpm"]
+    need = spec.get("sustain_readings", 1)
+    readings = [hr for m in telemetry if (hr := (m.get("vitals") or {}).get("heart_rate_bpm")) is not None]
+    if not readings:
+        return level_for("heart_rate_bpm", None)
+
+    last = [level_for("heart_rate_bpm", v) for v in readings[-need:]]
+    result = min(reversed(last), key=lambda r: r.level)      # la menos grave; si empatan, la más reciente
+    if result.level >= 2 and len(last) < need:
+        result = restate(result, 1, f"not sustained yet: {len(last)} of {need} readings")
+    elif result.level >= 2:
+        result = restate(result, result.level, f"sustained over {need} readings")
+
+    if result.level >= 2 and result.code == "HR_HIGH" and _recovering(telemetry, events, now, spec):
+        result = restate(result, result.level - 1, "after exercise; recheck at rest")
+    return result
+
+
+def _recovering(telemetry, events, now, spec) -> bool:
+    moving = (telemetry[-1].get("motion") or {}).get("activity") == "moving" if telemetry else False
+    window = timedelta(seconds=spec.get("exercise_recovery_s", 0))
+    recent_set = any(
+        e.get("type") == "exercise_summary" and (ts := _parse_ts(e.get("ts"))) is not None
+        and now - window <= ts <= now + timedelta(seconds=5)
+        for e in events
+    )
+    return moving or recent_set
+
+
+def _check_indicators(today: list[dict], week: list[dict]) -> list[IndicatorResult]:
+    """today: chequeos de las últimas 24 h (dan el valor actual). week: los de
+    7 días (dan la medida anterior de la tensión y la media del ánimo)."""
+    bp = lambda c: c.get("blood_pressure") or {}
+    return [
+        _blood_pressure(today, week, "systolic_mmhg", lambda c: bp(c).get("systolic")),
+        _blood_pressure(today, week, "diastolic_mmhg", lambda c: bp(c).get("diastolic")),
+        level_for("glucose_mg_dl", _latest(today, lambda c: c.get("glucose_mg_dl"))),
+        _mood(today, week),
+    ]
+
+
+def _blood_pressure(today: list[dict], week: list[dict], indicator: str, get) -> IndicatorResult:
     """La guía pide escalar con 140/90 "en dos medidas": el nivel 2 necesita
-    dos medidas seguidas de nivel 2 o más. El nivel 3 cuenta con una sola."""
-    values = [get(c) for c in checks if get(c) is not None]
-    if not values:
+    dos medidas seguidas de nivel 2 o más. La última tiene que ser de las
+    últimas 24 h; la anterior puede ser de cualquier día de los últimos 7.
+    El nivel 3 cuenta con una sola."""
+    if _latest(today, get) is None:
         return level_for(indicator, None)
+    values = [get(c) for c in week if get(c) is not None]
     last = level_for(indicator, values[-1])
     if last.level != 2:
         return last
@@ -149,6 +192,29 @@ def _blood_pressure(checks: list[dict], indicator: str, get) -> IndicatorResult:
         last.indicator, last.system, last.value, 1, last.code,
         f"{last.reason} (first reading; confirm with a second one)", last.cut,
     )
+
+
+def _mood(today: list[dict], week: list[dict]) -> IndicatorResult:
+    """Ánimo con los cortes fijos y, además, frente a la media del propio
+    tripulante: ámbar si hoy está personal_drop puntos o más por debajo de la
+    media de los chequeos anteriores de 7 días (criterio propio)."""
+    get = lambda c: c.get("mood")
+    fixed = level_for("mood", _latest(today, get))
+    if fixed.value is None or fixed.level:
+        return fixed
+    spec = load_thresholds()["mood"]
+    values = [get(c) for c in week if isinstance(get(c), (int, float))]
+    previous = values[:-1]
+    if len(previous) < spec.get("personal_min_checks", 3):
+        return fixed
+    average = sum(previous) / len(previous)
+    drop = average - fixed.value
+    if drop < spec.get("personal_drop", 99):
+        return fixed
+    reason = (f"{spec['label']} {with_unit(fixed.value, spec['unit'])}, {_fmt(drop)} points "
+              f"below own average {with_unit(average, spec['unit'])}")
+    return IndicatorResult("mood", fixed.system, fixed.value, 1, f"{spec['code']}_LOW", reason,
+                           round(average - spec["personal_drop"], 1))
 
 
 def _exercise_indicators(events: list[dict]) -> list[IndicatorResult]:

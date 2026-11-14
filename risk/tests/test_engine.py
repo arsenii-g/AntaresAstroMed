@@ -103,12 +103,47 @@ def test_nivel_2_avisa_al_oficial_medico():
     assert result["recommendations"][0] == "Notify the crew medical officer"
 
 
+def hr_series(*values, start=NOW - timedelta(seconds=5 * 10), activity="still"):
+    """Telemetría cada 5 s con estos pulsos; la última llega en `start + 5·(n-1)`."""
+    msgs = []
+    for i, hr in enumerate(values):
+        m = telemetry(vitals={"heart_rate_bpm": hr})
+        m["ts"] = (start + timedelta(seconds=5 * i)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        m.setdefault("motion", {})["activity"] = activity
+        msgs.append(m)
+    return msgs
+
+
 def test_usa_el_ultimo_dato_valido():
-    old = telemetry(vitals={"heart_rate_bpm": 130})
-    old["ts"] = "2026-11-14T10:29:55Z"
-    new = telemetry(vitals={"heart_rate_bpm": None})
-    result = evaluate([new, old], [], [check()], NOW)   # desordenados a propósito
+    *older, last = hr_series(130, 130, 130, None)
+    result = evaluate([last] + older[::-1], [], [check()], NOW)   # desordenados a propósito
     assert result["systems"]["cardiovascular"]["level"] == 2
+
+
+def test_pulso_alto_suelto_no_escala_hasta_que_se_sostiene():
+    cardio = lambda msgs: evaluate(msgs, [], [check()], NOW)["systems"]["cardiovascular"]
+    one = cardio(hr_series(155))
+    assert one["level"] == 1 and "not sustained yet: 1 of 3 readings" in one["reasons"][0]
+    spike = cardio(hr_series(80, 80, 155))                   # un pico de la fotorresistencia
+    assert spike["level"] == 0
+    sustained = cardio(hr_series(155, 156, 158))
+    assert sustained["level"] == 3 and "sustained over 3 readings" in sustained["reasons"][0]
+    mixed = cardio(hr_series(155, 125, 158))                 # la menos grave manda
+    assert mixed["level"] == 2
+
+
+def test_pulso_alto_tras_flexiones_o_en_movimiento_baja_un_nivel():
+    cardio = lambda msgs, ev=(): evaluate(msgs, list(ev), [check()], NOW)["systems"]["cardiovascular"]
+    moving = cardio(hr_series(155, 156, 158, activity="moving"))
+    assert moving["level"] == 2 and "after exercise; recheck at rest" in moving["reasons"][0]
+    set_now = copy.deepcopy(load("event.example.json"))
+    set_now["ts"] = (NOW - timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    assert cardio(hr_series(125, 126, 128), [set_now])["level"] == 1
+    set_old = copy.deepcopy(set_now)
+    set_old["ts"] = (NOW - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    assert cardio(hr_series(125, 126, 128), [set_old])["level"] == 2
+    low = cardio(hr_series(42, 42, 42, activity="moving"))  # el pulso bajo no se perdona
+    assert low["level"] == 2
 
 
 def test_telemetria_vieja_es_sin_dato():

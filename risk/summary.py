@@ -37,11 +37,7 @@ def earth_summary(crew_id, ts, overall_level, systems, results: list[IndicatorRe
     flagged = sorted((r for r in results if r.level), key=lambda r: -r.level)
     lines += ["", "Findings (worst first):"]
     for r in flagged:
-        spec = thresholds[r.indicator]
-        relation = "above" if r.code and r.code.endswith("_HIGH") else "below"
-        unit = spec["unit"]
-        lines.append(f"- [{LEVEL_NAMES[r.level]}] {spec['label']}: "
-                     f"{with_unit(r.value, unit)}, {relation} {with_unit(r.cut, unit)}")
+        lines.append(f"- [{LEVEL_NAMES[r.level]}] {r.reason}")
 
     missing = [thresholds[r.indicator]["label"] for r in results if r.level is None]
     if missing:

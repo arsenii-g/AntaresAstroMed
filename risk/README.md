@@ -93,7 +93,20 @@ await ws.broadcast({"type": "assessment", "data": assessment})
 
 Los cuatro sistemas se reparten así en la web: `cardiovascular`, `neuro` y `musculoskeletal` van en el muñeco del tripulante; `environment`, en la cabina.
 
-## 3. Modo demo
+## 3. Reglas que evitan falsas alarmas
+
+Además de los umbrales de `thresholds.json`, el motor aplica cuatro reglas. No cambian el contrato ③: solo deciden el nivel y añaden una nota al final del motivo, en inglés. Las cuatro son **criterio propio** y se ajustan en `thresholds.json` (`rules_source` explica cada una).
+
+| Regla | Qué hace | Por qué | Ajuste |
+|---|---|---|---|
+| **Pulso sostenido** | Naranja o rojo solo si las **3 últimas lecturas** (15 s) están en ese nivel o peor. Manda la menos grave de las tres. Con menos de 3 lecturas en nivel alto, se queda en ámbar: `(not sustained yet: 1 of 3 readings)` | La fotorresistencia es ruidosa: un pico suelto no debe llamar a Tierra | `heart_rate_bpm.sustain_readings` |
+| **Pulso tras ejercicio** | Si el último mensaje dice `activity: "moving"`, o hubo una serie de flexiones en los últimos 5 min, el pulso **alto** baja un nivel (mínimo ámbar): `(after exercise; recheck at rest)`. El pulso bajo no se perdona | Subir el pulso con el esfuerzo es normal; la contramedida ya pide repetir en reposo | `heart_rate_bpm.exercise_recovery_s` |
+| **Tensión entre días** | El naranja necesita dos medidas seguidas en naranja o peor. La última tiene que ser de las últimas 24 h; la anterior puede ser de cualquiera de los 7 días | La guía dice "140/90 en dos medidas", y en la misión se mide una vez al día. Antes, la medida de ayer (a 25 h) no contaba | Ventana de 7 días |
+| **Ánimo frente a su media** | Ámbar si el ánimo de hoy está **2 puntos o más** por debajo de la media del propio tripulante en los 7 días anteriores, con al menos 3 chequeos previos. Se suma al corte fijo (menos de 3) | Un 3/5 es normal para alguien que suele estar en 3, pero es una bajada clara para alguien que siempre está en 5 | `mood.personal_drop`, `mood.personal_min_checks` |
+
+Consecuencia para la demo: el segundo tripulante sale en ámbar a los 100 s y en **rojo a los 110 s**, cuando ya hay 3 lecturas de 156 lpm.
+
+## 4. Modo demo
 
 Arranca la API con la variable de entorno `SPACEHEALTH_DEMO=1`. Así el ámbar por inactividad salta a los 30 s en vez de a los 600 s, igual que el evento `inactivity` de la placa en la demo.
 
@@ -103,7 +116,7 @@ SPACEHEALTH_DEMO=1 uvicorn api.main:app --reload
 
 (El comando de `uvicorn` es un ejemplo; usa el tuyo.)
 
-## 4. Cómo probar la tendencia de 7 días
+## 5. Cómo probar la tendencia de 7 días
 
 La tendencia es una regresión lineal sobre los últimos 7 días del propio tripulante, proyectada 7 días hacia delante. Avisa si la recta cruza el siguiente umbral aunque hoy esté en verde. Hay tres formas de probarla, de menos a más integración.
 
@@ -148,9 +161,9 @@ python -m simulator.simulate --scenario worsening --history-days 7 \
 
 Primero manda la historia: los chequeos a `POST /api/v1/checks` y las flexiones a `POST /api/v1/events`, con fechas de los 7 días anteriores. Después manda telemetría cada 5 s a `POST /api/v1/telemetry`. Si tu API guarda el `ts` del mensaje y pasa 7 días al motor, la evaluación que emitas tendrá `trends` con `crosses_threshold_in_days` en tensión y flexiones. Si `trends` sale vacío, lo más probable es que estés guardando la hora de llegada en vez del `ts`, o pasando menos de 7 días.
 
-El escenario `demo` hace lo mismo y además recorre el guion de 2 minutos: ámbar por inactividad, flexiones, vuelta a verde y un segundo tripulante en rojo con `earth_summary`.
+El escenario `demo` hace lo mismo y además recorre el guion de 2 minutos: ámbar por inactividad, flexiones, vuelta a verde y un segundo tripulante en rojo con `earth_summary` (a los 110 s; ver sección 3).
 
-## 5. Respuestas de la API al simulador y a la placa
+## 6. Respuestas de la API al simulador y a la placa
 
 El simulador reacciona igual que el ESP32 (detalle en `contracts/README.md`):
 
@@ -169,7 +182,7 @@ Por eso, nunca respondas 422 a un campo `null`: los `null` son normales (sensor 
 |---|---|
 | `engine.py` | `evaluate()`: junta todo |
 | `indicators.py` | Nivel 0–3 de cada medida y modo demo |
-| `thresholds.json` | Umbrales; cada corte cita su fuente |
+| `thresholds.json` | Umbrales y reglas extra; cada corte cita su fuente |
 | `trends.py` | Regresión de 7 días |
 | `recommendations.py` | Contramedidas y avisos de tendencia |
 | `summary.py` | Resumen en inglés para Tierra |
