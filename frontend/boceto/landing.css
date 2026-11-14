@@ -1,4 +1,4 @@
-/* ArgosMed: estilos de la portada (index.html). La consola usa styles.css. */
+/* AstroMed: estilos de la portada (index.html). La consola usa styles.css. */
 :root {
   --bg: #05060a;
   --ink: #eef2f8;
@@ -42,6 +42,7 @@ h1, h2, h3, p, dl, dd { margin: 0; padding: 0; }
 }
 .nav.scrolled { background: rgba(8, 10, 16, .62); border-color: var(--line); backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%); }
 .brand { display: flex; align-items: center; gap: 10px; font: 400 17px var(--display); letter-spacing: -.01em; }
+.brand img { flex: none; }
 .brand b { font-weight: 700; }
 .nav-links { display: flex; gap: 26px; margin-left: auto; font-size: 14px; color: var(--dim); }
 .nav-links a { transition: color .2s; }

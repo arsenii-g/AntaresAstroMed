@@ -131,7 +131,7 @@ export function createPlanet(canvas, { horizon = 0.76, radius = (w) => Math.max(
     ctx.globalAlpha = 0.95;
     ctx.fillStyle = "#8fd8ff";
     ctx.font = '500 12.5px "JetBrains Mono", ui-monospace, monospace';
-    ctx.fillText("ARGOS-1", sx + 14, sy - 10);
+    ctx.fillText("ANTARES-1", sx + 14, sy - 10);
     ctx.globalAlpha = 1;
   });
 }

@@ -44,7 +44,7 @@ def count(client, model):
 
 def test_frontend_and_offline_clock_are_served_together(client):
     root = client.get("/")
-    assert root.status_code == 200 and "ArgosMed" in root.text
+    assert root.status_code == 200 and "AstroMed" in root.text
     assert root.headers["date"].endswith("GMT")
     assert client.get("/console.html").status_code == 200
     assert client.get("/js/app.js").status_code == 200
