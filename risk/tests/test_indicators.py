@@ -12,6 +12,7 @@ def test_umbrales_bien_formados(name, spec):
     assert spec["system"] in SYSTEMS
     for key in ("label", "unit", "code", "source"):
         assert spec[key], f"{name}: falta {key}"
+    assert "nasa_ref" in spec, f"{name}: falta nasa_ref (null si NASA no da límite)"
     for side in ("high", "low"):
         cuts = spec.get(side, [])
         assert len(cuts) == 3, f"{name}.{side} debe tener 3 cortes"
@@ -47,6 +48,11 @@ def test_umbrales_bien_formados(name, spec):
     ("mood", 2, 1),
     ("mood", 1, 2),
     ("still_for_s", 600, 1),
+    ("pushup_drop_pct", 5, 0),
+    ("pushup_drop_pct", 15, 1),
+    ("pushup_drop_pct", 20, 1),       # NASA [V1 4024]: 80 % de la basal aún cumple
+    ("pushup_drop_pct", 25, 2),       # por debajo del 80 %: incumple
+    ("pushup_drop_pct", 45, 3),
     ("humidity_pct", 68, 0),
     ("humidity_pct", 72, 1),
     ("humidity_pct", 80, 2),          # NASA-STD-3001: fuera de 25–75 %
@@ -82,3 +88,8 @@ def test_sin_dato_no_es_verde():
     r = level_for("heart_rate_bpm", None)
     assert r.level is None
     assert r.reason == "Pulso: sin dato"
+
+
+def test_indicadores_con_limite_de_nasa():
+    con_nasa = {k for k, v in load_thresholds().items() if v["nasa_ref"]}
+    assert con_nasa == {"cabin_temp_c", "humidity_pct", "pushup_drop_pct"}
