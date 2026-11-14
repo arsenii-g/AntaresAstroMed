@@ -15,7 +15,8 @@ Escenarios (los nombres antiguos sano, empeora y sin-datos siguen valiendo):
     demo      sigue el guion de la demo (guía, sección 10) en 2 minutos:
               ficha el tripulante, se queda quieto hasta dar ámbar por
               inactividad, hace flexiones y vuelve a verde, y a los 100 s
-              ficha un segundo tripulante con el pulso en rojo. Activa
+              ficha un segundo tripulante con el pulso alto: ámbar al
+              principio y rojo a los 110 s, con 3 lecturas seguidas. Activa
               SPACEHEALTH_DEMO=1 (inactividad a 30 s).
 
 Con --history-days N genera antes N días de chequeos manuales y series de

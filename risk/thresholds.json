@@ -8,7 +8,8 @@
     "Guia = 'SpaceHealth: guia del equipo (NASA Space Apps 2026)'. 'Criterio propio' = valor de demo sin fuente externa.",
     "nasa_ref: requisito de NASA que fija el corte, o null si NASA no publica un limite numerico para ese indicador.",
     "demo: cortes que sustituyen a los normales si la variable de entorno SPACEHEALTH_DEMO vale 1.",
-    "label y unit van en inglés: el motor escribe sus motivos en inglés (decisión del equipo, 14/11/2026)."
+    "label y unit van en inglés: el motor escribe sus motivos en inglés (decisión del equipo, 14/11/2026).",
+    "rules_source: reglas extra del motor para ese indicador (lecturas sostenidas, recuperación tras ejercicio, media personal) y de dónde salen."
   ],
   "indicators": {
     "heart_rate_bpm": {
@@ -27,7 +28,10 @@
         40
       ],
       "source": "Nivel 1 alto: AHA, pulso normal en reposo 60-100 y taquicardia por encima de 100 (https://www.heart.org/en/health-topics/arrhythmia/about-arrhythmia/tachycardia--fast-heart-rate). Nivel 2 (120 y 45): guia. Resto: criterio propio.",
-      "nasa_ref": null
+      "nasa_ref": null,
+      "sustain_readings": 3,
+      "exercise_recovery_s": 300,
+      "rules_source": "sustain_readings: el nivel 2 o 3 necesita 3 lecturas seguidas (15 s) en ese nivel, porque la fotorresistencia es ruidosa (notas del electrónico). exercise_recovery_s: durante 5 min tras una serie de flexiones, o con activity 'moving', el pulso alto baja un nivel (mínimo ámbar), porque subir el pulso con el ejercicio es normal. Ambos: criterio propio."
     },
     "body_temp_c": {
       "label": "Body temperature",
@@ -64,7 +68,8 @@
         null
       ],
       "source": "AHA/ACC: elevada 120-129, hipertension estadio 2 desde 140, grave por encima de 180 (181 con inclusive equivale a 'mas de 180' en mmHg enteros) (https://www.heart.org/en/health-topics/high-blood-pressure/understanding-blood-pressure-readings). Nivel 2 tambien en la guia.",
-      "nasa_ref": null
+      "nasa_ref": null,
+      "rules_source": "El nivel 2 necesita dos medidas seguidas de nivel 2 o más (guía: 'escalar con 140/90 en dos medidas'). La anterior puede ser de cualquier día de los últimos 7; la última tiene que ser de las últimas 24 h. Ventana de 7 días: criterio propio."
     },
     "diastolic_mmhg": {
       "label": "Diastolic blood pressure",
@@ -83,7 +88,8 @@
         null
       ],
       "source": "AHA/ACC: estadio 1 desde 80, estadio 2 desde 90, grave por encima de 120 (121 con inclusive equivale a 'mas de 120') (https://www.heart.org/en/health-topics/high-blood-pressure/understanding-blood-pressure-readings). Nivel 2 tambien en la guia.",
-      "nasa_ref": null
+      "nasa_ref": null,
+      "rules_source": "El nivel 2 necesita dos medidas seguidas de nivel 2 o más (guía: 'escalar con 140/90 en dos medidas'). La anterior puede ser de cualquier día de los últimos 7; la última tiene que ser de las últimas 24 h. Ventana de 7 días: criterio propio."
     },
     "glucose_mg_dl": {
       "label": "Glucose",
@@ -119,7 +125,10 @@
         null
       ],
       "source": "Criterio propio sobre la escala de la guia (1 muy mal a 5 muy bien). Es el unico indicador neuro: no hay test de reaccion. Justificacion del sistema: NASA HRP, peligro de aislamiento y confinamiento (https://www.nasa.gov/hrp/hazards/).",
-      "nasa_ref": null
+      "nasa_ref": null,
+      "personal_drop": 2,
+      "personal_min_checks": 3,
+      "rules_source": "personal_drop: ámbar si el ánimo de hoy está 2 puntos o más por debajo de la media del propio tripulante en los 7 días anteriores, con al menos 3 chequeos previos; se suma a los cortes fijos. Criterio propio."
     },
     "pushup_drop_pct": {
       "label": "Push-up drop vs. own average",
