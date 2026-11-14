@@ -26,13 +26,13 @@ Todo de **un solo `crew_id`**, como dicts con el mismo JSON que llegó a la API.
 
 ### Cuándo llamarlo
 
-Cada vez que guardes un mensaje de un tripulante con `crew_id`: telemetría (cada 5 s), un evento o un chequeo manual. Si el `crew_id` llega `null` (nadie ha pasado la tarjeta), guarda el mensaje pero no llames al motor.
+Cada vez que guardes un mensaje de un tripulante con `crew_id`: telemetría (cada 2 s en la placa actual), un evento o un chequeo manual. Si el `crew_id` llega `null` (nadie ha pasado la tarjeta), guarda el mensaje pero no llames al motor.
 
 ### Cuánto historial
 
 | Lista | Ventana | Por qué |
 |---|---|---|
-| `telemetry` | Último minuto (unos 12 mensajes) | El motor descarta la telemetría de más de 60 s: un pulso de hace 10 minutos ya no vale. Mandar más no rompe nada, solo es más lento |
+| `telemetry` | Último minuto (unos 30 mensajes de la placa actual) | El motor descarta la telemetría de más de 60 s: un pulso de hace 10 minutos ya no vale. Mandar más no rompe nada, solo es más lento |
 | `events` | Últimos 7 días | Las flexiones se comparan con la media del propio tripulante en 7 días, y salen en la tendencia |
 | `manual_checks` | Últimos 7 días | El nivel de hoy usa los chequeos de las últimas 24 h; la tendencia, los de 7 días |
 
@@ -104,7 +104,7 @@ Además de los umbrales de `thresholds.json`, el motor aplica estas reglas. No c
 
 | Regla | Qué hace | Por qué | Ajuste |
 |---|---|---|---|
-| **Pulso y temperatura sostenidos** | Naranja o rojo solo si las **3 últimas lecturas** (15 s) están en ese nivel o peor. Mientras no, cualquier lectura alta da **ámbar, nunca verde**: `(not sustained yet: 1 of 3 readings)`. Lecturas altas y bajas mezcladas dan ámbar con `(inconsistent readings; check the sensor)` | La fotorresistencia es ruidosa y el termistor se puede soltar. Son 3 y no 2 porque el firmware calcula cada pulso con 10 s de señal y manda cada 5 s, así que un fallo puede salir en dos lecturas seguidas: un pico suelto no debe llamar a Tierra, pero un fallo del sensor tampoco debe esconder un problema real | `sustain_readings` en `heart_rate_bpm` y `body_temp_c` |
+| **Pulso y temperatura sostenidos** | Naranja o rojo solo si **al menos 3 lecturas consecutivas durante 10 s** están en ese nivel o peor. Mientras no, cualquier lectura alta da **ámbar, nunca verde**: `(not sustained yet: 1 of 3 readings)`. Lecturas altas y bajas mezcladas dan ámbar con `(inconsistent readings; check the sensor)` | La fotorresistencia es ruidosa y el termistor se puede soltar. El pulso usa ventanas de 10 s que se solapan. La placa actual manda cada 2 s: necesita al menos 6 lecturas para cubrir 10 s entre la primera y la última. El simulador manda cada 5 s y necesita 3: un pico suelto no debe llamar a Tierra, pero un fallo del sensor tampoco debe esconder un problema real | `sustain_readings` y `sustain_seconds` en `heart_rate_bpm` y `body_temp_c` |
 | **Pulso tras ejercicio** | Si el último mensaje dice `activity: "moving"`, o hubo una serie de flexiones en los últimos 5 min, el pulso alto en **naranja** baja a ámbar: `(after exercise; recheck at rest)`. El rojo (más de 150 lpm) y el pulso bajo no se rebajan | Subir el pulso con el esfuerzo es normal, pero más de 150 ya no se explica por unas flexiones | `heart_rate_bpm.exercise_recovery_s` |
 | **Temperatura de muñeca** | La temperatura **baja** da como mucho ámbar: `(wrist reading; confirm with a thermometer)`. La alta (fiebre) mantiene naranja y rojo | El termistor va en la muñeca, y la piel se enfría varios grados con el ambiente aunque el tripulante esté bien (white paper de Polar, citado en `thresholds.json`). Una muñeca fría pide un termómetro, no llamar a Tierra | `body_temp_c.low_max_level` |
 | **Serie del tripulante anterior** | Se ignora una serie de flexiones que llega hasta 3 s después de un `crew_checkin` `in` | Si se pasa una tarjeta con una serie a medias, la placa manda el resumen con el `crew_id` del que entra, pero las flexiones son del anterior y le bajarían la basal | Fijo, 3 s |

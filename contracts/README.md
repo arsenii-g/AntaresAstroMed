@@ -2,11 +2,16 @@
 
 Ejemplos JSON de lo que se manda entre las partes. Todas las fechas van en UTC (ISO 8601). Cambiar un contrato necesita un PR que aprueben quien produce el dato y quien lo usa.
 
+Los contratos ejecutables están en `contracts/schemas.py`, con pruebas contra todos
+los ejemplos. La API oficial y su conexión con la consola se describen en
+[`api/README.md`](../api/README.md). Los GET y el chequeo manual son públicos por
+decisión del equipo; la placa mantiene `X-API-Key` en telemetría y eventos.
+
 Fuente de este documento: guía del equipo y «SpaceHealth: formato JSON para el backend» del electrónico (14 de noviembre de 2026, versión definitiva sacada del firmware). Si algo no cuadra, manda el firmware.
 
 | Archivo | Contrato | Endpoint |
 |---|---|---|
-| `telemetry.example.json` | ① Telemetría normal | `POST /api/v1/telemetry`, cada 5 s |
+| `telemetry.example.json` | ① Telemetría normal | `POST /api/v1/telemetry`, cada 2 s en la placa actual; 5 s en el simulador |
 | `telemetry-no-data.example.json` | ① Telemetría sin tripulante y con el DHT11 fallando | igual |
 | `event.example.json` | ① Evento `exercise_summary` | `POST /api/v1/events`, al ocurrir |
 | `event-crew_checkin.example.json` | ① Evento `crew_checkin` | igual |

@@ -24,10 +24,10 @@ def earth_summary(crew_id, ts, overall_level, systems, results: list[IndicatorRe
         return None
     thresholds = load_thresholds()
     lines = [
-        "SPACEHEALTH MEDICAL SUMMARY",
+        "ARGOSMED MEDICAL SUMMARY",
         f"Crew member: {crew_id or 'unknown'}",
         f"Time (UTC): {ts}",
-        f"Overall level: 3 (red). Onboard medical officer notified; Earth consultation requested.",
+        "Overall level: 3 (red). Notify the onboard medical officer and request Earth consultation.",
         "",
         "Systems:",
     ]
