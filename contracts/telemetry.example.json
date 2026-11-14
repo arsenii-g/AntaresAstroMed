@@ -1,0 +1,25 @@
+{
+  "device_id": "esp32-01",
+  "ts": "2026-11-14T10:30:05Z",
+  "met_s": 18245,
+  "crew_id": "04A1B2C3",
+  "vitals": {
+    "heart_rate_bpm": 72,
+    "hr_quality": 0.85,
+    "resp_rate_bpm": 14,
+    "body_temp_c": 36.7
+  },
+  "motion": {
+    "activity": "still",
+    "still_for_s": 120,
+    "sleep_state": "awake"
+  },
+  "cabin": {
+    "temp_c": 23.0,
+    "humidity_pct": 45,
+    "dew_point_c": 10.4,
+    "heat_index_c": 23.0,
+    "condensation_risk": "low"
+  },
+  "alerts": []
+}
