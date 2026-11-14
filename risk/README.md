@@ -78,8 +78,11 @@ Dos detalles:
     "environment": { "level": 1, "reasons": ["Cabin humidity 72%, above 60%"] }
   },
   "trends": [
-    { "indicator": "pushup_reps", "projected_7d": 14, "crosses_threshold_in_days": 4,
-      "threshold": 16.2, "threshold_level": 2, "slope_per_day": -0.6 }
+    { "indicator": "glucose_mg_dl", "label": "Glucose", "unit": "mg/dL",
+      "basis": "count", "x_unit": "check",
+      "points": [[-6, 80], [-5, 83], [-4, 86], [-3, 89], [-2, 92], [-1, 95], [0, 98]],
+      "slope": 3.0, "intercept": 98.0, "horizon": 7, "projected": 119.0,
+      "threshold": 99, "threshold_level": 1, "crosses_in": 0.3 }
   ],
   "recommendations": ["...", "..."],
   "earth_summary": null
@@ -91,8 +94,8 @@ Dos detalles:
 | `overall_level` | El peor de los 4 sistemas: 0 verde, 1 ámbar, 2 naranja, 3 rojo | **Puede ser `null`** si no hay ningún dato |
 | `systems.*.level` | Nivel de cada sistema | **Puede ser `null`**: la web lo pinta gris, "no data", nunca verde |
 | `systems.*.reasons` | Motivos **en inglés**, primero los más graves y luego los "no data" | |
-| `trends` | Proyección a 7 días de `systolic_mmhg`, `diastolic_mmhg`, `glucose_mg_dl`, `mood` y `pushup_reps` | Solo aparecen los que tienen al menos 3 medidas en al menos 1 día |
-| `trends[].crosses_threshold_in_days` | Días hasta cruzar el siguiente umbral | `null` si no lo cruza en 7 días |
+| `trends` | Una recta por indicador: chequeo, flexiones y sensor (sección 5) | Solo aparecen los que tienen **al menos 7 medidas** |
+| `trends[].crosses_in` | Medidas (`basis: "count"`) o segundos (`"time"`) hasta cruzar el siguiente umbral | `null` si no lo cruza dentro del horizonte |
 | `recommendations` | **En inglés**: primero la acción del nivel, luego las contramedidas y los avisos de tendencia | |
 | `earth_summary` | Texto en inglés listo para mandar a los médicos en Tierra | Solo en nivel 3; si no, `null` |
 
@@ -125,52 +128,32 @@ SPACEHEALTH_DEMO=1 uvicorn api.main:app --reload
 
 (El comando de `uvicorn` es un ejemplo; usa el tuyo.)
 
-## 5. Cómo probar la tendencia de 7 días
+## 5. Rectas de tendencia
 
-La tendencia es una regresión lineal sobre los últimos 7 días del propio tripulante, proyectada 7 días hacia delante. Avisa si la recta cruza el siguiente umbral aunque hoy esté en verde. Hay tres formas de probarla, de menos a más integración.
+Cada tendencia es una recta de mínimos cuadrados sobre las medidas reales del propio tripulante, proyectada hacia delante. Avisa si la recta cruza el siguiente umbral aunque hoy esté en verde. La recta y los puntos van en la evaluación, así que la web los dibuja tal cual, sin recalcular nada.
 
-### a) Tests del motor, sin nada más
+| Datos | Eje x (`basis`) | Ventana | Proyección (`horizon`) |
+|---|---|---|---|
+| Chequeo manual: tensión, glucosa, ánimo | Por chequeo (`count`, `check`): el último es 0, el anterior −1… | Últimos 7 días | 7 chequeos más |
+| Flexiones (`exercise_summary`) | Por serie (`count`, `set`) | Últimos 7 días | 7 series más |
+| Sensor: pulso, temperatura corporal, cabina, humedad | Segundos respecto a ahora (`time`, `s`) | Último minuto (unas 30 lecturas) | 60 s |
 
-```bash
-.venv/bin/pytest -q risk/tests/test_trends.py
-```
+Criterio propio:
 
-Comprueban, entre otras cosas, que una glucosa que sube 3 mg/dl al día avisa antes de salir de verde, que valores estables no avisan, y que con menos de 3 medidas no hay tendencia.
+- **Hacen falta 7 medidas.** Con el séptimo chequeo aparece la recta; con 7 lecturas del sensor (14 s), la del sensor.
+- **Chequeos y series van por medida, no por día.** En uso real se hace un chequeo al día, así que 7 chequeos son una semana. En la demo se pueden meter 7 chequeos en unos minutos y la recta sale igual de bien; por días, todos caerían en el mismo día y la pendiente se dispararía.
+- **Solo se vigila el umbral hacia el que empeora.** Si el valor está en una franja alta y la recta baja (o en una baja y sube), se está recuperando: `threshold` es `null`.
+- **Temperatura corporal baja:** solo se vigila el ámbar, porque el motor no la sube de ámbar (sección 3).
+- **Flexiones:** el umbral en repeticiones es la basal (media de las series anteriores a la última) menos el porcentaje de caída de cada nivel.
 
-### b) Simulador contra el motor en local, sin API
-
-`--history-days 7` genera antes una semana de chequeos (08:00) y series de flexiones (18:00). Con `healthy` son estables; con `worsening` y `demo`, la tensión, la glucosa y el ánimo empeoran y las flexiones caen.
-
-```bash
-.venv/bin/python -m simulator.simulate --scenario healthy --fast --evaluate --count 1 --history-days 7
-.venv/bin/python -m simulator.simulate --scenario worsening --fast --evaluate --count 1 --history-days 7
-```
-
-El primero no da ninguna tendencia; el segundo, algo así:
-
-```
-t=   0s  F3786E09 hr=75 temp=36.8 ... → overall=1 cardio=0 neuro=— muscle=1 cabin=0
-        recommends: Review the strength training plan
-        trend: systolic_mmhg crosses 140 in 5.7 days
-        trend: pushup_reps crosses 14.8 in 0.8 days
-```
-
-Sin `--evaluate` imprime los JSON que mandaría, para verlos o guardarlos en un archivo:
+### Probarlas
 
 ```bash
-.venv/bin/python -m simulator.simulate --scenario worsening --fast --count 1 --history-days 7 > historia.jsonl
+python -m pytest -q risk/tests/test_trends.py
+python -m simulator.simulate --mode normal --evaluate --fast --count 150
 ```
 
-### c) Simulador contra tu API
-
-```bash
-python -m simulator.simulate --scenario worsening --history-days 7 \
-    --url http://localhost:8000 --api-key demo
-```
-
-Primero manda la historia: los chequeos a `POST /api/v1/checks` y las flexiones a `POST /api/v1/events`, con fechas de los 7 días anteriores. Después manda telemetría cada 5 s a `POST /api/v1/telemetry`. Si tu API guarda el `ts` del mensaje y pasa 7 días al motor, la evaluación que emitas tendrá `trends` con `crosses_threshold_in_days` en tensión y flexiones. Si `trends` sale vacío, lo más probable es que estés guardando la hora de llegada en vez del `ts`, o pasando menos de 7 días.
-
-El escenario `demo` hace lo mismo y además recorre el guion de 2 minutos: ámbar por inactividad, flexiones, vuelta a verde y un segundo tripulante en rojo con `earth_summary` (a los 110 s; ver sección 3).
+Las pruebas comprueban, entre otras cosas, que 7 chequeos seguidos dan la misma recta que 7 chequeos en 7 días, que con 6 medidas no hay recta y que un pulso que sube 1 lpm/s avisa de que cruzará 120 lpm en 12 s. El modo `normal` del simulador hace subir y bajar los niveles en rampa, y las rectas del sensor lo detectan. Ver [`simulator/README.md`](../simulator/README.md).
 
 ## 6. Respuestas de la API al simulador y a la placa
 
@@ -192,7 +175,7 @@ Por eso, nunca respondas 422 a un campo `null`: los `null` son normales (sensor 
 | `engine.py` | `evaluate()`: junta todo |
 | `indicators.py` | Nivel 0–3 de cada medida y modo demo |
 | `thresholds.json` | Umbrales y reglas extra; cada corte cita su fuente |
-| `trends.py` | Regresión de 7 días |
+| `trends.py` | Rectas de tendencia (sección 5) |
 | `recommendations.py` | Contramedidas y avisos de tendencia |
 | `summary.py` | Resumen en inglés para Tierra |
 | `tests/` | `pytest -q` desde la raíz del repo |

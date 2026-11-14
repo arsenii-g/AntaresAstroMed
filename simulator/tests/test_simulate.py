@@ -1,65 +1,149 @@
 import json
 import random
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
+import pytest
+
+from contracts.schemas import EventPayload, TelemetryPayload
 from risk import evaluate
 from simulator.simulate import (
-    Sender, dew_point_c, heat_index_c, make_events, make_telemetry,
+    ANCHORS, CONFIG_PATH, Device, Sender, Severity, build_devices, condensation_risk,
+    dew_point_c, drop_level, heat_index_c, interpolate, load_config, next_reps,
 )
 
-CONTRACTS = Path(__file__).resolve().parents[2] / "contracts"
-TS = datetime(2026, 11, 14, 10, 30, 5, tzinfo=timezone.utc)
+START = datetime(2026, 11, 14, 10, 0, 0, tzinfo=timezone.utc)
 
 
-def keys(d):
-    return {k: keys(v) if isinstance(v, dict) else None for k, v in d.items()}
+def config(levels, mode="fixed", **extra):
+    return {"mode": mode, "interval_s": 2, "pushup_every_s": 20, "normal": {"seed": 1},
+            "crew": [{"crew_id": c, "device_id": f"esp32-sim-{i + 1}", "level": lv}
+                     for i, (c, lv) in enumerate(levels.items())], **extra}
 
 
-def test_telemetria_con_la_forma_del_contrato():
-    example = json.loads((CONTRACTS / "telemetry.example.json").read_text(encoding="utf-8"))
-    for scenario in ("healthy", "worsening", "no-data"):
-        msg = make_telemetry(scenario, 3, TS, random.Random(1))
-        assert keys(msg) == keys(example)
-        assert msg["vitals"]["resp_rate_bpm"] is None
+def run(device: Device, seconds: int):
+    """Telemetría y eventos de `seconds` segundos, con su ts."""
+    telemetry, events = [], [device.checkin(START)]
+    for tick in range(seconds // device.interval_s):
+        evs, tel = device.tick(START + timedelta(seconds=2 + tick * device.interval_s))
+        telemetry.append(tel)
+        events.extend(evs)
+    return telemetry, events
 
 
-def test_humedad_entera_y_hr_quality_numero():
-    msg = make_telemetry("healthy", 0, TS, random.Random(1))
-    assert isinstance(msg["cabin"]["humidity_pct"], int)
-    assert isinstance(msg["vitals"]["hr_quality"], float)
+def levels_at_end(device: Device, seconds: int = 240):
+    telemetry, events = run(device, seconds)
+    now = START + timedelta(seconds=2 + seconds - device.interval_s)
+    return evaluate(telemetry[-30:], events, [], now)
 
 
-def test_sin_datos_llega_todo_null():
-    msg = make_telemetry("no-data", 0, TS, random.Random(1))
-    assert msg["crew_id"] is None
-    assert msg["vitals"]["hr_quality"] == 0
-    assert all(v is None for v in msg["cabin"].values())
+# --- forma de los mensajes ---------------------------------------------------------
+
+def test_config_por_defecto_tiene_dos_tripulantes_del_kit():
+    cfg = load_config(CONFIG_PATH)
+    assert [c["crew_id"] for c in cfg["crew"]] == ["F3786E09", "336F8312"]
+    assert cfg["mode"] in ("fixed", "normal") and cfg["interval_s"] == 2
+    assert len({c["device_id"] for c in cfg["crew"]}) == 2
 
 
-def test_solo_los_tres_tipos_de_evento():
-    rng = random.Random(1)
-    types = {e["type"] for t in range(100) for e in make_events("worsening", t, TS, rng)}
-    assert types <= {"crew_checkin", "inactivity", "exercise_summary"}
+def test_mensajes_pasan_los_contratos_de_la_api():
+    device = build_devices(config({"F3786E09": 3}))[0]
+    telemetry, events = run(device, 60)
+    for msg in telemetry:
+        TelemetryPayload.model_validate(msg)
+        assert isinstance(msg["cabin"]["humidity_pct"], int) and msg["vitals"]["resp_rate_bpm"] is None
+        assert (msg["motion"]["activity"] == "moving") == (msg["motion"]["still_for_s"] == 0)
+        assert msg["motion"]["still_for_s"] == 0 or msg["motion"]["still_for_s"] >= 3
+    for ev in events:
+        EventPayload.model_validate(ev)
+    assert {e["type"] for e in events} == {"crew_checkin", "exercise_summary"}
+    assert len({(m["device_id"], m["ts"]) for m in telemetry}) == len(telemetry)   # nunca un ts repetido
 
 
 def test_formulas_de_cabina():
-    assert abs(dew_point_c(23.0, 45) - 10.4) <= 0.2       # valor del contrato
-    assert heat_index_c(23.0, 45) == 23.0                  # por debajo de 80 °F
-    assert abs(heat_index_c(32.2, 60) - 37.8) <= 0.5       # tabla de NOAA: 90 °F y 60 % = 100 °F (37,8 °C)
+    assert dew_point_c(23, 45) == 10.4
+    assert heat_index_c(22.5, 45) == 22.5
+    assert condensation_risk(1.5) == "high" and condensation_risk(5) == "medium" and condensation_risk(6) == "low"
 
 
-def test_sano_sale_verde_y_empeora_llega_a_rojo():
-    def last_level(scenario):
-        from datetime import timedelta
-        rng, tel = random.Random(1), []
-        for t in range(70):
-            tel.append(make_telemetry(scenario, t, TS + timedelta(seconds=5 * t), rng))
-        return evaluate(tel[-12:], [], [], TS + timedelta(seconds=5 * 69))["overall_level"]
-    assert last_level("healthy") == 0
-    assert last_level("worsening") == 3
+def test_primera_serie_no_cae_en_los_3_s_del_fichaje():
+    device = build_devices(config({"F3786E09": 0}))[0]
+    _, events = run(device, 20)
+    first = next(e for e in events if e["type"] == "exercise_summary")
+    assert datetime.fromisoformat(first["ts"].replace("Z", "+00:00")) - START > timedelta(seconds=4)
+
+
+# --- niveles fijos -------------------------------------------------------------------
+
+@pytest.mark.parametrize("level", [0, 1, 2, 3])
+def test_nivel_fijo_da_ese_nivel_en_cada_sistema(level):
+    result = levels_at_end(build_devices(config({"F3786E09": level}))[0])
+    for system in ("cardiovascular", "musculoskeletal", "environment"):
+        assert result["systems"][system]["level"] == level, (system, result["systems"][system])
+    assert result["systems"]["neuro"]["level"] is None             # solo con chequeo manual
+    assert result["overall_level"] == level
+
+
+def test_nivel_por_sistema():
+    result = levels_at_end(build_devices(config({"F3786E09": {"cardiovascular": 3, "environment": 1}}))[0])
+    levels = {k: v["level"] for k, v in result["systems"].items()}
+    assert levels == {"cardiovascular": 3, "neuro": None, "musculoskeletal": 0, "environment": 1}
+
+
+def test_nivel_fijo_no_da_avisos_de_tendencia_falsos():
+    for level in (0, 1, 2):
+        result = levels_at_end(build_devices(config({"F3786E09": level}))[0])
+        assert not [t for t in result["trends"] if t["basis"] == "time" and t["crosses_in"] is not None]
+
+
+def test_nivel_invalido_se_rechaza():
+    with pytest.raises(ValueError):
+        build_devices(config({"F3786E09": 4}))
+    with pytest.raises(ValueError):
+        build_devices(config({"F3786E09": 1}, mode="random"))
+
+
+def test_override_de_nivel_y_modo_desde_la_linea_de_comandos(tmp_path):
+    path = tmp_path / "c.json"
+    path.write_text(json.dumps(config({"F3786E09": 0, "336F8312": 0})))
+    args = type("A", (), {"mode": "normal", "level": ["336F8312=3"], "url": None, "api_key": None})()
+    cfg = load_config(path, args)
+    assert cfg["mode"] == "normal" and cfg["crew"][1]["level"] == 3 and cfg["crew"][0]["level"] == 0
+
+
+def test_flexiones_mantienen_la_caida_del_nivel_frente_a_su_media():
+    for level, drop in enumerate(ANCHORS["drop"]):
+        reps, rng = [], random.Random(level)
+        for _ in range(15):
+            reps.append(next_reps(reps, drop, rng))
+        for i in range(3, len(reps)):                               # tras las 3 series de basal
+            baseline = sum(reps[:i]) / i
+            assert drop_level(max(0, (baseline - reps[i]) / baseline * 100)) == level, (level, reps)
+
+
+# --- modo normal ---------------------------------------------------------------------
+
+def test_modo_normal_recorre_niveles_y_las_rectas_lo_ven():
+    device = build_devices(config({"F3786E09": 0}, mode="normal"))[0]
+    telemetry, events = run(device, 600)
+    seen, crossing = set(), set()
+    for i in range(30, len(telemetry), 5):
+        now = START + timedelta(seconds=2 + i * 2)
+        result = evaluate(telemetry[i - 29:i + 1], [e for e in events if e["ts"] <= telemetry[i]["ts"]], [], now)
+        seen.add(result["overall_level"])
+        crossing |= {t["indicator"] for t in result["trends"] if t["crosses_in"] is not None}
+    assert {0, 1, 2, 3} <= seen
+    assert {"heart_rate_bpm", "cabin_temp_c"} <= crossing
+
+
+def test_severidad_va_en_rampa_hacia_su_objetivo():
+    sev = Severity(0, "normal", random.Random(3), {"change_every_s": [1, 1], "ramp_s_per_level": 10,
+                                                   "level_weights": [0, 0, 0, 1]})
+    values = [sev.step(2) for _ in range(20)]
+    assert values[-1] == 3 and all(b >= a for a, b in zip(values, values[1:]))
+    assert interpolate((0, 10, 20, 30), 1.5) == 15
 
 
 # --- reintentos como el ESP32 -------------------------------------------------------
@@ -124,59 +208,6 @@ def test_sin_api_guarda_la_cola():
     assert len(sender.queue) == 1
 
 
-# --- escenario demo e historia ----------------------------------------------------
-
-from risk.indicators import load_thresholds
-from simulator.simulate import (
-    DEMO_CREW_B, DEMO_PUSHUP_TICK, DEMO_SWITCH_TICK, demo_crew, make_history,
-)
-
-
-def run_demo(monkeypatch):
-    """Evalúa cada envío del guion como lo haría la API, por crew_id."""
-    monkeypatch.setenv("SPACEHEALTH_DEMO", "1")
-    from datetime import timedelta
-    rng, tel, ev, out = random.Random(1), [], [], {}
-    for t in range(24):
-        ts = TS + timedelta(seconds=5 * t)
-        tel.append(make_telemetry("demo", t, ts, rng))
-        ev.extend(make_events("demo", t, ts, rng))
-        crew = demo_crew(t)
-        if crew:
-            mine = lambda msgs: [m for m in msgs if m.get("crew_id") == crew]
-            out[t] = evaluate(mine(tel[-20:]), mine(ev), [], ts)
-    return out, ev
-
-
-def test_guion_de_la_demo(monkeypatch):
-    out, events = run_demo(monkeypatch)
-    still_amber = [t for t, r in out.items() if "Do a set of push-ups or move for a few minutes" in r["recommendations"]]
-    assert still_amber and max(still_amber) < DEMO_PUSHUP_TICK          # ámbar antes de las flexiones
-    assert out[DEMO_PUSHUP_TICK]["overall_level"] == 0                     # y verde justo después
-    assert out[DEMO_SWITCH_TICK]["crew_id"] == DEMO_CREW_B
-    assert out[DEMO_SWITCH_TICK]["overall_level"] == 1                     # pulso aún no sostenido
-    assert out[DEMO_SWITCH_TICK + 2]["overall_level"] == 3                 # 3 lecturas: rojo
-    assert out[DEMO_SWITCH_TICK + 2]["earth_summary"].startswith("ASTROMED MEDICAL SUMMARY")
-    kinds = [(e["type"], e["data"].get("action")) for e in events]
-    assert ("inactivity", None) in kinds
-    assert kinds.count(("crew_checkin", "in")) == 2 and ("crew_checkin", "out") in kinds
-
-
-def test_historia_de_una_semana_da_tendencias():
-    checks, events = make_history("worsening", 7, TS, random.Random(1))
-    assert len(checks) == 7 and len(events) == 7
-    assert all(m["ts"] < "2026-11-14T10:30:05Z" for m in checks + events)    # todo es anterior a TS
-    result = evaluate([], events, checks, TS)
-    crossing = {t["indicator"] for t in result["trends"] if t["crosses_threshold_in_days"] is not None}
-    assert {"systolic_mmhg", "pushup_reps"} <= crossing
-
-
-def test_historia_sana_no_cruza_nada():
-    checks, events = make_history("healthy", 7, TS, random.Random(1))
-    result = evaluate([], events, checks, TS)
-    assert result["trends"] and all(t["crosses_threshold_in_days"] is None for t in result["trends"])
-
-
 def test_408_429_3xx_y_ok_false_se_reintentan_como_en_el_esp32():
     server, seen = serve([429, 408, 301, (200, b'{"ok": false}'), (200, b'{"ok": true}')])
     try:
@@ -190,16 +221,3 @@ def test_408_429_3xx_y_ok_false_se_reintentan_como_en_el_esp32():
     assert sender.stats == {"sent": 1, "duplicate": 0, "dropped": 0, "retries": 4}
 
 
-def test_quieto_siempre_con_3_s_o_mas():
-    rng = random.Random(1)
-    for scenario in ("healthy", "worsening", "no-data", "demo"):
-        for t in range(40):
-            m = make_telemetry(scenario, t, TS, rng)["motion"]
-            if m["activity"] == "moving":
-                assert m["still_for_s"] == 0
-            else:
-                assert m["still_for_s"] >= 3
-
-
-def test_segundo_tripulante_es_la_tarjeta_del_kit():
-    assert DEMO_CREW_B == "336F8312"

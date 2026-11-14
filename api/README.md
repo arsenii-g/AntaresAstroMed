@@ -37,7 +37,7 @@ Un reintento del mismo mensaje también puede recuperar la evaluación pendiente
 | `POST /api/v1/events` | Eventos de la placa; requiere `X-API-Key` |
 | `POST /api/v1/checks` | Chequeo manual; sin API key por decisión del equipo |
 | `GET /api/v1/crew` | Lista de tarjetas conocidas y desconocidas guardadas, con nombre, rol y `assigned` |
-| `GET /api/v1/crew/active` | Último fichaje o estado de la placa, ordenado por `ts`, para recuperar el perfil al abrir la consola |
+| `GET /api/v1/crew/active` | Último fichaje RFID (`in` → ese tripulante, `out` → nadie); sin fichajes, el de la última telemetría. Con varias placas a la vez, la telemetría alternaría de tripulante cada 2 s |
 | `GET /api/v1/crew/{id}/latest` | Metadatos, última telemetría, evaluación recalculada a la hora actual y última serie de ejercicio |
 | `GET /api/v1/crew/{id}/telemetry?from=&to=&limit=` | Últimas lecturas del intervalo, devueltas cronológicamente |
 | `GET /api/v1/crew/{id}/checks?from=&to=&limit=` | Chequeos del intervalo para dibujar las medidas reales |

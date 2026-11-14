@@ -142,7 +142,9 @@ def create_app(database_url=None, api_key=None):
         tel = db.scalar(select(TelemetryModel).order_by(TelemetryModel.ts.desc(), TelemetryModel.id.desc()).limit(1))
         event = db.scalar(select(EventModel).where(EventModel.type == "crew_checkin")
                           .order_by(EventModel.ts.desc(), EventModel.id.desc()).limit(1))
-        if event and (not tel or event.ts >= tel.ts):
+        # The last RFID check-in wins. With several devices sending at once, the
+        # newest telemetry alternates between crew members every 2 s.
+        if event:
             active = event.crew_id if event.payload_data.get("data", {}).get("action") == "in" else None
             ts = event.ts
         else:
