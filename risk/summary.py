@@ -24,7 +24,7 @@ def earth_summary(crew_id, ts, overall_level, systems, results: list[IndicatorRe
         return None
     thresholds = load_thresholds()
     lines = [
-        "ARGOSMED MEDICAL SUMMARY",
+        "ASTROMED MEDICAL SUMMARY",
         f"Crew member: {crew_id or 'unknown'}",
         f"Time (UTC): {ts}",
         "Overall level: 3 (red). Notify the onboard medical officer and request Earth consultation.",
@@ -43,12 +43,14 @@ def earth_summary(crew_id, ts, overall_level, systems, results: list[IndicatorRe
     if missing:
         lines += ["", "No data: " + ", ".join(missing)]
 
-    crossing = [t for t in trends if t.crosses_threshold_in_days is not None]
+    crossing = [t for t in trends if t.crosses_in is not None]
     if crossing:
-        lines += ["", "7-day trends:"]
+        lines += ["", "Trends (least-squares line over the crew member's own readings):"]
         for t in crossing:
-            lines.append(f"- {t.label}: projected {with_unit(t.projected_7d, t.unit)} in 7 days; "
-                         f"crosses {with_unit(t.threshold, t.unit)} in {_fmt(t.crosses_threshold_in_days)} days")
+            step = "s" if t.basis == "time" else f" {t.x_unit}s"
+            lines.append(f"- {t.label}: {len(t.points)} readings; projected {with_unit(t.projected, t.unit)} "
+                         f"in {_fmt(t.horizon)}{step}; crosses {with_unit(t.threshold, t.unit)} "
+                         f"in {_fmt(t.crosses_in)}{step}")
 
     actions = []
     for r in flagged:

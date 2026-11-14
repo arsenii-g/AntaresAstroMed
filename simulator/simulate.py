@@ -1,33 +1,25 @@
-"""Simulador del ESP32: genera telemetría ① y eventos ① como los manda la placa.
+"""Simulador de dos ESP32 (uno por tripulante) para el vídeo.
 
-Sirve para probar la API, el motor y el frontend sin hardware.
+Cada placa simulada manda lo mismo que la real, con el mismo formato y la
+misma lógica de reintentos: crew_checkin al empezar, telemetría cada 2 s y
+una serie de flexiones (exercise_summary) cada pushup_every_s. La API guarda
+los mensajes, llama al motor de riesgos y avisa a la web por WebSocket.
+
+El chequeo manual (tensión, glucosa y ánimo) NO se simula: se mete a mano en
+la web. Por eso el sistema neuro sale "No data" hasta el primer chequeo.
+
+Configuración: simulator/config.json (ver simulator/README.md).
+    mode "fixed":  cada tripulante se queda en el nivel que pongas (0 a 3),
+                   para todos los sistemas o uno por sistema.
+    mode "normal": el nivel de cada sistema va cambiando solo, con rampas
+                   suaves entre niveles; las rectas de tendencia lo detectan.
 
 Uso:
-    python -m simulator.simulate                        # JSON por pantalla, cada 5 s
-    python -m simulator.simulate --scenario worsening --fast --evaluate
-    python -m simulator.simulate --url http://localhost:8000 --api-key demo
-
-Escenarios (los nombres antiguos sano, empeora y sin-datos siguen valiendo):
-    healthy   constantes normales, cabina en rango.
-    worsening en 5 minutos sube el pulso, la temperatura corporal y la cabina
-              se calienta y humedece, hasta pasar por ámbar, naranja y rojo.
-    no-data   sin tripulante fichado y el DHT11 fallando: todo llega null.
-    demo      sigue el guion de la demo (guía, sección 10) en 2 minutos:
-              ficha el tripulante, se queda quieto hasta dar ámbar por
-              inactividad, hace flexiones y vuelve a verde, y a los 100 s
-              ficha un segundo tripulante con el pulso alto: ámbar al
-              principio y rojo a los 110 s, con 3 lecturas seguidas. Activa
-              SPACEHEALTH_DEMO=1 (inactividad a 30 s).
-
-Con --history-days N genera antes N días de chequeos manuales y series de
-flexiones (healthy: estables; worsening y demo: van a peor) para que se vean las
-tendencias a 7 días.
-
-Con --url se comporta como el ESP32 ante las respuestas de la API
-(contracts/README.md y el documento del firmware): 2xx y 409 dan el mensaje
-por enviado; 2xx con {"ok": false}, 408, 429, 3xx, 5xx o sin respuesta en 4 s
-reintentan a 1, 2, 4… s hasta 30 s; cualquier otro 4xx lo descarta. Hasta 50
-mensajes en cola.
+    python -m simulator.simulate                         # manda a la API del config
+    python -m simulator.simulate --mode normal
+    python -m simulator.simulate --level F3786E09=1 --level 336F8312=3
+    python -m simulator.simulate --print --count 3        # JSON por pantalla, sin API
+    python -m simulator.simulate --evaluate --fast --count 60   # motor local, sin API
 
 Solo usa la biblioteca estándar.
 """
@@ -38,50 +30,56 @@ import argparse
 import http.client
 import json
 import math
-import os
 import random
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import deque
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
-DEVICE_ID = "esp32-sim"
-CREW_ID = "F3786E09"
-INTERVAL_S = 5            # la placa manda telemetría cada 5 s
-WORSEN_TICKS = 60         # "worsening" llega al peor punto en 60 envíos (5 min)
-PUSHUP_EVERY = 24         # una serie de flexiones cada 2 min
+CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
 MAX_QUEUE = 50
 MAX_BACKOFF_S = 30
+SYSTEMS = ("cardiovascular", "musculoskeletal", "environment")   # neuro: solo chequeo manual
 
-SCENARIOS = ("healthy", "worsening", "no-data", "demo")
-# Nombres antiguos en español, para que los comandos viejos sigan funcionando.
-ALIASES = {"sano": "healthy", "empeora": "worsening", "sin-datos": "no-data"}
+# Valor de cada medida en cada nivel (0, 1, 2, 3). Están en el centro de cada
+# franja de risk/thresholds.json, para que el ruido no cambie de nivel.
+#   cardiovascular: el nivel 2 sale de la temperatura (fiebre, 38-39,5 °C),
+#   porque el motor rebaja a ámbar un pulso naranja tras hacer flexiones.
+#   environment: temperatura de cabina; la humedad se queda en 30-60 %.
+#   musculoskeletal: caída de flexiones frente a la media propia (10, 20 y 40 %).
+ANCHORS = {
+    "hr": (72, 108, 114, 160),
+    "body": (36.7, 37.7, 38.6, 39.8),
+    "cabin": (22.5, 26.0, 29.0, 33.5),
+    "rh": (45, 52, 55, 50),
+    "drop": (0.0, 0.15, 0.30, 0.50),
+}
+NOISE = {"hr": 3, "body": 0.05, "cabin": 0.15, "rh": 1}
+DROP_CUTS = (10, 20, 40)      # pushup_drop_pct en risk/thresholds.json
+FIRST_SET_REPS = 20
+BASELINE_SETS = 3             # las 3 primeras series son las de siempre: su basal
+MOVE_EVERY_S = 12             # se mueve cada 12 s: nunca llega a la inactividad de 30 s
 
-# Guion de la demo, en envíos de 5 s (criterio propio, ajustado a la sección 10 de la guía).
-DEMO_CREW_B = "336F8312"     # segunda tarjeta del kit
-DEMO_CHECKIN_TICK = 3        # 15 s: "Identificación"
-DEMO_PUSHUP_TICK = 15        # 75 s: "Contramedida verificada"
-DEMO_MOVING_TICKS = 4        # se mueve 20 s tras las flexiones
-DEMO_SWITCH_TICK = 20        # 100 s: "Escalado", segundo perfil en rojo
-DEMO_INACTIVITY_S = 30       # threshold_s del evento inactivity en la demo
 
-
-# --- física de la cabina ------------------------------------------------------
+# --- física de la cabina (las mismas fórmulas que el firmware) -----------------
 
 def dew_point_c(temp_c: float, humidity_pct: float) -> float:
     """Punto de rocío con la fórmula de Magnus (a = 17,62; b = 243,12 °C)."""
     a, b = 17.62, 243.12
-    gamma = math.log(humidity_pct / 100) + a * temp_c / (b + temp_c)
+    gamma = math.log(max(humidity_pct, 1) / 100) + a * temp_c / (b + temp_c)
     return round(b * gamma / (a - gamma), 1)
 
 
 def heat_index_c(temp_c: float, humidity_pct: float) -> float:
-    """Índice de calor de NOAA (ecuación de Rothfusz). Por debajo de 26,7 °C
-    (80 °F) NOAA no la aplica y el índice se da igual a la temperatura."""
+    """Índice de calor de NOAA (Rothfusz). Por debajo de 26,7 °C (80 °F) o de
+    40 % de humedad es igual a la temperatura, como en el firmware."""
     t = temp_c * 9 / 5 + 32
-    if t < 80:
+    if t < 80 or humidity_pct < 40:
         return round(temp_c, 1)
     rh = humidity_pct
     hi = (-42.379 + 2.04901523 * t + 10.14333127 * rh - 0.22475541 * t * rh
@@ -93,186 +91,14 @@ def heat_index_c(temp_c: float, humidity_pct: float) -> float:
 def condensation_risk(margin_c: float) -> str:
     if margin_c < 2:
         return "high"
-    if margin_c < 5:
+    if margin_c <= 5:
         return "medium"
     return "low"
 
 
-# --- escenarios ------------------------------------------------------------------
-
-def _ramp(tick: int, start: float, end: float) -> float:
-    k = min(1.0, tick / WORSEN_TICKS)
-    return start + (end - start) * k
-
-
-def scenario_values(scenario: str, tick: int, rng: random.Random) -> dict:
-    """Valores "reales" del instante tick para un escenario."""
-    if scenario == "healthy":
-        return {
-            "hr": 72 + rng.uniform(-4, 4),
-            "body": 36.7 + rng.uniform(-0.1, 0.1),
-            "cabin": 23.0 + rng.uniform(-0.2, 0.2),
-            "rh": 45 + rng.uniform(-2, 2),
-        }
-    if scenario == "worsening":
-        return {
-            "hr": _ramp(tick, 75, 155) + rng.uniform(-2, 2),
-            "body": _ramp(tick, 36.8, 39.7) + rng.uniform(-0.05, 0.05),
-            "cabin": _ramp(tick, 23.0, 30.0) + rng.uniform(-0.1, 0.1),
-            "rh": _ramp(tick, 45, 78) + rng.uniform(-1, 1),
-        }
-    if scenario == "demo":
-        crew_b = tick >= DEMO_SWITCH_TICK
-        return {
-            "hr": (156 if crew_b else 72) + rng.uniform(-2, 2),
-            "body": (37.0 if crew_b else 36.7) + rng.uniform(-0.05, 0.05),
-            "cabin": 23.0 + rng.uniform(-0.2, 0.2),
-            "rh": 45 + rng.uniform(-2, 2),
-        }
-    raise ValueError(f"unknown scenario: {scenario}")
-
-
-def demo_crew(tick: int) -> str | None:
-    if tick < DEMO_CHECKIN_TICK:
-        return None
-    return DEMO_CREW_B if tick >= DEMO_SWITCH_TICK else CREW_ID
-
-
-def motion(still_s: int) -> dict:
-    """Como el firmware: "moving" (y 0 s) si el interruptor se movió en los
-    últimos 3 s; si no, "still" con 3 s o más."""
-    if still_s < 3:
-        return {"activity": "moving", "still_for_s": 0}
-    return {"activity": "still", "still_for_s": still_s}
-
-
-def demo_motion(tick: int) -> dict:
-    """Se mueve hasta fichar (pasar la tarjeta cuenta como movimiento), quieto
-    después; flexiones y 20 s moviéndose; luego quieto otra vez."""
-    if tick <= DEMO_CHECKIN_TICK:
-        return motion(0)
-    after = DEMO_PUSHUP_TICK + DEMO_MOVING_TICKS
-    if DEMO_PUSHUP_TICK <= tick < after:
-        return motion(0)
-    since = after if tick >= after else DEMO_CHECKIN_TICK
-    return motion((tick - since) * INTERVAL_S)
-
-
-def make_telemetry(scenario: str, tick: int, ts: datetime, rng: random.Random) -> dict:
-    """Un mensaje ① de telemetría con los mismos nulls que manda la placa."""
-    base = {
-        "device_id": DEVICE_ID,
-        "ts": _iso(ts),
-        "met_s": tick * INTERVAL_S,
-        "crew_id": None,
-        "vitals": {"heart_rate_bpm": None, "hr_quality": 0, "resp_rate_bpm": None, "body_temp_c": None},
-        "motion": motion(tick * INTERVAL_S),
-        "cabin": {k: None for k in ("temp_c", "humidity_pct", "dew_point_c", "heat_index_c", "condensation_risk")},
-        "alerts": [],
-    }
-    if scenario == "no-data":
-        return base
-
-    v = scenario_values(scenario, tick, rng)
-    moving = tick % PUSHUP_EVERY == 0 and tick > 0
-    temp = round(v["cabin"], 1)
-    rh = int(round(v["rh"]))                       # el DHT11 da enteros
-    dew = dew_point_c(temp, rh)
-    hi = heat_index_c(temp, rh)
-    quality = round(rng.uniform(0.6, 0.95), 2)
-    body = round(v["body"], 1)
-
-    base["crew_id"] = demo_crew(tick) if scenario == "demo" else CREW_ID
-    base["vitals"] = {
-        "heart_rate_bpm": int(round(v["hr"])) if quality >= 0.4 else None,
-        "hr_quality": quality,
-        "resp_rate_bpm": None,                      # nunca se mide
-        "body_temp_c": body if 30 <= body <= 45 else None,
-    }
-    if scenario == "demo":
-        base["motion"] = demo_motion(tick)
-    else:
-        base["motion"] = motion(0 if moving else (tick % PUSHUP_EVERY) * INTERVAL_S)
-    base["cabin"] = {"temp_c": temp, "humidity_pct": rh, "dew_point_c": dew,
-                     "heat_index_c": hi, "condensation_risk": condensation_risk(temp - dew)}
-    base["alerts"] = _local_alerts(base)
-    return base
-
-
-def make_events(scenario: str, tick: int, ts: datetime, rng: random.Random) -> list[dict]:
-    """crew_checkin al empezar y una serie de flexiones cada PUSHUP_EVERY envíos.
-    En "worsening" cada serie sale con menos repeticiones."""
-    if scenario == "no-data":
-        return []
-    if scenario == "demo":
-        return demo_events(tick, ts)
-    events = []
-    if tick == 0:
-        events.append(_event(ts, "crew_checkin", "info", {"action": "in"}))
-    if tick > 0 and tick % PUSHUP_EVERY == 0:
-        series = tick // PUSHUP_EVERY
-        reps = 20 + rng.randint(-1, 1) if scenario == "healthy" else max(4, 20 - 5 * (series - 1))
-        events.append(_event(ts, "exercise_summary", "info", {
-            "exercise": "pushup", "reps": reps,
-            "duration_s": reps * 2, "cadence_rpm": 30.0,
-        }))
-    return events
-
-
-def demo_events(tick: int, ts: datetime) -> list[dict]:
-    events = []
-    if tick == DEMO_CHECKIN_TICK:
-        events.append(_event(ts, "crew_checkin", "info", {"action": "in"}))
-    still = demo_motion(tick)["still_for_s"]
-    previous = demo_motion(tick - 1)["still_for_s"] if tick else 0
-    if demo_crew(tick) and previous < DEMO_INACTIVITY_S <= still:
-        events.append(_event(ts, "inactivity", "medium",
-                             {"still_for_s": still, "threshold_s": DEMO_INACTIVITY_S}, demo_crew(tick)))
-    if tick == DEMO_PUSHUP_TICK:
-        events.append(_event(ts, "exercise_summary", "info",
-                             {"exercise": "pushup", "reps": 20, "duration_s": 40, "cadence_rpm": 30.0}))
-    if tick == DEMO_SWITCH_TICK:
-        # Al cambiar de tarjeta: out del anterior y in del nuevo 1 s más tarde.
-        events.append(_event(ts, "crew_checkin", "info", {"action": "out"}, CREW_ID))
-        events.append(_event(ts + timedelta(seconds=1), "crew_checkin", "info", {"action": "in"}, DEMO_CREW_B))
-    return events
-
-
-def make_history(scenario: str, days: int, start: datetime, rng: random.Random) -> tuple[list[dict], list[dict]]:
-    """Días anteriores a start: un chequeo manual a las 08:00 y una serie de
-    flexiones a las 18:00. En "healthy" todo es estable; en "worsening" y "demo"
-    la glucosa, la tensión y el ánimo empeoran y las flexiones caen."""
-    checks, events = [], []
-    worse = scenario in ("worsening", "demo")
-    if scenario == "no-data":
-        return checks, events
-    for d in range(days, 0, -1):
-        day = (start - timedelta(days=d)).replace(hour=8, minute=0, second=0)
-        k = (days - d) / max(1, days - 1)            # 0 el primer día, 1 el último
-        checks.append({
-            "crew_id": CREW_ID, "ts": _iso(day),
-            "blood_pressure": {
-                "systolic": int(round((112 + 14 * k if worse else 115) + rng.uniform(-2, 2))),
-                "diastolic": int(round((72 + 6 * k if worse else 75) + rng.uniform(-2, 2))),
-            },
-            "glucose_mg_dl": int(round((86 + 12 * k if worse else 90) + rng.uniform(-2, 2))),
-            "mood": int(round(4 - 1.0 * k)) if worse else 4,
-        })
-        reps = int(round((20 - 4 * k if worse else 20) + rng.uniform(-0.5, 0.5)))
-        events.append(_event(day.replace(hour=18), "exercise_summary", "info",
-                             {"exercise": "pushup", "reps": reps, "duration_s": reps * 2, "cadence_rpm": 30.0}))
-    return checks, events
-
-
-def _event(ts: datetime, kind: str, severity: str, data: dict, crew_id: str | None = CREW_ID) -> dict:
-    return {"device_id": DEVICE_ID, "ts": _iso(ts), "crew_id": crew_id,
-            "type": kind, "severity": severity, "data": data}
-
-
-def _local_alerts(msg: dict) -> list[str]:
-    """Alertas que levanta la placa por su cuenta, con los umbrales de
-    firmware/uno_sensores/config.h y en el mismo orden fijo. No son los
-    niveles del motor."""
+def local_alerts(msg: dict) -> list[str]:
+    """Alertas de la placa, con los umbrales de firmware/uno_sensores/config.h
+    y en el mismo orden fijo. No son los niveles del motor."""
     v, c, out = msg["vitals"], msg["cabin"], []
     hr, body = v["heart_rate_bpm"], v["body_temp_c"]
     if hr is not None and hr > 120:
@@ -294,10 +120,168 @@ def _local_alerts(msg: dict) -> list[str]:
     return out
 
 
-# --- envío a la API ----------------------------------------------------------------
+# --- niveles ---------------------------------------------------------------------
+
+def interpolate(anchors: tuple, severity: float) -> float:
+    """Valor para un nivel continuo (1,5 = a medio camino entre ámbar y naranja)."""
+    s = min(3.0, max(0.0, severity))
+    i = min(2, int(s))
+    return anchors[i] + (anchors[i + 1] - anchors[i]) * (s - i)
+
+
+class Severity:
+    """Nivel de un sistema a lo largo del tiempo.
+
+    fixed:  siempre el mismo.
+    normal: cada change_every_s elige un nivel nuevo (con level_weights) y va
+            hacia él a ramp_s_per_level segundos por nivel.
+    """
+
+    def __init__(self, level: float, mode: str = "fixed", rng: random.Random | None = None,
+                 normal: dict | None = None):
+        self.mode = mode
+        self.value = float(level)
+        self.target = float(level)
+        self.rng = rng or random.Random(0)
+        self.normal = {"change_every_s": [40, 90], "ramp_s_per_level": 20,
+                       "level_weights": [0.4, 0.3, 0.2, 0.1], **(normal or {})}
+        self.next_change = self._wait()
+
+    def _wait(self) -> float:
+        lo, hi = self.normal["change_every_s"]
+        return self.rng.uniform(lo, hi)
+
+    def step(self, dt: float) -> float:
+        if self.mode != "normal":
+            return self.value
+        self.next_change -= dt
+        if self.next_change <= 0:
+            self.target = float(self.rng.choices(range(4), weights=self.normal["level_weights"])[0])
+            self.next_change = self._wait()
+        rate = dt / max(1e-9, self.normal["ramp_s_per_level"])
+        if self.value < self.target:
+            self.value = min(self.target, self.value + rate)
+        elif self.value > self.target:
+            self.value = max(self.target, self.value - rate)
+        return self.value
+
+
+def drop_level(drop_pct: float) -> int:
+    return sum(1 for cut in DROP_CUTS if drop_pct > cut)
+
+
+def next_reps(previous: list[int], drop: float, rng: random.Random) -> int:
+    """Repeticiones de la serie siguiente para que el motor vea la caída
+    `drop` frente a la media de las series anteriores (su basal)."""
+    if len(previous) < BASELINE_SETS:
+        return FIRST_SET_REPS + (rng.choice((-1, 0, 1)) if previous else 0)
+    baseline = sum(previous) / len(previous)
+    if drop <= 0.05:
+        # Nivel 0: oscila alrededor de su número de siempre, sin ir a la deriva.
+        usual = round(sorted(previous)[len(previous) // 2])
+        return max(1, usual + rng.choice((-1, 0, 0, 0, 1)))
+    target = baseline * (1 - drop)
+    want = drop_level(drop * 100)
+    candidates = sorted({max(1, math.floor(target)), max(1, math.ceil(target))})
+    same = [r for r in candidates if drop_level((baseline - r) / baseline * 100) == want]
+    return min(same or candidates, key=lambda r: abs((baseline - r) / baseline - drop))
+
+
+# --- una placa simulada ------------------------------------------------------------
+
+@dataclass
+class Device:
+    crew_id: str
+    device_id: str
+    levels: dict                       # sistema -> Severity
+    rng: random.Random
+    interval_s: float = 2
+    pushup_every_s: float = 20
+    reps: list = field(default_factory=list)
+    elapsed: float = 0.0
+    last_move: float = 0.0
+    next_pushup: float = 6.0           # el motor ignora las series de los 3 s siguientes a un fichaje
+
+    def checkin(self, ts: datetime, action: str = "in") -> dict:
+        return self._event(ts, "crew_checkin", "info", {"action": action})
+
+    def tick(self, ts: datetime) -> tuple[list[dict], dict]:
+        """Eventos y telemetría de este instante; luego avanza interval_s."""
+        s = {name: sev.step(self.interval_s if self.elapsed else 0) for name, sev in self.levels.items()}
+        events = []
+        if self.elapsed >= self.next_pushup:
+            reps = next_reps(self.reps, interpolate(ANCHORS["drop"], s["musculoskeletal"]), self.rng)
+            self.reps.append(reps)
+            duration = max(1, round(reps * 2.0))
+            events.append(self._event(ts, "exercise_summary", "info", {
+                "exercise": "pushup", "reps": reps, "duration_s": duration,
+                "cadence_rpm": round(reps * 60 / duration, 1)}))
+            self.next_pushup += self.pushup_every_s
+            self.last_move = self.elapsed
+        elif self.elapsed - self.last_move >= MOVE_EVERY_S:
+            self.last_move = self.elapsed
+
+        telemetry = self._telemetry(ts, s)
+        self.elapsed += self.interval_s
+        return events, telemetry
+
+    def _telemetry(self, ts: datetime, s: dict) -> dict:
+        noisy = lambda key, sev: interpolate(ANCHORS[key], sev) + self.rng.uniform(-NOISE[key], NOISE[key])
+        hr = int(round(noisy("hr", s["cardiovascular"])))
+        body = round(noisy("body", s["cardiovascular"]), 1)
+        temp = round(noisy("cabin", s["environment"]), 1)
+        rh = int(round(noisy("rh", s["environment"])))                      # el DHT11 da enteros
+        dew = dew_point_c(temp, rh)
+        still = self.elapsed - self.last_move
+        msg = {
+            "device_id": self.device_id,
+            "ts": iso(ts),
+            "met_s": int(self.elapsed),
+            "crew_id": self.crew_id,
+            "vitals": {"heart_rate_bpm": max(35, min(200, hr)), "hr_quality": round(self.rng.uniform(0.7, 0.95), 2),
+                       "resp_rate_bpm": None, "body_temp_c": body if 30 <= body <= 45 else None},
+            "motion": {"activity": "moving", "still_for_s": 0} if still < 3
+                      else {"activity": "still", "still_for_s": int(still)},
+            "cabin": {"temp_c": temp, "humidity_pct": rh, "dew_point_c": dew,
+                      "heat_index_c": heat_index_c(temp, rh), "condensation_risk": condensation_risk(temp - dew)},
+            "alerts": [],
+        }
+        msg["alerts"] = local_alerts(msg)
+        return msg
+
+    def _event(self, ts: datetime, kind: str, severity: str, data: dict) -> dict:
+        return {"device_id": self.device_id, "ts": iso(ts), "crew_id": self.crew_id,
+                "type": kind, "severity": severity, "data": data}
+
+
+def build_devices(config: dict) -> list[Device]:
+    mode = config.get("mode", "fixed")
+    if mode not in ("fixed", "normal"):
+        raise ValueError(f'mode must be "fixed" or "normal", not {mode!r}')
+    normal = config.get("normal", {})
+    seed = normal.get("seed", 1)
+    devices = []
+    for i, crew in enumerate(config["crew"]):
+        rng = random.Random(f"{seed}-{crew['crew_id']}")
+        level = crew.get("level", 0)
+        per_system = level if isinstance(level, dict) else {name: level for name in SYSTEMS}
+        for name in SYSTEMS:
+            value = per_system.get(name, 0)
+            if value not in (0, 1, 2, 3):
+                raise ValueError(f"{crew['crew_id']}: level of {name} must be 0, 1, 2 or 3, not {value!r}")
+        levels = {name: Severity(per_system.get(name, 0), mode, random.Random(f"{seed}-{crew['crew_id']}-{name}"), normal)
+                  for name in SYSTEMS}
+        devices.append(Device(crew["crew_id"], crew.get("device_id", f"esp32-sim-{i + 1}"), levels, rng,
+                              config.get("interval_s", 2), config.get("pushup_every_s", 20)))
+    return devices
+
+
+# --- envío a la API (misma lógica que el ESP32) --------------------------------------
 
 class Sender:
-    """Cola de envío con la misma lógica de reintentos que el ESP32."""
+    """Cola de envío con la misma lógica de reintentos que el ESP32: 2xx y 409
+    dan el mensaje por enviado; 2xx con {"ok": false}, 408, 429, 3xx, 5xx o sin
+    respuesta en 4 s reintentan a 1, 2, 4… s hasta 30 s; otro 4xx lo descarta."""
 
     def __init__(self, url: str, api_key: str | None, timeout: float = 4.0, sleep=time.sleep):
         self.url = url.rstrip("/")
@@ -311,12 +295,9 @@ class Sender:
         self.queue.append((path, body))
 
     def flush(self, deadline_s: float = MAX_BACKOFF_S) -> None:
-        """Envía en orden. Si un 5xx persiste más de deadline_s, deja la cola
-        para el siguiente ciclo, como hace la placa."""
         while self.queue:
             path, body = self.queue[0]
-            status = self._post_with_backoff(path, body, deadline_s)
-            if status is None:
+            if self._post_with_backoff(path, body, deadline_s) is None:
                 return
             self.queue.popleft()
 
@@ -342,9 +323,6 @@ class Sender:
             wait = min(wait * 2, MAX_BACKOFF_S)
 
     def _post(self, path: str, body: dict) -> int | None:
-        """Código de la respuesta, o None si hay que reintentar por tiempo
-        agotado o sin conexión. Igual que el ESP32: no sigue redirecciones
-        (un 3xx se reintenta) y un 2xx con {"ok": false} cuenta como fallo."""
         req = urllib.request.Request(
             self.url + path, data=json.dumps(body).encode(), method="POST",
             headers={"Content-Type": "application/json",
@@ -362,103 +340,135 @@ class Sender:
         except ValueError:
             reply = None
         if isinstance(reply, dict) and "ok" in reply and reply["ok"] is not True:
-            return 500          # el ESP32 lo reintenta
+            return 500
         return status
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
-        return None             # el 3xx llega como HTTPError y se reintenta
+        return None
 
 
 _NO_REDIRECTS = urllib.request.build_opener(_NoRedirect)
 
 
-# --- bucle principal -----------------------------------------------------------------
+def previous_sets(url: str, crew_id: str, now: datetime) -> list[int]:
+    """Series de flexiones que la API ya tiene de los últimos 7 días. El motor
+    las usa como basal, así que el simulador también, para que la caída sea
+    la del nivel elegido aunque se arranque varias veces seguidas."""
+    query = urllib.parse.urlencode({"crew_id": crew_id, "type": "exercise_summary",
+                                    "from": iso(now - timedelta(days=7))})
+    try:
+        with urllib.request.urlopen(f"{url.rstrip('/')}/api/v1/events?{query}", timeout=4) as resp:
+            rows = json.loads(resp.read())
+    except (urllib.error.URLError, http.client.HTTPException, TimeoutError, ConnectionError, ValueError):
+        return []
+    return [r["data"]["reps"] for r in rows if isinstance(r.get("data", {}).get("reps"), int)]
+
+
+# --- bucle principal -------------------------------------------------------------------
+
+def load_config(path: str | Path = CONFIG_PATH, overrides: argparse.Namespace | None = None) -> dict:
+    config = json.loads(Path(path).read_text(encoding="utf-8"))
+    if overrides is None:
+        return config
+    if overrides.mode:
+        config["mode"] = overrides.mode
+    for item in overrides.level or []:
+        crew_id, _, value = item.partition("=")
+        crew = next((c for c in config["crew"] if c["crew_id"] == crew_id), None)
+        if crew is None or not value.isdigit():
+            sys.exit(f"--level needs CREW_ID=LEVEL with a crew_id from the config, not {item!r}")
+        crew["level"] = int(value)
+    if overrides.url:
+        config["api_url"] = overrides.url
+    if overrides.api_key:
+        config["api_key"] = overrides.api_key
+    return config
+
 
 def run(args: argparse.Namespace) -> None:
-    if args.scenario == "demo":
-        os.environ["SPACEHEALTH_DEMO"] = "1"
-    rng = random.Random(args.seed)
+    config = load_config(args.config, args)
+    devices = build_devices(config)
+    interval = config.get("interval_s", 2)
+    offline = args.print or args.evaluate
+    sender = None if offline else Sender(config["api_url"], config.get("api_key"))
     start = datetime.now(timezone.utc).replace(microsecond=0)
-    if args.fast and args.url:
-        # Con --fast los ts avanzan 5 s por envío sin esperar. Contra una API real
-        # acabarían en el futuro y el motor los descarta: se empieza en el pasado.
-        if args.count is None:
-            sys.exit("--fast with --url needs --count")
-        start -= timedelta(seconds=args.count * INTERVAL_S)
-    sender = Sender(args.url, args.api_key) if args.url else None
-    checks, history_e = make_history(args.scenario, args.history_days, start, rng)
-    history_t: list[dict] = []
+    if args.fast and args.count:
+        start -= timedelta(seconds=args.count * interval)
+    local = {d.crew_id: {"telemetry": [], "events": []} for d in devices}
 
-    # La historia sale primero: chequeos a /checks (los manda la web, no la placa).
-    for msg in checks:
-        _emit(sender, args, "/api/v1/checks", msg)
-    for msg in history_e:
-        _emit(sender, args, "/api/v1/events", msg)
+    if sender:
+        for d in devices:
+            d.reps = previous_sets(config["api_url"], d.crew_id, start)
+    print(f"[sim] mode={config.get('mode', 'fixed')} → "
+          + ("print" if args.print else "local engine" if args.evaluate else config["api_url"]), file=sys.stderr)
+    for d in devices:
+        print(f"[sim] {d.crew_id} ({d.device_id}): " + ", ".join(
+            f"{k}={v.value:g}" for k, v in d.levels.items()) + " · neuro: manual check", file=sys.stderr)
+
+    def emit(path, msg, crew_id):
+        if sender:
+            sender.push(path, msg)
+        elif args.print:
+            print(json.dumps(msg, ensure_ascii=False), flush=True)
+        else:
+            local[crew_id]["events" if path.endswith("events") else "telemetry"].append(msg)
+
+    # Fichaje: uno tras otro, 1 s de diferencia. La web sigue al último.
+    for i, d in enumerate(devices):
+        emit("/api/v1/events", d.checkin(start + timedelta(seconds=i)), d.crew_id)
     if sender:
         sender.flush()
 
     tick = 0
-    last_crew = None
-    while args.count is None or tick < args.count:
-        ts = start + timedelta(seconds=tick * INTERVAL_S) if args.fast else datetime.now(timezone.utc).replace(microsecond=0)
-        telemetry = make_telemetry(args.scenario, tick, ts, rng)
-        events = make_events(args.scenario, tick, ts, rng)
-
-        for ev in events:
-            _emit(sender, args, "/api/v1/events", ev)
-        _emit(sender, args, "/api/v1/telemetry", telemetry)
+    clock0 = time.monotonic()
+    try:
+        while args.count is None or tick < args.count:
+            # Con --fast, después de los fichajes (uno por segundo).
+            now = (start + timedelta(seconds=len(devices) + tick * interval) if args.fast
+                   else datetime.now(timezone.utc).replace(microsecond=0))
+            for d in devices:
+                events, telemetry = d.tick(now)
+                for ev in events:
+                    emit("/api/v1/events", ev, d.crew_id)
+                emit("/api/v1/telemetry", telemetry, d.crew_id)
+            if sender:
+                sender.flush()
+            if args.evaluate:
+                for d in devices:
+                    print(summary_line(d, local[d.crew_id], now), flush=True)
+            tick += 1
+            if not args.fast and (args.count is None or tick < args.count):
+                # Ritmo fijo, como la placa: el tiempo de envío no retrasa el siguiente.
+                time.sleep(max(0.0, clock0 + tick * interval - time.monotonic()))
+    except KeyboardInterrupt:
+        pass
+    finally:
         if sender:
-            sender.flush()
-
-        if args.evaluate:
-            history_t.append(telemetry)
-            history_e.extend(events)
-            crew = telemetry["crew_id"]
-            print(_summary(tick, telemetry, history_t, history_e, checks, ts, crew != last_crew), flush=True)
-            last_crew = crew
-
-        tick += 1
-        if not args.fast and (args.count is None or tick < args.count):
-            time.sleep(INTERVAL_S)
-
-    if sender:
-        print(f"[sim] {sender.stats}", file=sys.stderr)
+            ts = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(seconds=1)
+            for d in devices:
+                sender.push("/api/v1/events", d.checkin(ts, "out"))
+            sender.flush(deadline_s=4)
+            print(f"\n[sim] {sender.stats}", file=sys.stderr)
 
 
-def _emit(sender, args, path, msg) -> None:
-    if sender:
-        sender.push(path, msg)
-    elif not args.evaluate:
-        print(json.dumps(msg, ensure_ascii=False), flush=True)
-
-
-def _summary(tick, telemetry, history_t, history_e, checks, now, show_trends) -> str:
-    """Una línea con los niveles, como los recibiría la web. La API pasa al
-    motor solo los mensajes de un crew_id, así que aquí se filtra igual."""
+def summary_line(device: Device, history: dict, now: datetime) -> str:
+    """Niveles que daría el motor con lo enviado, como los vería la web."""
     from risk import evaluate   # import tardío: el simulador no depende del motor
 
-    crew = telemetry["crew_id"]
-    if crew is None:
-        return f"t={tick * INTERVAL_S:>4}s no crew checked in: the API does not call the engine without crew_id"
-    mine = lambda msgs: [m for m in msgs if m.get("crew_id") == crew]
-    result = evaluate(mine(history_t[-20:]), mine(history_e), mine(checks), now)
+    recent = [m for m in history["telemetry"] if now - parse(m["ts"]) <= timedelta(seconds=60)]
+    result = evaluate(recent, history["events"], [], now)
+    t = history["telemetry"][-1]
     names = {"cardiovascular": "cardio", "neuro": "neuro", "musculoskeletal": "muscle", "environment": "cabin"}
     levels = " ".join(f"{names[k]}={_lvl(s['level'])}" for k, s in result["systems"].items())
-    v, c = telemetry["vitals"], telemetry["cabin"]
-    line = (f"t={tick * INTERVAL_S:>4}s {crew:>9} hr={v['heart_rate_bpm']} "
-            f"temp={v['body_temp_c']} still={telemetry['motion']['still_for_s']}s "
-            f"cabin={c['temp_c']}°C/{c['humidity_pct']}% → overall={_lvl(result['overall_level'])} {levels}")
-    if result["recommendations"]:
-        line += f"\n        recommends: {result['recommendations'][0]}"
-    if show_trends:
-        for t in result["trends"]:
-            if t["crosses_threshold_in_days"] is not None:
-                line += (f"\n        trend: {t['indicator']} crosses {t['threshold']} "
-                         f"in {t['crosses_threshold_in_days']} days")
-    if result.get("earth_summary") and show_trends:
-        line += "\n" + "\n".join("        | " + l for l in result["earth_summary"].splitlines())
+    line = (f"{iso(now)[11:19]} {device.crew_id} hr={t['vitals']['heart_rate_bpm']} "
+            f"temp={t['vitals']['body_temp_c']} cabin={t['cabin']['temp_c']}°C/{t['cabin']['humidity_pct']}% "
+            f"reps={device.reps[-1] if device.reps else '—'} → overall={_lvl(result['overall_level'])} {levels}")
+    for tr in result["trends"]:
+        if tr["crosses_in"] is not None:
+            unit = "s" if tr["basis"] == "time" else f" {tr['x_unit']}s"
+            line += f"\n    trend: {tr['indicator']} reaches {tr['threshold']} in {tr['crosses_in']}{unit}"
     return line
 
 
@@ -466,27 +476,28 @@ def _lvl(level) -> str:
     return "—" if level is None else str(level)
 
 
-def _iso(moment: datetime) -> str:
+def iso(moment: datetime) -> str:
     return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def parse(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
 def parse_args(argv=None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="SpaceHealth ESP32 simulator")
-    p.add_argument("--scenario", choices=SCENARIOS + tuple(ALIASES), default="healthy")
-    p.add_argument("--count", type=int, default=None, help="number of sends (default: forever)")
-    p.add_argument("--fast", action="store_true", help="do not wait 5 s; timestamps still advance 5 s per send")
-    p.add_argument("--seed", type=int, default=1)
-    p.add_argument("--url", help="API base URL, e.g. http://localhost:8000")
-    p.add_argument("--api-key", help="sent in the X-API-Key header")
-    p.add_argument("--evaluate", action="store_true", help="run the data through the engine locally and print the levels")
-    p.add_argument("--history-days", type=int, default=0, help="days of past manual checks and push-up sets to send first (e.g. 7)")
-    args = p.parse_args(argv)
-    args.scenario = ALIASES.get(args.scenario, args.scenario)
-    return args
+    p = argparse.ArgumentParser(description="AstroMed: two simulated ESP32 boards")
+    p.add_argument("--config", default=str(CONFIG_PATH), help="config file (default: simulator/config.json)")
+    p.add_argument("--mode", choices=("fixed", "normal"), help="override the mode in the config")
+    p.add_argument("--level", action="append", metavar="CREW_ID=LEVEL",
+                   help="override one crew member's level (0-3) for every system; repeatable")
+    p.add_argument("--url", help="override api_url")
+    p.add_argument("--api-key", help="override api_key")
+    p.add_argument("--count", type=int, help="number of telemetry sends per board (default: until Ctrl+C)")
+    p.add_argument("--fast", action="store_true", help="do not wait; timestamps still advance interval_s")
+    p.add_argument("--print", action="store_true", help="print the JSON instead of sending it")
+    p.add_argument("--evaluate", action="store_true", help="run the local engine instead of the API and print levels")
+    return p.parse_args(argv)
 
 
 if __name__ == "__main__":
-    try:
-        run(parse_args())
-    except KeyboardInterrupt:
-        pass
+    run(parse_args())

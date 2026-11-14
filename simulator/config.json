@@ -1,0 +1,17 @@
+{
+  "api_url": "http://localhost:8000",
+  "api_key": "spacehealth-dev-key-2026",
+  "mode": "fixed",
+  "interval_s": 2,
+  "pushup_every_s": 20,
+  "crew": [
+    { "crew_id": "F3786E09", "device_id": "esp32-sim-1", "level": 0 },
+    { "crew_id": "336F8312", "device_id": "esp32-sim-2", "level": 2 }
+  ],
+  "normal": {
+    "seed": 1,
+    "change_every_s": [40, 90],
+    "ramp_s_per_level": 20,
+    "level_weights": [0.4, 0.3, 0.2, 0.1]
+  }
+}

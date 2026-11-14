@@ -224,8 +224,8 @@ def test_mismas_claves_que_el_ejemplo_del_contrato():
     result = evaluate([load("telemetry.example.json")], [], [load("check.example.json")], NOW)
     assert set(result) == set(example)
     assert set(example["trends"][0]) == {
-        "indicator", "projected_7d", "crosses_threshold_in_days",
-        "threshold", "threshold_level", "slope_per_day",
+        "indicator", "label", "unit", "basis", "x_unit", "points", "slope", "intercept",
+        "horizon", "projected", "threshold", "threshold_level", "crosses_in",
     }
 
 

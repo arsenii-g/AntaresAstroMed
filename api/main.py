@@ -1,4 +1,4 @@
-"""ArgosMed: firmware -> SQLite -> local rules engine -> browser."""
+"""AstroMed: firmware -> SQLite -> local rules engine -> browser."""
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -64,7 +64,7 @@ def create_app(database_url=None, api_key=None):
         finally:
             engine.dispose()
 
-    app = FastAPI(title="ArgosMed API", version="2026.2", lifespan=lifespan)
+    app = FastAPI(title="AstroMed API", version="2026.2", lifespan=lifespan)
     app.state.session_factory = sessionmaker(engine, expire_on_commit=False)
     app.state.api_key = api_key if api_key is not None else os.getenv("SPACEHEALTH_API_KEY", DEFAULT_API_KEY)
     app.state.manager = ConnectionManager()
@@ -142,7 +142,9 @@ def create_app(database_url=None, api_key=None):
         tel = db.scalar(select(TelemetryModel).order_by(TelemetryModel.ts.desc(), TelemetryModel.id.desc()).limit(1))
         event = db.scalar(select(EventModel).where(EventModel.type == "crew_checkin")
                           .order_by(EventModel.ts.desc(), EventModel.id.desc()).limit(1))
-        if event and (not tel or event.ts >= tel.ts):
+        # The last RFID check-in wins. With several devices sending at once, the
+        # newest telemetry alternates between crew members every 2 s.
+        if event:
             active = event.crew_id if event.payload_data.get("data", {}).get("action") == "in" else None
             ts = event.ts
         else:
@@ -198,7 +200,7 @@ def create_app(database_url=None, api_key=None):
 
     @app.get("/api/v1/status")
     def status():
-        return {"ok": True, "system": "ArgosMed", "server_time": now_utc(),
+        return {"ok": True, "system": "AstroMed", "server_time": now_utc(),
                 "demo_mode": os.getenv("SPACEHEALTH_DEMO") == "1"}
 
     frontend = ROOT / "frontend" / "boceto"
