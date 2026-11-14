@@ -273,3 +273,17 @@ def test_basura_no_lanza_excepciones():
 def test_now_sin_zona_horaria_es_un_error():
     with pytest.raises(ValueError, match="timezone-aware"):
         evaluate([], [], [], datetime(2026, 11, 14, 10, 30))
+
+
+def test_serie_del_tripulante_anterior_no_cuenta():
+    def ev(kind, seconds_ago, data):
+        e = copy.deepcopy(load("event.example.json"))
+        e["type"], e["data"] = kind, data
+        e["ts"] = (NOW - timedelta(seconds=seconds_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return e
+    usual = [ev("exercise_summary", 86400 * d, {"exercise": "pushup", "reps": 20}) for d in (3, 2, 1)]
+    swap = [ev("crew_checkin", 60, {"action": "in"}), ev("exercise_summary", 59, {"exercise": "pushup", "reps": 4})]
+    muscle = evaluate([], usual + swap, [check()], NOW)["systems"]["musculoskeletal"]
+    assert muscle["level"] == 0                          # las 4 flexiones eran del anterior
+    later = ev("exercise_summary", 10, {"exercise": "pushup", "reps": 4})
+    assert evaluate([], usual + swap + [later], [check()], NOW)["systems"]["musculoskeletal"]["level"] >= 2
