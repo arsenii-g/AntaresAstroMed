@@ -120,7 +120,7 @@ def _telemetry_indicators(telemetry: list[dict], events: list[dict], now: dateti
         "condensation_margin_c": margin,
     }
     # El dato más reciente que no sea None dentro de la ventana de 60 s.
-    return [_heart_rate(telemetry, events, now), _sustained(telemetry, "body_temp_c")] + [
+    return [_heart_rate(telemetry, events, now), _body_temp(telemetry)] + [
         level_for(name, _latest(telemetry, get)) for name, get in getters.items()
     ]
 
@@ -157,6 +157,19 @@ def _sustained(telemetry: list[dict], indicator: str) -> IndicatorResult:
         return restate(held, floor, f"sustained over {need} readings")
     high = sum(1 for r in window if r.level >= 2)
     return restate(worst, 1, f"not sustained yet: {high} of {need} readings")
+
+
+def _body_temp(telemetry: list[dict]) -> IndicatorResult:
+    """Temperatura corporal: lecturas sostenidas (_sustained) y, además, la
+    baja da como mucho low_max_level (ámbar). El termistor va en la muñeca, y
+    la piel se enfría con la cabina aunque el tripulante esté bien (Polar,
+    ver thresholds.json). Una muñeca fría pide un termómetro, no llamar a
+    Tierra. La alta (fiebre) mantiene sus niveles."""
+    result = _sustained(telemetry, "body_temp_c")
+    spec = load_thresholds()["body_temp_c"]
+    if result.code == "BODY_TEMP_LOW" and "low_max_level" in spec:
+        result = restate(result, min(result.level, spec["low_max_level"]), spec.get("low_note", ""))
+    return result
 
 
 def _heart_rate(telemetry: list[dict], events: list[dict], now: datetime) -> IndicatorResult:
