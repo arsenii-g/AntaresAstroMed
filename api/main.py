@@ -1,4 +1,4 @@
-"""ArgosMed: firmware -> SQLite -> local rules engine -> browser."""
+"""AstroMed: firmware -> SQLite -> local rules engine -> browser."""
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -64,7 +64,7 @@ def create_app(database_url=None, api_key=None):
         finally:
             engine.dispose()
 
-    app = FastAPI(title="ArgosMed API", version="2026.2", lifespan=lifespan)
+    app = FastAPI(title="AstroMed API", version="2026.2", lifespan=lifespan)
     app.state.session_factory = sessionmaker(engine, expire_on_commit=False)
     app.state.api_key = api_key if api_key is not None else os.getenv("SPACEHEALTH_API_KEY", DEFAULT_API_KEY)
     app.state.manager = ConnectionManager()
@@ -198,7 +198,7 @@ def create_app(database_url=None, api_key=None):
 
     @app.get("/api/v1/status")
     def status():
-        return {"ok": True, "system": "ArgosMed", "server_time": now_utc(),
+        return {"ok": True, "system": "AstroMed", "server_time": now_utc(),
                 "demo_mode": os.getenv("SPACEHEALTH_DEMO") == "1"}
 
     frontend = ROOT / "frontend" / "boceto"

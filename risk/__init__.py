@@ -1,4 +1,4 @@
-"""Motor de riesgos de SpaceHealth.
+"""Motor de riesgos de AstroMed.
 
 La API solo necesita esto:
 

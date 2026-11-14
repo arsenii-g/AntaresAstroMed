@@ -1,1 +1,1 @@
-"""Shared JSON contracts for ArgosMed."""
+"""Shared JSON contracts for AstroMed."""

@@ -1,4 +1,4 @@
-# ArgosMed · NASA Space Apps 2026
+# AstroMed · Antares · NASA Space Apps 2026
 
 Web que guía al astronauta en su chequeo diario, evalúa su riesgo con reglas explicables y verifica con sensores reales lo que hace.
 
@@ -79,7 +79,7 @@ El motor de riesgos es un paquete de Python que la API importa y llama en el mis
 | `risk/` | Motor de riesgos y `thresholds.json` | Arsenii |
 | `simulator/` | Emite telemetría ① con escenarios | Arsenii |
 | `api/` | FastAPI: endpoints, base de datos, WebSocket | Jesus |
-| `frontend/boceto/` | Consola ArgosMed conectada, cuerpo clicable, chequeo guiado y gráficas | Roberto |
+| `frontend/boceto/` | Consola AstroMed conectada, cuerpo clicable, chequeo guiado y gráficas | Roberto |
 
 ## Contratos
 

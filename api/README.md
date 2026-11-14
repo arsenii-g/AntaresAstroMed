@@ -1,4 +1,4 @@
-# API de ArgosMed
+# API de AstroMed
 
 La API valida y guarda los mensajes en SQLite, llama al motor Python `risk.evaluate()`
 y publica los cambios por `/ws`. Sirve además la portada y la consola que Roberto
@@ -65,7 +65,7 @@ marcada como obsoleta en `/docs`. El funcionamiento normal no depende de ella.
   en `rejected_messages`. Un JSON roto recibe `400`; una clave ausente o incorrecta,
   `401`; un error temporal de SQLite, `503`, para permitir el reintento.
 - Se preserva `sqlite:///./spacehealth.db` y los nombres de variables `SPACEHEALTH_*`
-  para usar la configuración existente. El nombre público es ArgosMed.
+  para usar la configuración existente. El nombre público es AstroMed.
 - Un navegador lento no bloquea indefinidamente el acuse de recibo de la placa.
 
 Los perfiles de las tarjetas del kit (`F3786E09` y `336F8312`) se editan en

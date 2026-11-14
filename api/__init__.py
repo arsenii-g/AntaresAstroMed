@@ -1,1 +1,1 @@
-"""ArgosMed API. Start from the repository root with uvicorn api.main:app."""
+"""AstroMed API. Start from the repository root with uvicorn api.main:app."""

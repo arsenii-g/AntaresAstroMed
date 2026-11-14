@@ -1,4 +1,4 @@
-# Consola ArgosMed: frontend conectado a la API
+# Consola AstroMed: frontend conectado a la API
 
 Parte de la consola que Roberto conectó en el commit `06d933e`, conservando su
 portada, cuerpo, gráficos y estilo. Esta es la interfaz de esta integración.
