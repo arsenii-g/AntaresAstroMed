@@ -55,15 +55,6 @@
       "low": [null, 70, 54],
       "source": "ADA Standards of Care 2026: en ayunas, 100-125 prediabetes y 126 o mas diabetes (https://diabetesjournals.org/care/article/49/Supplement_1/S27/163926/2-Diagnosis-and-Classification-of-Diabetes); hipoglucemia nivel 1 por debajo de 70 y nivel 2 por debajo de 54 (https://pmc.ncbi.nlm.nih.gov/articles/PMC12690178/). Nivel 3 alto (250): criterio propio."
     },
-    "reaction_mean_ms": {
-      "label": "Tiempo de reacción",
-      "unit": "ms",
-      "system": "neuro",
-      "code": "REACTION",
-      "high": [350, 450, null],
-      "low": [null, null, null],
-      "source": "Criterio propio: no hay un umbral estandar. Justificacion del sistema: NASA HRP, peligros de aislamiento y distancia a la Tierra (https://www.nasa.gov/hrp/hazards/)."
-    },
     "mood": {
       "label": "Ánimo",
       "unit": "/5",
@@ -71,7 +62,7 @@
       "code": "MOOD",
       "high": [null, null, null],
       "low": [3, 2, null],
-      "source": "Criterio propio sobre la escala de la guia (1 muy mal a 5 muy bien). Justificacion del sistema: NASA HRP, peligro de aislamiento y confinamiento (https://www.nasa.gov/hrp/hazards/)."
+      "source": "Criterio propio sobre la escala de la guia (1 muy mal a 5 muy bien). Es el unico indicador neuro: no hay test de reaccion. Justificacion del sistema: NASA HRP, peligro de aislamiento y confinamiento (https://www.nasa.gov/hrp/hazards/)."
     },
     "pushup_drop_pct": {
       "label": "Caída de flexiones respecto a su media",

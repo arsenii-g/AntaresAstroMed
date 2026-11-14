@@ -46,8 +46,6 @@ def test_umbrales_bien_formados(name, spec):
     ("mood", 4, 0),
     ("mood", 2, 1),
     ("mood", 1, 2),
-    ("reaction_mean_ms", 307, 0),
-    ("reaction_mean_ms", 480, 2),
     ("still_for_s", 600, 1),
     ("humidity_pct", 68, 0),
     ("humidity_pct", 72, 1),
