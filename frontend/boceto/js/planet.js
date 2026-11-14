@@ -1,5 +1,5 @@
 // Planeta: un planeta de puntos visto desde órbita, con atmósfera,
-// estrellas y una estación que cruza el horizonte. 3D hecho a mano sobre
+// estrellas y la estrella Antares cruzando el horizonte. 3D hecho a mano sobre
 // canvas 2D, sin librerías, para que funcione sin internet.
 
 import { stage } from "./stage.js";
@@ -7,9 +7,26 @@ import { stage } from "./stage.js";
 const N = 42000;        // puntos del planeta (solo se ve el casquete de arriba)
 const STARS = 240;
 
+// Colores. La estrella que orbita es Antares: tonos ámbar y óxido, suaves y sin
+// parpadeo, para no confundirla con el rojo rosado de las alertas (--lv3).
+const ANTARES_STAR = { core: "255,243,224", glow: "255,150,96", trail: "#ffb48a", label: "#ffc4a3" };
+export const PALETTES = {
+  // Consola: planeta azul de siempre; solo la estrella es rojiza.
+  blue: {
+    star: "#dfeaff", atmo: ["120,190,255", "110,150,255"], disc: ["#04060b", "#071225", "#1d4b86"],
+    land: "#9fe0ff", sea: "#5d8bff", orbit: "#8fd8ff", station: ANTARES_STAR,
+  },
+  // Portada: todo en la paleta de Antares.
+  antares: {
+    star: "#ffe9dc", atmo: ["255,140,90", "214,84,52"], disc: ["#070405", "#1a0a08", "#7a2a17"],
+    land: "#ffc89e", sea: "#d6603a", orbit: "#ffb48a", station: ANTARES_STAR,
+  },
+};
+
 // Opciones: horizon = altura del borde del planeta (0 arriba, 1 abajo),
 // radius(w, h) = radio en px, parallax = seguir al ratón y al scroll.
-export function createPlanet(canvas, { horizon = 0.76, radius = (w) => Math.max(w * 0.64, 560), parallax = true } = {}) {
+export function createPlanet(canvas, { horizon = 0.76, radius = (w) => Math.max(w * 0.64, 560), parallax = true, palette = PALETTES.blue, label = "ANTARES" } = {}) {
+  const P = palette;
   // Puntos repartidos por la esfera (espiral de Fibonacci)
   const px = new Float32Array(N), py = new Float32Array(N), pz = new Float32Array(N);
   const land = new Uint8Array(N);
@@ -50,7 +67,7 @@ export function createPlanet(canvas, { horizon = 0.76, radius = (w) => Math.max(
       const x = ((s.x - mx * 0.03 * s.d) % 1 + 1) % 1 * w;
       const y = s.y * h * 0.8 - scroll * 90 * s.d - my * 14 * s.d;
       ctx.globalAlpha = 0.15 + 0.6 * s.d * tw;
-      ctx.fillStyle = "#dfeaff";
+      ctx.fillStyle = P.star;
       const r = s.d > 0.86 ? 1.6 : 1;
       ctx.fillRect(x, y, r, r);
     }
@@ -63,17 +80,17 @@ export function createPlanet(canvas, { horizon = 0.76, radius = (w) => Math.max(
     // Halo de atmósfera
     ctx.globalAlpha = 1;
     let g = ctx.createRadialGradient(cx, cy, R * 0.985, cx, cy, R * 1.085);
-    g.addColorStop(0, "rgba(120,190,255,.55)");
-    g.addColorStop(0.25, "rgba(110,150,255,.16)");
-    g.addColorStop(1, "rgba(110,150,255,0)");
+    g.addColorStop(0, `rgba(${P.atmo[0]},.55)`);
+    g.addColorStop(0.25, `rgba(${P.atmo[1]},.16)`);
+    g.addColorStop(1, `rgba(${P.atmo[1]},0)`);
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(cx, cy, R * 1.09, 0, 6.2832); ctx.fill();
 
     // Disco oscuro (tapa las estrellas) con un borde iluminado
     g = ctx.createRadialGradient(cx, cy, R * 0.86, cx, cy, R);
-    g.addColorStop(0, "#04060b");
-    g.addColorStop(0.82, "#071225");
-    g.addColorStop(1, "#1d4b86");
+    g.addColorStop(0, P.disc[0]);
+    g.addColorStop(0.82, P.disc[1]);
+    g.addColorStop(1, P.disc[2]);
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.2832); ctx.fill();
 
@@ -96,7 +113,7 @@ export function createPlanet(canvas, { horizon = 0.76, radius = (w) => Math.max(
       const limb = 1 - z;                      // 1 en el horizonte
       const isLand = land[i];
       ctx.globalAlpha = (isLand ? 0.5 : 0.13) * (0.35 + limb * limb * 1.6);
-      ctx.fillStyle = isLand ? "#9fe0ff" : "#5d8bff";
+      ctx.fillStyle = isLand ? P.land : P.sea;
       const s = isLand ? 1.7 : 1.1;
       ctx.fillRect(sx, sy, s, s * (0.45 + z * 0.55));   // se aplastan cerca del horizonte
     }
@@ -104,7 +121,7 @@ export function createPlanet(canvas, { horizon = 0.76, radius = (w) => Math.max(
     // Órbita y estación
     const Ro = R * 1.045;
     ctx.globalAlpha = 0.22;
-    ctx.strokeStyle = "#8fd8ff";
+    ctx.strokeStyle = P.orbit;
     ctx.lineWidth = 1;
     ctx.setLineDash([2, 9]);
     ctx.beginPath(); ctx.arc(cx, cy, Ro, 0, 6.2832); ctx.stroke();
@@ -115,23 +132,23 @@ export function createPlanet(canvas, { horizon = 0.76, radius = (w) => Math.max(
     for (let k = 0; k < 26; k++) {             // estela
       const p = phi - k * 0.004;
       ctx.globalAlpha = 0.5 * (1 - k / 26);
-      ctx.fillStyle = "#8fd8ff";
+      ctx.fillStyle = P.station.trail;
       ctx.fillRect(cx + Math.sin(p) * Ro, cy - Math.cos(p) * Ro, 2, 2);
     }
     const sx = cx + Math.sin(phi) * Ro, sy = cy - Math.cos(phi) * Ro;
     g = ctx.createRadialGradient(sx, sy, 0, sx, sy, 16);
-    g.addColorStop(0, "rgba(255,255,255,.95)");
-    g.addColorStop(0.2, "rgba(143,216,255,.5)");
-    g.addColorStop(1, "rgba(143,216,255,0)");
+    g.addColorStop(0, `rgba(${P.station.core},.95)`);
+    g.addColorStop(0.25, `rgba(${P.station.glow},.45)`);
+    g.addColorStop(1, `rgba(${P.station.glow},0)`);
     ctx.globalAlpha = 1;
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(sx, sy, 16, 0, 6.2832); ctx.fill();
 
     ctx.globalCompositeOperation = "source-over";
     ctx.globalAlpha = 0.95;
-    ctx.fillStyle = "#8fd8ff";
+    ctx.fillStyle = P.station.label;
     ctx.font = '500 12.5px "JetBrains Mono", ui-monospace, monospace';
-    ctx.fillText("ANTARES-1", sx + 14, sy - 10);
+    ctx.fillText(label, sx + 14, sy - 10);
     ctx.globalAlpha = 1;
   });
 }

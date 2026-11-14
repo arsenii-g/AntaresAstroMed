@@ -8,7 +8,7 @@
 // tendencias (con sus puntos y su recta) los calcula el motor (risk/).
 // Se puede cambiar desde la URL: console.html?api=http://192.168.1.20:8000&crew=F3786E09
 
-import { createPlanet } from "./planet.js";
+import { createPlanet, PALETTES } from "./planet.js";
 import { createHologram } from "./hologram.js";
 import { trendChart, attachTrendHover } from "./trendchart.js";
 import { mergeReadings, sparkPath } from "./data.js";
@@ -74,7 +74,7 @@ const state = {
 let lastRecs = null, lastEarth = null;       // para no repintar lo que no cambia
 
 // ─── 3D ─────────────────────────────────────────────────────────────────────
-createPlanet($("planet"), { horizon: 0.58, radius: (w) => w * 0.9, parallax: false });
+createPlanet($("planet"), { horizon: 0.58, radius: (w) => w * 0.9, parallax: false, palette: PALETTES.antares });
 const holo = createHologram($("body"), { onPick: setFocus });
 attachTrendHover($("trends"));
 
@@ -434,21 +434,94 @@ document.querySelector(".views").addEventListener("click", (e) => {
 // ─── Chequeo diario (contrato ②) ────────────────────────────────────────────
 let mood = null;
 let checkStep = 0;
+const CHECK_HINT = "Leave anything empty if you did not measure it today.";
+const MOOD_LABEL = ["Very low", "Low", "Okay", "Good", "Very good"];
+const MOOD_LEVEL = [3, 2, 1, 0, 0];   // color de la cara elegida: triste en rojo … feliz en verde
+const visited = new Set([0]);   // pasos vistos: un paso visto y vacío cuenta como omitido
 function showCheckStep(step) {
   checkStep = Math.max(0, Math.min(2, step));
+  visited.add(checkStep);
   for (const panel of document.querySelectorAll("[data-check-step]")) panel.hidden = +panel.dataset.checkStep !== checkStep;
   $("checkStep").textContent = `STEP ${checkStep + 1} OF 3 · ${["MOOD", "BLOOD PRESSURE", "GLUCOSE"][checkStep]}`;
   $("checkBack").hidden = checkStep === 0;
   $("checkNext").hidden = checkStep === 2;
   $("checkSubmit").hidden = checkStep !== 2;
+  renderCheckSummary();
 }
 function resetCheck() {
   mood = null;
+  visited.clear(); visited.add(0);
   for (const id of ["sys", "dia", "glu"]) $(id).value = "";
   for (const button of $("mood").children) button.setAttribute("aria-checked", "false");
-  $("checkMsg").textContent = "Leave a field empty if you did not measure it today.";
+  syncSliders();
+  $("checkMsg").textContent = CHECK_HINT;
   showCheckStep(0);
 }
+
+// Deslizadores: el número es el dato que se envía; el deslizador solo ayuda a ponerlo.
+const RANGE_OF = { sys: "sysRange", dia: "diaRange", glu: "gluRange" };
+function syncSliders() {
+  for (const [id, rangeId] of Object.entries(RANGE_OF)) {
+    const range = $(rangeId), v = field(id);
+    if (v != null) range.value = Math.min(+range.max, Math.max(+range.min, v));
+    if (v != null) range.style.setProperty("--p", `${((range.value - range.min) / (range.max - range.min)) * 100}%`);
+    else range.style.removeProperty("--p");
+    range.closest(".meter").classList.toggle("set", v != null);
+  }
+}
+for (const [id, rangeId] of Object.entries(RANGE_OF)) {
+  $(rangeId).addEventListener("input", () => { $(id).value = $(rangeId).value; syncSliders(); renderCheckSummary(); });
+  $(id).addEventListener("input", () => { syncSliders(); renderCheckSummary(); });
+}
+for (const b of document.querySelectorAll("[data-clear]")) {
+  b.addEventListener("click", () => {
+    for (const id of b.dataset.clear.split(" ")) $(id).value = "";
+    syncSliders(); renderCheckSummary();
+    $("checkMsg").textContent = CHECK_HINT;
+  });
+}
+
+// Pasos y resumen lateral
+function goToStep(step) {
+  const error = checkStep === 1 && step > 1 ? validatePressure() : null;
+  if (error) { $("checkMsg").textContent = error; return; }
+  showCheckStep(step);
+}
+document.querySelector(".stepper").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-goto]");
+  if (b) goToStep(+b.dataset.goto);
+});
+$("checkSummary").addEventListener("click", (e) => {
+  const li = e.target.closest("[data-goto]");
+  if (li) goToStep(+li.dataset.goto);
+});
+function renderCheckSummary() {
+  const sys = field("sys"), dia = field("dia"), glu = field("glu");
+  const rows = [
+    ["Mood", mood != null ? `<span class="mood-v" data-level="${MOOD_LEVEL[mood - 1]}">${mood}</span><small>${MOOD_LABEL[mood - 1]}</small>` : null],
+    ["Blood pressure", sys != null || dia != null ? `${sys ?? "—"}/${dia ?? "—"}<small>mmHg</small>` : null],
+    ["Fasting glucose", glu != null ? `${glu}<small>mg/dL</small>` : null],
+  ];
+  const done = rows.map(([, v]) => v != null);
+  $("checkSummary").innerHTML = rows.map(([k, v], i) => {
+    const st = v != null ? `<span class="st ok">Answered</span>` : `<span class="st">${visited.has(i) && i !== checkStep ? "Skipped" : "Pending"}</span>`;
+    return `<li data-goto="${i}" class="${i === checkStep ? "current" : ""}"><span class="k">${k}</span>${st}<span class="v">${v ?? `<span class="dim">—</span>`}</span></li>`;
+  }).join("");
+  for (const b of document.querySelectorAll(".stepper [data-goto]")) {
+    const i = +b.dataset.goto;
+    if (i === checkStep) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+    b.classList.toggle("done", done[i] && i !== checkStep);
+  }
+  $("checkProgress").style.width = `${(done.filter(Boolean).length / 3) * 100}%`;
+  $("checkWho").textContent = state.crewId ? crewOf(state.crewId).name.toUpperCase() : "—";
+}
+
+// Teclas 1–5 para el ánimo, Intro para avanzar (fuera de los campos de texto)
+document.addEventListener("keydown", (e) => {
+  if ($("view-check").hidden || e.ctrlKey || e.metaKey || e.altKey) return;
+  const typing = e.target.matches?.("input:not([type=range]), select, textarea");
+  if (checkStep === 0 && !typing && /^[1-5]$/.test(e.key)) $("mood").children[+e.key - 1].click();
+});
 function validatePressure() {
   const sys = field("sys"), dia = field("dia");
   if ((sys == null) !== (dia == null)) return "Enter both blood pressure values, or leave both blank.";
@@ -469,15 +542,24 @@ $("checkBack").addEventListener("click", () => showCheckStep(checkStep - 1));
 $("checkNext").addEventListener("click", () => {
   const error = checkStep === 1 ? validatePressure() : null;
   if (error) { $("checkMsg").textContent = error; return; }
-  $("checkMsg").textContent = "Leave a field empty if you did not measure it today.";
+  $("checkMsg").textContent = CHECK_HINT;
   showCheckStep(checkStep + 1);
 });
 function renderCrewOptions() {
   $("checkCrew").innerHTML = `<option value="">Select crew member</option>` + crewList().map((c) => `<option value="${esc(c.crew_id)}">${esc(c.name)} · ${esc(c.crew_id)}</option>`).join("");
   $("checkCrew").value = state.crewId;
+  renderCheckSummary();
 }
 $("checkCrew").addEventListener("change", (e) => selectCrew(e.target.value));
-$("mood").innerHTML = [1, 2, 3, 4, 5].map((n) => `<button type="button" role="radio" aria-checked="false" data-mood="${n}">${n}</button>`).join("");
+// Caras: la boca pasa de triste (1) a sonriente (5)
+const face = (n) => {
+  const c = 30 + (n - 3) * 5;
+  return `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21"/>
+    <line class="eye" x1="17" y1="19" x2="17" y2="20"/><line class="eye" x1="31" y1="19" x2="31" y2="20"/>
+    <path d="M15 31 Q24 ${c} 33 31"/></svg>`;
+};
+$("mood").innerHTML = [1, 2, 3, 4, 5].map((n) => `<button type="button" role="radio" aria-checked="false" aria-label="${n}, ${MOOD_LABEL[n - 1]}" data-mood="${n}" data-level="${MOOD_LEVEL[n - 1]}">
+  ${face(n)}<b>${n}</b><span>${MOOD_LABEL[n - 1]}</span></button>`).join("");
 $("mood").addEventListener("click", (e) => {
   const b = e.target.closest("[data-mood]");
   if (!b) return;
@@ -497,7 +579,7 @@ function buildCheck() {
   };
 }
 // Lo que se envía sigue el contrato ② (contracts/check.example.json); no se enseña en pantalla.
-function renderPayload() {}
+function renderPayload() { renderCheckSummary(); }
 $("checkForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (checkStep < 2) { $("checkNext").click(); return; }
@@ -586,7 +668,7 @@ function connect() {
 for (const id of new Set([...KNOWN_CREW, state.crewId])) state.crew.set(id, { crew_id: id, name: id, role: "" });
 renderCrewOptions();
 renderSource(); renderClock(); renderRoster(); renderAssessment(); renderVitals();
-renderLog(); renderLink(); renderPayload();
+renderLog(); renderLink(); renderPayload(); syncSliders();
 setInterval(() => { renderClock(); renderRoster(); renderLink(); renderAge(); renderSource(); }, 1000);
 // Refresh assessments even if the station stops sending; old data must expire.
 setInterval(() => { if (state.source === "live") loadAll(); }, 15000);

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AstroMed · Crew Health Console</title>
   <meta name="description" content="Crew health monitoring console: body sensor telemetry, daily checks and explainable risk rules.">
-  <link rel="icon" type="image/png" href="assets/astromed-mark.png">
+  <link rel="icon" type="image/svg+xml" href="assets/antares-mark.svg">
   <!-- Fuentes: si no hay internet se usan las del sistema (ver styles.css). -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,7 +18,7 @@
   <!-- ───────── BARRA SUPERIOR ───────── -->
   <header class="topbar">
     <a class="brand" href="index.html" aria-label="AstroMed home">
-      <img src="assets/astromed-mark.png" width="32" height="32" alt="">
+      <img src="assets/antares-mark.svg" width="32" height="32" alt="">
       <span>Astro<b>Med</b></span>
     </a>
 
@@ -118,36 +118,81 @@
   </main>
 
   <!-- ───────── VISTA: CHEQUEO DIARIO ───────── -->
+  <!-- Mismo lenguaje visual que el monitor: paneles, esquinas HUD y etiquetas mono.
+       Los colores son neutros (azul de acento): aquí no se evalúa nada, solo se anota. -->
   <main class="checkview" id="view-check" hidden>
-    <form class="panel" id="checkForm" novalidate>
-      <header class="ph"><h2>Daily check</h2><span class="mono dim">Mood, blood pressure, glucose</span></header>
-      <div class="pb check">
-        <label class="row">Crew member
-          <select id="checkCrew"></select>
-        </label>
-        <p class="mono dim" id="checkStep" aria-live="polite">STEP 1 OF 3 · MOOD</p>
-        <fieldset data-check-step="0">
-          <legend>Mood <small class="dim">1 = very low · 5 = very good</small></legend>
-          <div class="mood" id="mood" role="radiogroup" aria-label="Mood, 1 to 5"></div>
-        </fieldset>
-        <fieldset data-check-step="1" hidden>
-          <legend>Blood pressure <small class="dim">Optional</small></legend>
-          <div class="fields">
-          <label>Systolic <small>mmHg</small><input type="number" id="sys" inputmode="numeric" placeholder="—"></label>
-          <label>Diastolic <small>mmHg</small><input type="number" id="dia" inputmode="numeric" placeholder="—"></label>
+    <form class="check-grid" id="checkForm" novalidate>
+      <section class="panel check-main">
+        <header class="ph">
+          <h2>Daily check</h2>
+          <label class="crew-pick mono"><span class="dim">For</span><select id="checkCrew"></select></label>
+        </header>
+
+        <nav class="stepper" aria-label="Check steps">
+          <button type="button" data-goto="0"><i>01</i><span>Mood</span></button>
+          <button type="button" data-goto="1"><i>02</i><span>Blood pressure</span></button>
+          <button type="button" data-goto="2"><i>03</i><span>Glucose</span></button>
+        </nav>
+
+        <div class="check">
+          <span class="hud tl"></span><span class="hud tr"></span><span class="hud bl"></span><span class="hud br"></span>
+          <p class="mono dim step-label" id="checkStep" aria-live="polite">STEP 1 OF 3 · MOOD</p>
+
+          <fieldset data-check-step="0">
+            <legend>How are you feeling today?</legend>
+            <p class="hint">Tap a face, or press <kbd>1</kbd>–<kbd>5</kbd>. Tap it again to clear it.</p>
+            <div class="mood" id="mood" role="radiogroup" aria-label="Mood, 1 to 5"></div>
+          </fieldset>
+
+          <fieldset data-check-step="1" hidden>
+            <legend>Blood pressure</legend>
+            <p class="hint">Drag the sliders or type the numbers from the cuff. Skip it if you did not measure today.</p>
+            <div class="meters">
+              <div class="meter" data-for="sys">
+                <label for="sys">Systolic <small>upper number</small></label>
+                <div class="readout"><input type="number" id="sys" inputmode="numeric" placeholder="—"><small>mmHg</small></div>
+                <input type="range" id="sysRange" min="80" max="200" step="1" value="120" aria-label="Systolic slider">
+                <div class="scale mono"><span>80</span><span>120</span><span>160</span><span>200</span></div>
+              </div>
+              <div class="meter" data-for="dia">
+                <label for="dia">Diastolic <small>lower number</small></label>
+                <div class="readout"><input type="number" id="dia" inputmode="numeric" placeholder="—"><small>mmHg</small></div>
+                <input type="range" id="diaRange" min="40" max="130" step="1" value="80" aria-label="Diastolic slider">
+                <div class="scale mono"><span>40</span><span>70</span><span>100</span><span>130</span></div>
+              </div>
+            </div>
+            <button class="btn small skip" type="button" data-clear="sys dia">Not measured today</button>
+          </fieldset>
+
+          <fieldset data-check-step="2" hidden>
+            <legend>Fasting glucose</legend>
+            <p class="hint">Before breakfast, from the glucose meter. Skip it if you did not measure today.</p>
+            <div class="meters one">
+              <div class="meter" data-for="glu">
+                <label for="glu">Glucose <small>fasting</small></label>
+                <div class="readout"><input type="number" id="glu" inputmode="numeric" placeholder="—"><small>mg/dL</small></div>
+                <input type="range" id="gluRange" min="40" max="300" step="1" value="95" aria-label="Glucose slider">
+                <div class="scale mono"><span>40</span><span>125</span><span>210</span><span>300</span></div>
+              </div>
+            </div>
+            <button class="btn small skip" type="button" data-clear="glu">Not measured today</button>
+          </fieldset>
+
+          <div class="submit">
+            <button class="btn" type="button" id="checkBack" hidden>← Back</button>
+            <button class="btn primary" type="button" id="checkNext">Next →</button>
+            <button class="btn primary" type="submit" id="checkSubmit" hidden>Send check</button>
+            <p class="dim" id="checkMsg" role="status">Leave anything empty if you did not measure it today.</p>
           </div>
-        </fieldset>
-        <fieldset data-check-step="2" hidden>
-          <legend>Fasting glucose <small class="dim">Optional</small></legend>
-          <label>Glucose <small>mg/dL</small><input type="number" id="glu" inputmode="numeric" placeholder="—"></label>
-        </fieldset>
-        <div class="submit">
-          <button class="btn" type="button" id="checkBack" hidden>Back</button>
-          <button class="btn primary" type="button" id="checkNext">Next / skip</button>
-          <button class="btn primary" type="submit" id="checkSubmit" hidden>Submit check</button>
-          <p class="dim" id="checkMsg" role="status">Leave a field empty if you did not measure it today.</p>
         </div>
-      </div>
+      </section>
+
+      <aside class="panel check-side">
+        <header class="ph"><h2>Your check</h2><span class="mono dim" id="checkWho">—</span></header>
+        <ul class="summary" id="checkSummary"></ul>
+        <div class="progress" aria-hidden="true"><i id="checkProgress"></i></div>
+        <p class="pb dim side-note">Your answers go to the monitor as soon as you send them. Nothing is evaluated on this screen.</p>
+      </aside>
     </form>
   </main>
 
