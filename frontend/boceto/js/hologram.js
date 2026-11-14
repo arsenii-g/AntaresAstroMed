@@ -1,4 +1,4 @@
-// Cuerpo holográfico de la consola: una figura hecha de anillos de puntos,
+// Cuerpo holográfico de la consola: una figura de cilindros redondeados hecha de anillos de puntos,
 // coloreada por sistema según el nivel de riesgo (contrato ③).
 //
 //   const holo = createHologram(canvas, { onPick: (system) => ... });
@@ -16,25 +16,66 @@ const RGB = {
 };
 const SYSTEMS = ["cardiovascular", "neuro", "musculoskeletal", "environment"];
 
-// Partes del cuerpo como elipsoides: centro, radios y sistema al que pertenecen.
+// Partes del cuerpo como cilindros redondeados (cápsulas que se estrechan):
+// eje de `a` a `b`, radio `r` en cada extremo (o un perfil `prof` de pares
+// [t, radio] a lo largo del eje) y sección elíptica con `sx`/`sz`.
+// `cap` redondea los extremos [a, b]; `capY` aplana esa tapa.
 // Unidades: la figura mide unos 2 de alto, con Y hacia arriba.
 const C = "cardiovascular", NE = "neuro", M = "musculoskeletal";
 const PARTS = [
-  { c: [0, 0.80, 0], r: [0.125, 0.155, 0.14], s: NE },          // cabeza
-  { c: [0, 0.61, 0], r: [0.055, 0.07, 0.055], s: NE },          // cuello
-  { c: [0, 0.36, 0], r: [0.235, 0.21, 0.13], s: C },            // pecho
-  { c: [0, 0.08, 0], r: [0.19, 0.17, 0.115], s: C },            // abdomen
-  { c: [0, -0.13, 0], r: [0.205, 0.11, 0.12], s: M },           // cadera
+  { a: [0, 0.75, 0], b: [0, 0.85, 0], r: [0.112, 0.112], sz: 1.12, cap: [1, 1], s: NE },        // cabeza
+  { a: [0, 0.55, -0.005], b: [0, 0.69, 0], r: [0.056, 0.05], s: NE },                           // cuello
+  { a: [0, 0.04, 0], b: [0, 0.57, 0], sz: 0.56, cap: [0, 1], capY: 0.35, s: C,                  // tronco
+    prof: [[0, 0.178], [0.25, 0.172], [0.5, 0.205], [0.72, 0.232], [0.88, 0.228], [1, 0.175]] },
+  { a: [0, -0.21, 0], b: [0, 0.04, 0], sz: 0.6, cap: [1, 0], capY: 0.45, s: M,                  // cadera
+    prof: [[0, 0.19], [0.55, 0.205], [1, 0.18]] },
   ...[-1, 1].flatMap((k) => [
-    { c: [0.27 * k, 0.5, 0], r: [0.085, 0.075, 0.085], s: M },  // hombro
-    { c: [0.33 * k, 0.3, 0], r: [0.06, 0.2, 0.062], s: M },     // brazo
-    { c: [0.385 * k, -0.02, 0.02], r: [0.048, 0.19, 0.05], s: M }, // antebrazo
-    { c: [0.41 * k, -0.25, 0.04], r: [0.04, 0.07, 0.03], s: M },   // mano
-    { c: [0.11 * k, -0.42, 0], r: [0.092, 0.27, 0.095], s: M },    // muslo
-    { c: [0.12 * k, -0.86, -0.01], r: [0.065, 0.22, 0.07], s: M }, // pierna
-    { c: [0.125 * k, -1.07, 0.05], r: [0.05, 0.03, 0.1], s: M },   // pie
+    { a: [0.255 * k, 0.5, 0], b: [0.335 * k, 0.13, 0], r: [0.078, 0.056], cap: [1, 1], s: M },      // hombro y brazo
+    { a: [0.335 * k, 0.13, 0], b: [0.39 * k, -0.19, 0.035], r: [0.054, 0.04], cap: [1, 1], s: M }, // antebrazo
+    { a: [0.39 * k, -0.2, 0.035], b: [0.405 * k, -0.3, 0.045], r: [0.04, 0.032], sz: 0.75, cap: [1, 1], s: M }, // mano
+    { a: [0.105 * k, -0.17, 0], b: [0.12 * k, -0.65, 0], r: [0.1, 0.066], cap: [1, 1], s: M },      // muslo
+    { a: [0.12 * k, -0.65, 0], b: [0.125 * k, -1.03, -0.01], r: [0.066, 0.044], cap: [1, 1], s: M }, // pierna
+    { a: [0.125 * k, -1.075, -0.03], b: [0.125 * k, -1.085, 0.12], r: [0.044, 0.036], sx: 1.05, cap: [1, 1], capY: 0.8, s: M }, // pie
   ]),
-];
+].map(prepare);
+
+// Vectores de cada parte: eje, base perpendicular, centro y radio en cada punto del eje.
+function prepare(p) {
+  const d = p.b.map((v, i) => v - p.a[i]);
+  const len = Math.hypot(...d) || 1e-6;
+  const w = d.map((v) => v / len);
+  const ref = Math.abs(w[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0];
+  let u = [w[1] * ref[2] - w[2] * ref[1], w[2] * ref[0] - w[0] * ref[2], w[0] * ref[1] - w[1] * ref[0]];
+  const ul = Math.hypot(...u); u = u.map((v) => v / ul);
+  const v = [w[1] * u[2] - w[2] * u[1], w[2] * u[0] - w[0] * u[2], w[0] * u[1] - w[1] * u[0]];
+  const prof = p.prof ?? [[0, p.r[0]], [1, p.r[1]]];
+  const radius = (t) => {                     // interpolación suave entre estaciones del perfil
+    t = Math.min(1, Math.max(0, t));
+    let i = 0; while (i < prof.length - 2 && t > prof[i + 1][0]) i++;
+    const [t0, r0] = prof[i], [t1, r1] = prof[i + 1];
+    const f = (t - t0) / (t1 - t0 || 1), e = f * f * (3 - 2 * f);
+    return r0 + (r1 - r0) * e;
+  };
+  return {
+    ...p, len, w, u, v, radius, sx: p.sx ?? 1, sz: p.sz ?? 1, cap: p.cap ?? [0, 0], capY: p.capY ?? 1,
+    c: p.a.map((x, i) => x + d[i] / 2),
+  };
+}
+
+// ¿Está el punto dentro de la parte? Sirve para no dibujar los puntos que quedan
+// tapados donde se unen dos partes, y que la figura parezca una sola pieza.
+function inside(p, [x, y, z], margin = 0.94) {
+  // Se deshace la sección elíptica y se mide respecto al extremo `a`
+  const q = [(x - p.c[0]) / p.sx + p.c[0] - p.a[0], y - p.a[1], (z - p.c[2]) / p.sz + p.c[2] - p.a[2]];
+  const ax = q[0] * p.w[0] + q[1] * p.w[1] + q[2] * p.w[2];        // posición a lo largo del eje
+  const radial = Math.hypot(q[0] - p.w[0] * ax, q[1] - p.w[1] * ax, q[2] - p.w[2] * ax);
+  const t = ax / p.len;
+  if (t >= 0 && t <= 1) return radial < p.radius(t) * margin;
+  const end = t > 1 ? 1 : 0;
+  if (!p.cap[end]) return false;
+  const axial = (end ? ax - p.len : ax) / p.capY;                 // tapa: media esfera (aplanada)
+  return Math.hypot(radial, axial) < p.radius(end) * margin;
+}
 
 // Dónde apunta cada etiqueta y a qué lado se escribe
 const TAGS = [
@@ -45,18 +86,33 @@ const TAGS = [
 ];
 
 export function createHologram(canvas, { onPick } = {}) {
-  // Puntos: cada parte se corta en rebanadas horizontales (curvas de nivel)
+  // Puntos: cada parte se corta en anillos perpendiculares a su eje (curvas de
+  // nivel), con muchos puntos por anillo para que la sección se vea redonda.
   const pts = [];
-  const STEP = 0.026;
+  const STEP = 0.024, GAP = 0.017;
+  const addRing = (p, along, r, si, twist) => {
+    const n = Math.max(r < 0.025 ? 6 : 18, Math.round((2 * Math.PI * r * (p.sx + p.sz)) / 2 / GAP));
+    for (let i = 0; i < n; i++) {
+      const ang = ((i + twist) / n) * 6.2832, ca = Math.cos(ang) * r, sa = Math.sin(ang) * r;
+      const pt = [0, 1, 2].map((j) => p.a[j] + p.w[j] * along + p.u[j] * ca + p.v[j] * sa);
+      pt[0] = p.c[0] + (pt[0] - p.c[0]) * p.sx;      // sección elíptica
+      pt[2] = p.c[2] + (pt[2] - p.c[2]) * p.sz;
+      if (PARTS.some((o) => o !== p && inside(o, pt))) continue;
+      pts.push([...pt, si]);
+    }
+  };
   for (const p of PARTS) {
-    const [cx, cy, cz] = p.c, [rx, ry, rz] = p.r;
-    for (let y = cy - ry + STEP / 2; y < cy + ry; y += STEP) {
-      const k = Math.sqrt(Math.max(0, 1 - ((y - cy) / ry) ** 2));
-      const n = Math.max(5, Math.round((Math.PI * (rx + rz) * k) / 0.021));
-      const off = (y * 37) % 1;
-      for (let i = 0; i < n; i++) {
-        const a = ((i + off) / n) * 6.2832;
-        pts.push([cx + Math.cos(a) * rx * k, y, cz + Math.sin(a) * rz * k, SYSTEMS.indexOf(p.s)]);
+    const si = SYSTEMS.indexOf(p.s);
+    const rings = Math.max(2, Math.round(p.len / STEP));
+    for (let k = 0; k <= rings; k++) addRing(p, (k / rings) * p.len, p.radius(k / rings), si, (k * 0.37) % 1);
+    // Tapas redondas: anillos que se cierran sobre una media esfera
+    for (const end of [0, 1]) {
+      if (!p.cap[end]) continue;
+      const r0 = p.radius(end), steps = Math.max(2, Math.round((Math.PI / 2) * r0 * p.capY / STEP));
+      for (let k = 1; k <= steps; k++) {
+        const phi = (k / steps) * (Math.PI / 2) * 0.96;
+        const off = Math.sin(phi) * r0 * p.capY;
+        addRing(p, end ? p.len + off : -off, r0 * Math.cos(phi), si, (k * 0.53) % 1);
       }
     }
   }
@@ -165,21 +221,24 @@ export function createHologram(canvas, { onPick } = {}) {
 
     // Etiquetas con línea guía
     ctx.globalCompositeOperation = "source-over";
-    ctx.font = '10px "JetBrains Mono", ui-monospace, monospace';
-    ctx.lineWidth = 1;
+    const big = Math.min(15, Math.max(13, w / 60));    // las etiquetas crecen un poco con el lienzo
+    ctx.lineWidth = 1.2;
     for (const tag of TAGS) {
       const i = SYSTEMS.indexOf(tag.s);
       const [ax, ay] = view(...tag.at);
       const lx = w / 2 + tag.side * Math.min(w * 0.4, scale * 0.95);
       const lv = levels[tag.s];
-      ctx.globalAlpha = 0.85 * dimOf(i);
+      ctx.globalAlpha = dimOf(i);
       ctx.strokeStyle = ctx.fillStyle = css[i];
-      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(lx - tag.side * 14, ay - 18); ctx.lineTo(lx, ay - 18); ctx.stroke();
+      const ly = Math.max(big + 46, ay - 18);              // sin pisar el texto de ayuda de arriba
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(lx - tag.side * 14, ly); ctx.lineTo(lx, ly); ctx.stroke();
       ctx.beginPath(); ctx.arc(ax, ay, 2.5, 0, 6.2832); ctx.fill();
       ctx.textAlign = tag.side > 0 ? "right" : "left";
-      ctx.fillText(tag.text, lx, ay - 24);
-      ctx.globalAlpha *= 0.7;
-      ctx.fillText(lv == null ? "NO DATA" : `LEVEL ${lv}`, lx, ay - 6);
+      ctx.font = `600 ${big}px "JetBrains Mono", ui-monospace, monospace`;
+      ctx.fillText(tag.text, lx, ly - 7);
+      ctx.globalAlpha *= 0.85;
+      ctx.font = `500 ${big - 1}px "JetBrains Mono", ui-monospace, monospace`;
+      ctx.fillText(lv == null ? "NO DATA" : `LEVEL ${lv}`, lx, ly + 15);
     }
     ctx.globalAlpha = 1;
   });
