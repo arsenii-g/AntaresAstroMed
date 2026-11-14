@@ -80,14 +80,17 @@ Los mensajes se mandan en orden: mientras el primero falla, los demás esperan. 
 |---|---|
 | `overall_level`, `systems.*.level` | 0 verde, 1 ámbar, 2 naranja, 3 rojo. **`null` si no hay ningún dato**: se pinta "sin dato", nunca verde |
 | `systems.*.reasons` | Motivos en inglés, primero los más graves y después los "no data" |
-| `trends` | Un elemento por indicador con datos suficientes (al menos 3 medidas en al menos 1 día): `systolic_mmhg`, `diastolic_mmhg`, `glucose_mg_dl`, `mood`, `pushup_reps` |
-| `trends[].projected_7d` | Valor que da la recta dentro de 7 días |
-| `trends[].crosses_threshold_in_days` | Días hasta cruzar el siguiente umbral, o `null` si no lo cruza en 7 días |
-| `trends[].threshold`, `threshold_level` | Ese umbral y el nivel al que llevaría. `null` si no cruza |
-| `trends[].slope_per_day` | Pendiente de la recta, en unidades por día |
+| `trends` | Una recta por indicador con **al menos 7 medidas**: chequeo (`systolic_mmhg`, `diastolic_mmhg`, `glucose_mg_dl`, `mood`), series (`pushup_reps`) y sensor (`heart_rate_bpm`, `body_temp_c`, `cabin_temp_c`, `humidity_pct`) |
+| `trends[].label`, `unit` | Nombre y unidad en inglés, para la web |
+| `trends[].basis`, `x_unit` | `"count"` con `x_unit` `"check"` o `"set"`: x es el número de medida (la última es 0, la anterior −1…). `"time"` con `"s"`: x son los segundos respecto a `ts` |
+| `trends[].points` | Las medidas usadas en la recta, `[[x, valor], …]` |
+| `trends[].slope`, `intercept` | Recta `valor = intercept + slope · x` (pendiente por `x_unit`) |
+| `trends[].horizon`, `projected` | Hasta dónde se proyecta (7 medidas o 60 s) y el valor de la recta allí |
+| `trends[].threshold`, `threshold_level` | Siguiente umbral en la dirección en que empeora, y el nivel al que llevaría. `null` si la recta va hacia lo normal o no quedan umbrales |
+| `trends[].crosses_in` | Medidas o segundos hasta cruzarlo, o `null` si no lo cruza dentro del horizonte |
 | `recommendations` | En inglés: acción del nivel, contramedidas y avisos de tendencia |
 | `earth_summary` | Texto en inglés listo para enviar a los médicos en Tierra. Solo si `overall_level` es 3; si no, `null` |
 
-Para que haya tendencias, la API tiene que pasar al motor los chequeos y los eventos de **los últimos 7 días**. La telemetría basta con la del último minuto.
+Para que haya tendencias, la API tiene que pasar al motor los chequeos y los eventos de **los últimos 7 días** y la telemetría del último minuto (unas 30 lecturas a 2 s).
 
 **Modo demo:** con la variable de entorno `SPACEHEALTH_DEMO=1` en el proceso de la API, el ámbar por inactividad salta a los 30 s en vez de a los 600 s, igual que el evento `inactivity` de la placa en la demo.

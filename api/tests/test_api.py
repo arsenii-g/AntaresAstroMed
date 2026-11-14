@@ -48,7 +48,7 @@ def test_frontend_and_offline_clock_are_served_together(client):
     assert root.headers["date"].endswith("GMT")
     assert client.get("/console.html").status_code == 200
     assert client.get("/js/app.js").status_code == 200
-    assert client.get("/api/v1/status").json()["system"] == "ArgosMed"
+    assert client.get("/api/v1/status").json()["system"] == "AstroMed"
 
 
 def test_telemetry_evaluates_and_broadcasts_official_envelope(client):
@@ -70,7 +70,7 @@ def test_manual_check_is_public_and_updates_risk(client):
         assert client.post("/api/v1/checks", json=check).status_code == 200
         msg = ws.receive_json()
         assert msg["type"] == "assessment" and msg["data"]["overall_level"] == 3
-        assert msg["data"]["earth_summary"].startswith("ARGOSMED MEDICAL SUMMARY")
+        assert msg["data"]["earth_summary"].startswith("ASTROMED MEDICAL SUMMARY")
     latest = client.get(f"/api/v1/crew/{CREW}/latest").json()
     assert latest["assessment"]["overall_level"] == 3
     assert count(client, CheckModel) == 1
@@ -170,8 +170,8 @@ def test_one_week_of_history_reaches_real_trend_engine(client):
         assert client.post("/api/v1/checks", json=check).status_code == 200
     assessment = client.get(f"/api/v1/crew/{CREW}/latest").json()["assessment"]
     trend = next(t for t in assessment["trends"] if t["indicator"] == "glucose_mg_dl")
-    assert trend["slope_per_day"] == pytest.approx(3)
-    assert trend["crosses_threshold_in_days"] is not None
+    assert trend["slope"] == pytest.approx(3) and len(trend["points"]) == 7
+    assert trend["crosses_in"] is not None
 
 
 def test_engine_failure_does_not_lose_data_and_retry_recovers(client, monkeypatch):

@@ -3,10 +3,11 @@
 Pasos (guía del equipo, sección 5):
   1. Nivel por indicador contra thresholds.json (indicators.py).
   2. Nivel por sistema: el peor de sus indicadores.
-  3. Tendencia a 7 días: regresión lineal de tensión, glucosa, ánimo y
-     flexiones (trends.py).
+  3. Tendencias: recta de mínimos cuadrados con al menos 7 medidas. Chequeos
+     y flexiones, medida a medida, proyectadas 7 medidas; pulso, temperatura
+     corporal y cabina, en segundos, proyectadas 60 s (trends.py).
   4. Recomendaciones: una contramedida por cada ámbar o peor, y un aviso por
-     cada tendencia que cruce un umbral en 7 días.
+     cada tendencia que cruce un umbral dentro de su horizonte.
   5. Resumen en inglés para Tierra cuando el nivel global es 3 (summary.py).
 
 Un dato ausente es "no data" (sin dato), nunca verde. Todos los textos de
@@ -26,7 +27,7 @@ from .trends import trends_for
 SYSTEMS = ("cardiovascular", "neuro", "musculoskeletal", "environment")
 
 # Antigüedad máxima de un dato para darlo por válido (criterio propio).
-TELEMETRY_MAX_AGE = timedelta(seconds=60)   # llega cada 5 s
+TELEMETRY_MAX_AGE = timedelta(seconds=60)   # llega cada 2 s: unas 30 lecturas
 CHECK_MAX_AGE = timedelta(hours=24)         # un chequeo manual al día
 HISTORY_WINDOW = timedelta(days=7)          # basal de flexiones y tendencias
 
@@ -69,7 +70,7 @@ def evaluate(
         + _check_indicators(checks_today, checks_week)
         + _exercise_indicators(events)
     )
-    trends = trends_for(checks_week, events, now, _parse_ts)
+    trends = trends_for(telemetry, checks_week, events, now, _parse_ts)
 
     systems = {}
     for name in SYSTEMS:

@@ -1,7 +1,11 @@
-"""RFID cards from contracts/README.md. Unknown cards remain valid inputs."""
+"""RFID cards from contracts/README.md. Unknown cards remain valid inputs.
+
+Names and roles are not assigned yet (firmware/FORMATO_JSON_BACKEND.md):
+edit them here when the crew is known.
+"""
 CREW = {
-    "F3786E09": {"name": "Crew member 1", "role": "Commander"},
-    "336F8312": {"name": "Crew member 2", "role": "Medical officer"},
+    "F3786E09": {"name": "Crew member 1", "role": None},
+    "336F8312": {"name": "Crew member 2", "role": None},
 }
 
 

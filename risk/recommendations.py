@@ -7,6 +7,8 @@ equipo, sección 5.
 
 from __future__ import annotations
 
+import math
+
 from .indicators import IndicatorResult, _fmt, with_unit
 
 COUNTERMEASURES = {
@@ -50,14 +52,22 @@ def recommendations_for(results: list[IndicatorResult]) -> list[str]:
 
 
 def trend_recommendations(trends, results: list[IndicatorResult]) -> list[str]:
-    """Aviso por cada tendencia que cruzará un umbral en 7 días, salvo que el
-    indicador ya esté hoy en ese nivel o peor (criterio propio)."""
+    """Aviso por cada tendencia que cruzará un umbral dentro de su horizonte,
+    salvo que el indicador ya esté hoy en ese nivel o peor (criterio propio).
+    Primero las del sensor (segundos), luego las de chequeos y series."""
     today = {r.indicator: r.level or 0 for r in results}
     today["pushup_reps"] = today.get("pushup_drop_pct", 0)
     out = []
-    for t in sorted(trends, key=lambda t: t.crosses_threshold_in_days or 99):
-        if t.crosses_threshold_in_days is None or today.get(t.indicator, 0) >= t.threshold_level:
+    for t in sorted(trends, key=lambda t: (t.basis != "time", t.crosses_in or 99)):
+        if t.crosses_in is None or today.get(t.indicator, 0) >= t.threshold_level:
             continue
-        out.append(f"Trend: {t.label.lower()} will reach {with_unit(t.threshold, t.unit)} "
-                   f"in about {_fmt(t.crosses_threshold_in_days)} days; watch the next checks")
+        target = with_unit(t.threshold, t.unit)
+        if t.basis == "time":
+            out.append(f"Trend: {t.label.lower()} is heading to {target} within {_fmt(t.crosses_in)} s; "
+                       "recheck the reading")
+        else:
+            steps = math.ceil(t.crosses_in)
+            noun = {"check": "daily check", "set": "push-up set"}.get(t.x_unit, t.x_unit)
+            out.append(f"Trend: {t.label.lower()} will reach {target} in about {steps} more "
+                       f"{noun}{'s' if steps != 1 else ''}; watch the next ones")
     return out
