@@ -12,6 +12,15 @@ Escenarios:
     empeora   en 5 minutos sube el pulso, la temperatura corporal y la cabina
               se calienta y humedece, hasta pasar por ámbar, naranja y rojo.
     sin-datos sin tripulante fichado y el DHT11 fallando: todo llega null.
+    demo      sigue el guion de la demo (guía, sección 10) en 2 minutos:
+              ficha el tripulante, se queda quieto hasta dar ámbar por
+              inactividad, hace flexiones y vuelve a verde, y a los 100 s
+              ficha un segundo tripulante con el pulso en rojo. Activa
+              SPACEHEALTH_DEMO=1 (inactividad a 30 s).
+
+Con --history-days N genera antes N días de chequeos manuales y series de
+flexiones (sano: estables; empeora y demo: van a peor) para que se vean las
+tendencias a 7 días.
 
 Con --url se comporta como el ESP32 ante las respuestas de la API
 (contracts/README.md): 2xx y 409 dan el mensaje por enviado, otro 4xx lo
@@ -26,6 +35,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import random
 import sys
 import time
@@ -42,7 +52,15 @@ PUSHUP_EVERY = 24         # una serie de flexiones cada 2 min
 MAX_QUEUE = 50
 MAX_BACKOFF_S = 30
 
-SCENARIOS = ("sano", "empeora", "sin-datos")
+SCENARIOS = ("sano", "empeora", "sin-datos", "demo")
+
+# Guion de la demo, en envíos de 5 s (criterio propio, ajustado a la sección 10 de la guía).
+DEMO_CREW_B = "C42A9B17"
+DEMO_CHECKIN_TICK = 3        # 15 s: "Identificación"
+DEMO_PUSHUP_TICK = 15        # 75 s: "Contramedida verificada"
+DEMO_MOVING_TICKS = 4        # se mueve 20 s tras las flexiones
+DEMO_SWITCH_TICK = 20        # 100 s: "Escalado", segundo perfil en rojo
+DEMO_INACTIVITY_S = 30       # threshold_s del evento inactivity en la demo
 
 
 # --- física de la cabina ------------------------------------------------------
@@ -98,7 +116,32 @@ def scenario_values(scenario: str, tick: int, rng: random.Random) -> dict:
             "cabin": _ramp(tick, 23.0, 30.0) + rng.uniform(-0.1, 0.1),
             "rh": _ramp(tick, 45, 78) + rng.uniform(-1, 1),
         }
+    if scenario == "demo":
+        crew_b = tick >= DEMO_SWITCH_TICK
+        return {
+            "hr": (156 if crew_b else 72) + rng.uniform(-2, 2),
+            "body": (37.0 if crew_b else 36.7) + rng.uniform(-0.05, 0.05),
+            "cabin": 23.0 + rng.uniform(-0.2, 0.2),
+            "rh": 45 + rng.uniform(-2, 2),
+        }
     raise ValueError(f"escenario desconocido: {scenario}")
+
+
+def demo_crew(tick: int) -> str | None:
+    if tick < DEMO_CHECKIN_TICK:
+        return None
+    return DEMO_CREW_B if tick >= DEMO_SWITCH_TICK else CREW_ID
+
+
+def demo_motion(tick: int) -> dict:
+    """Quieto desde que ficha; flexiones y 20 s moviéndose; luego quieto otra vez."""
+    if tick < DEMO_CHECKIN_TICK:
+        return {"activity": "still", "still_for_s": 0}
+    after = DEMO_PUSHUP_TICK + DEMO_MOVING_TICKS
+    if DEMO_PUSHUP_TICK <= tick < after:
+        return {"activity": "moving", "still_for_s": 0}
+    since = after if tick >= after else DEMO_CHECKIN_TICK
+    return {"activity": "still", "still_for_s": (tick - since) * INTERVAL_S}
 
 
 def make_telemetry(scenario: str, tick: int, ts: datetime, rng: random.Random) -> dict:
@@ -125,15 +168,18 @@ def make_telemetry(scenario: str, tick: int, ts: datetime, rng: random.Random) -
     quality = round(rng.uniform(0.6, 0.95), 2)
     body = round(v["body"], 1)
 
-    base["crew_id"] = CREW_ID
+    base["crew_id"] = demo_crew(tick) if scenario == "demo" else CREW_ID
     base["vitals"] = {
         "heart_rate_bpm": int(round(v["hr"])) if quality >= 0.4 else None,
         "hr_quality": quality,
         "resp_rate_bpm": None,                      # nunca se mide
         "body_temp_c": body if 30 <= body <= 45 else None,
     }
-    base["motion"] = {"activity": "moving" if moving else "still",
-                      "still_for_s": 0 if moving else (tick % PUSHUP_EVERY) * INTERVAL_S}
+    if scenario == "demo":
+        base["motion"] = demo_motion(tick)
+    else:
+        base["motion"] = {"activity": "moving" if moving else "still",
+                          "still_for_s": 0 if moving else (tick % PUSHUP_EVERY) * INTERVAL_S}
     base["cabin"] = {"temp_c": temp, "humidity_pct": rh, "dew_point_c": dew,
                      "heat_index_c": hi, "condensation_risk": condensation_risk(temp - dew)}
     base["alerts"] = _local_alerts(base)
@@ -145,6 +191,8 @@ def make_events(scenario: str, tick: int, ts: datetime, rng: random.Random) -> l
     En "empeora" cada serie sale con menos repeticiones."""
     if scenario == "sin-datos":
         return []
+    if scenario == "demo":
+        return demo_events(tick, ts)
     events = []
     if tick == 0:
         events.append(_event(ts, "crew_checkin", "info", {"action": "in"}))
@@ -158,8 +206,53 @@ def make_events(scenario: str, tick: int, ts: datetime, rng: random.Random) -> l
     return events
 
 
-def _event(ts: datetime, kind: str, severity: str, data: dict) -> dict:
-    return {"device_id": DEVICE_ID, "ts": _iso(ts), "crew_id": CREW_ID,
+def demo_events(tick: int, ts: datetime) -> list[dict]:
+    events = []
+    if tick == DEMO_CHECKIN_TICK:
+        events.append(_event(ts, "crew_checkin", "info", {"action": "in"}))
+    still = demo_motion(tick)["still_for_s"]
+    previous = demo_motion(tick - 1)["still_for_s"] if tick else 0
+    if demo_crew(tick) and previous < DEMO_INACTIVITY_S <= still:
+        events.append(_event(ts, "inactivity", "medium",
+                             {"still_for_s": still, "threshold_s": DEMO_INACTIVITY_S}, demo_crew(tick)))
+    if tick == DEMO_PUSHUP_TICK:
+        events.append(_event(ts, "exercise_summary", "info",
+                             {"exercise": "pushup", "reps": 20, "duration_s": 40, "cadence_rpm": 30.0}))
+    if tick == DEMO_SWITCH_TICK:
+        # Al cambiar de tarjeta: out del anterior y in del nuevo 1 s más tarde.
+        events.append(_event(ts, "crew_checkin", "info", {"action": "out"}, CREW_ID))
+        events.append(_event(ts + timedelta(seconds=1), "crew_checkin", "info", {"action": "in"}, DEMO_CREW_B))
+    return events
+
+
+def make_history(scenario: str, days: int, start: datetime, rng: random.Random) -> tuple[list[dict], list[dict]]:
+    """Días anteriores a start: un chequeo manual a las 08:00 y una serie de
+    flexiones a las 18:00. En "sano" todo es estable; en "empeora" y "demo"
+    la glucosa, la tensión y el ánimo empeoran y las flexiones caen."""
+    checks, events = [], []
+    worse = scenario in ("empeora", "demo")
+    if scenario == "sin-datos":
+        return checks, events
+    for d in range(days, 0, -1):
+        day = (start - timedelta(days=d)).replace(hour=8, minute=0, second=0)
+        k = (days - d) / max(1, days - 1)            # 0 el primer día, 1 el último
+        checks.append({
+            "crew_id": CREW_ID, "ts": _iso(day),
+            "blood_pressure": {
+                "systolic": int(round((112 + 14 * k if worse else 115) + rng.uniform(-2, 2))),
+                "diastolic": int(round((72 + 6 * k if worse else 75) + rng.uniform(-2, 2))),
+            },
+            "glucose_mg_dl": int(round((86 + 12 * k if worse else 90) + rng.uniform(-2, 2))),
+            "mood": int(round(4 - 1.0 * k)) if worse else 4,
+        })
+        reps = int(round((20 - 4 * k if worse else 20) + rng.uniform(-0.5, 0.5)))
+        events.append(_event(day.replace(hour=18), "exercise_summary", "info",
+                             {"exercise": "pushup", "reps": reps, "duration_s": reps * 2, "cadence_rpm": 30.0}))
+    return checks, events
+
+
+def _event(ts: datetime, kind: str, severity: str, data: dict, crew_id: str | None = CREW_ID) -> dict:
+    return {"device_id": DEVICE_ID, "ts": _iso(ts), "crew_id": crew_id,
             "type": kind, "severity": severity, "data": data}
 
 
@@ -251,31 +344,41 @@ class Sender:
 # --- bucle principal -----------------------------------------------------------------
 
 def run(args: argparse.Namespace) -> None:
+    if args.scenario == "demo":
+        os.environ["SPACEHEALTH_DEMO"] = "1"
     rng = random.Random(args.seed)
     start = datetime.now(timezone.utc).replace(microsecond=0)
     sender = Sender(args.url, args.api_key) if args.url else None
+    checks, history_e = make_history(args.scenario, args.history_days, start, rng)
     history_t: list[dict] = []
-    history_e: list[dict] = []
+
+    # La historia sale primero: chequeos a /checks (los manda la web, no la placa).
+    for msg in checks:
+        _emit(sender, args, "/api/v1/checks", msg)
+    for msg in history_e:
+        _emit(sender, args, "/api/v1/events", msg)
+    if sender:
+        sender.flush()
 
     tick = 0
+    last_crew = None
     while args.count is None or tick < args.count:
         ts = start + timedelta(seconds=tick * INTERVAL_S) if args.fast else datetime.now(timezone.utc).replace(microsecond=0)
         telemetry = make_telemetry(args.scenario, tick, ts, rng)
         events = make_events(args.scenario, tick, ts, rng)
 
+        for ev in events:
+            _emit(sender, args, "/api/v1/events", ev)
+        _emit(sender, args, "/api/v1/telemetry", telemetry)
         if sender:
-            for ev in events:
-                sender.push("/api/v1/events", ev)
-            sender.push("/api/v1/telemetry", telemetry)
             sender.flush()
-        elif not args.evaluate:
-            for msg in events + [telemetry]:
-                print(json.dumps(msg, ensure_ascii=False), flush=True)
 
         if args.evaluate:
             history_t.append(telemetry)
             history_e.extend(events)
-            print(_summary(tick, telemetry, history_t, history_e, ts), flush=True)
+            crew = telemetry["crew_id"]
+            print(_summary(tick, telemetry, history_t, history_e, checks, ts, crew != last_crew), flush=True)
+            last_crew = crew
 
         tick += 1
         if not args.fast and (args.count is None or tick < args.count):
@@ -285,15 +388,39 @@ def run(args: argparse.Namespace) -> None:
         print(f"[sim] {sender.stats}", file=sys.stderr)
 
 
-def _summary(tick, telemetry, history_t, history_e, now) -> str:
+def _emit(sender, args, path, msg) -> None:
+    if sender:
+        sender.push(path, msg)
+    elif not args.evaluate:
+        print(json.dumps(msg, ensure_ascii=False), flush=True)
+
+
+def _summary(tick, telemetry, history_t, history_e, checks, now, show_trends) -> str:
+    """Una línea con los niveles, como los recibiría la web. La API pasa al
+    motor solo los mensajes de un crew_id, así que aquí se filtra igual."""
     from risk import evaluate   # import tardío: el simulador no depende del motor
 
-    result = evaluate(history_t[-20:], history_e, [], now)
+    crew = telemetry["crew_id"]
+    if crew is None:
+        return f"t={tick * INTERVAL_S:>4}s sin fichar: la API no llama al motor sin crew_id"
+    mine = lambda msgs: [m for m in msgs if m.get("crew_id") == crew]
+    result = evaluate(mine(history_t[-20:]), mine(history_e), mine(checks), now)
     names = {"cardiovascular": "cardio", "neuro": "neuro", "musculoskeletal": "músculo", "environment": "cabina"}
     levels = " ".join(f"{names[k]}={_lvl(s['level'])}" for k, s in result["systems"].items())
     v, c = telemetry["vitals"], telemetry["cabin"]
-    return (f"t={tick * INTERVAL_S:>4}s pulso={v['heart_rate_bpm']} temp={v['body_temp_c']} "
+    line = (f"t={tick * INTERVAL_S:>4}s {crew or 'sin fichar':>9} pulso={v['heart_rate_bpm']} "
+            f"temp={v['body_temp_c']} quieto={telemetry['motion']['still_for_s']}s "
             f"cabina={c['temp_c']}°C/{c['humidity_pct']}% → global={_lvl(result['overall_level'])} {levels}")
+    if result["recommendations"]:
+        line += f"\n        recomienda: {result['recommendations'][0]}"
+    if show_trends:
+        for t in result["trends"]:
+            if t["crosses_threshold_in_days"] is not None:
+                line += (f"\n        tendencia: {t['indicator']} cruza {t['threshold']} "
+                         f"en {t['crosses_threshold_in_days']} días")
+    if result.get("earth_summary") and show_trends:
+        line += "\n" + "\n".join("        | " + l for l in result["earth_summary"].splitlines())
+    return line
 
 
 def _lvl(level) -> str:
@@ -313,6 +440,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--url", help="base de la API, p. ej. http://localhost:8000")
     p.add_argument("--api-key", help="se manda en la cabecera X-API-Key")
     p.add_argument("--evaluate", action="store_true", help="pasa los datos por el motor y muestra los niveles")
+    p.add_argument("--history-days", type=int, default=0, help="días de chequeos y flexiones previos (p. ej. 7)")
     return p.parse_args(argv)
 
 

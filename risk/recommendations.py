@@ -7,7 +7,7 @@ equipo, sección 5.
 
 from __future__ import annotations
 
-from .indicators import IndicatorResult
+from .indicators import IndicatorResult, _fmt
 
 COUNTERMEASURES = {
     "HR_HIGH": "Reposo sentado 10 minutos y repetir la medida de pulso",
@@ -46,4 +46,18 @@ def recommendations_for(results: list[IndicatorResult]) -> list[str]:
         text = COUNTERMEASURES.get(r.code or "")
         if text and text not in out:
             out.append(text)
+    return out
+
+
+def trend_recommendations(trends, results: list[IndicatorResult]) -> list[str]:
+    """Aviso por cada tendencia que cruzará un umbral en 7 días, salvo que el
+    indicador ya esté hoy en ese nivel o peor (criterio propio)."""
+    today = {r.indicator: r.level or 0 for r in results}
+    today["pushup_reps"] = today.get("pushup_drop_pct", 0)
+    out = []
+    for t in sorted(trends, key=lambda t: t.crosses_threshold_in_days or 99):
+        if t.crosses_threshold_in_days is None or today.get(t.indicator, 0) >= t.threshold_level:
+            continue
+        out.append(f"Tendencia: {t.label.lower()} llegará a {_fmt(t.threshold)} {t.unit} "
+                   f"en unos {_fmt(t.crosses_threshold_in_days)} días; vigilar en los próximos chequeos")
     return out

@@ -58,3 +58,21 @@ No existen `sleep_summary` ni `reaction_test`.
 ## Qué recibe el motor
 
 `evaluate(telemetry, events, manual_checks, now)` recibe listas de un solo `crew_id`, así que los mensajes con `crew_id: null` no le llegan. Cualquier `null` lo trata como "sin dato", nunca como normal.
+
+## Evaluación ③: qué devuelve el motor
+
+| Campo | Qué es |
+|---|---|
+| `overall_level`, `systems.*.level` | 0 verde, 1 ámbar, 2 naranja, 3 rojo. **`null` si no hay ningún dato**: se pinta "sin dato", nunca verde |
+| `systems.*.reasons` | Motivos en español, primero los más graves y después los "sin dato" |
+| `trends` | Un elemento por indicador con datos suficientes (al menos 3 medidas en al menos 1 día): `systolic_mmhg`, `diastolic_mmhg`, `glucose_mg_dl`, `mood`, `pushup_reps` |
+| `trends[].projected_7d` | Valor que da la recta dentro de 7 días |
+| `trends[].crosses_threshold_in_days` | Días hasta cruzar el siguiente umbral, o `null` si no lo cruza en 7 días |
+| `trends[].threshold`, `threshold_level` | Ese umbral y el nivel al que llevaría. `null` si no cruza |
+| `trends[].slope_per_day` | Pendiente de la recta, en unidades por día |
+| `recommendations` | En español: acción del nivel, contramedidas y avisos de tendencia |
+| `earth_summary` | Texto en **inglés** listo para enviar a los médicos en Tierra. Solo si `overall_level` es 3; si no, `null` |
+
+Para que haya tendencias, la API tiene que pasar al motor los chequeos y los eventos de **los últimos 7 días**. La telemetría basta con la del último minuto.
+
+**Modo demo:** con la variable de entorno `SPACEHEALTH_DEMO=1` en el proceso de la API, el ámbar por inactividad salta a los 30 s en vez de a los 600 s, igual que el evento `inactivity` de la placa en la demo.
