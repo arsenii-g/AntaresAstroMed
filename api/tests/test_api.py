@@ -44,11 +44,11 @@ def count(client, model):
 
 def test_frontend_and_offline_clock_are_served_together(client):
     root = client.get("/")
-    assert root.status_code == 200 and "ArgosMed" in root.text
+    assert root.status_code == 200 and "AstroMed" in root.text
     assert root.headers["date"].endswith("GMT")
     assert client.get("/console.html").status_code == 200
     assert client.get("/js/app.js").status_code == 200
-    assert client.get("/api/v1/status").json()["system"] == "ArgosMed"
+    assert client.get("/api/v1/status").json()["system"] == "AstroMed"
 
 
 def test_telemetry_evaluates_and_broadcasts_official_envelope(client):
@@ -70,7 +70,7 @@ def test_manual_check_is_public_and_updates_risk(client):
         assert client.post("/api/v1/checks", json=check).status_code == 200
         msg = ws.receive_json()
         assert msg["type"] == "assessment" and msg["data"]["overall_level"] == 3
-        assert msg["data"]["earth_summary"].startswith("ARGOSMED MEDICAL SUMMARY")
+        assert msg["data"]["earth_summary"].startswith("ASTROMED MEDICAL SUMMARY")
     latest = client.get(f"/api/v1/crew/{CREW}/latest").json()
     assert latest["assessment"]["overall_level"] == 3
     assert count(client, CheckModel) == 1

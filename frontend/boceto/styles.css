@@ -1,4 +1,4 @@
-/* ArgosMed: consola de salud de la tripulación. Colores y tamaños como variables aquí arriba. */
+/* AstroMed: consola de salud de la tripulación. Colores y tamaños como variables aquí arriba. */
 :root {
   --bg: #05060a;
   --ink: #e8edf5;
@@ -58,6 +58,7 @@ button, select, input { font: inherit; color: inherit; }
   background: rgba(6, 8, 13, .78); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
 }
 .brand { display: flex; align-items: center; gap: 9px; font: 400 15px var(--display); }
+.brand img { flex: none; }
 .brand b { font-weight: 600; }
 .mission { display: flex; gap: 0; }
 .mission div { display: flex; gap: 8px; padding: 0 16px; border-left: 1px solid var(--line); }
