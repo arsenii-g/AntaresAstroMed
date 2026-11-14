@@ -75,7 +75,7 @@ Solo hacen falta dos cables y un divisor de tensión, porque el TX del UNO da 5 
 
 ## Puesta en marcha
 
-1. Sube `uno_sensores` al UNO (placa «Arduino Uno»). En el Monitor serie, a 115200, verás las líneas `{"t":"tel",...}` cada 5 s y una línea `# dbg ...` por segundo.
+1. Sube `uno_sensores` al UNO (placa «Arduino Uno»). En el Monitor serie, a 115200, verás las líneas `{"t":"tel",...}` cada 2 s y una línea `# dbg ...` por segundo.
 2. Copia `esp32_gateway/config.example.h` como `esp32_gateway/config.h` y rellena el WiFi (**solo 2,4 GHz**), `API_BASE`, `API_KEY` y `DEVICE_ID`. `config.h` no se sube a git porque lleva claves.
 3. Sube `esp32_gateway` al ESP32 (placa «ESP32 Dev Module»). En su Monitor serie verás `[wifi]`, `[envio]` y `[estado]`.
 4. Si el backend aún no está, arranca `python3 mock_backend.py` en el PC y apunta `API_BASE` a la IP del PC.
@@ -91,7 +91,26 @@ Solo hacen falta dos cables y un divisor de tensión, porque el TX del UNO da 5 
 
 Sube `pruebas/prueba_sensores` al UNO y abre el Monitor serie a 115200. Primero hace pruebas automáticas (RTC, RC522, DHT11, termistor, LED + fotorresistencia y HC-SR04), cada una con `[ OK ]`, `[AVISO]` o `[FALLO]` y qué revisar. Después pide pasar una tarjeta, inclinar el interruptor, pulsar el pulsador, mover la mano ante el HC-SR04, apretar el termistor y poner el dedo en el pulso, y los va tachando. Envía `r` para repetir las automáticas.
 
-Si el ESP32 no conecta, su Monitor serie dice el motivo: `NO_AP_FOUND` suele ser una red de 5 GHz.
+## Si el ESP32 no llega al backend
+
+El Monitor serie del ESP32 (115200) dice dónde está el fallo:
+
+| Mensaje | Qué pasa | Qué hacer |
+| --- | --- | --- |
+| `[wifi] ... NO_AP_FOUND` | no ve la red | el ESP32 solo usa **2,4 GHz**: pon el punto de acceso en 2,4 GHz y revisa el nombre |
+| `[wifi] ... AUTH_FAIL` o `HANDSHAKE_TIMEOUT` | ve la red pero no entra | revisa la contraseña |
+| `[diag] ... falla al instante` | el ordenador contesta, pero no hay servidor en ese puerto | arranca la API con `--host 0.0.0.0` (no `127.0.0.1`) |
+| `[diag] ... se agota el tiempo` | los paquetes no llegan | cortafuegos del ordenador del backend, o un hotspot que aísla a los clientes |
+| `[envio] ... fallo (500)` + `cuerpo:` | llega, pero la API da error interno | mira el traceback en la terminal de uvicorn |
+
+Lo que nos pasó en el hackathon, por si se repite:
+
+- **El hotspot de un móvil Xiaomi aísla a los clientes:** el móvil abría la API, pero el ESP32 no. Lo resolvimos con la zona con cobertura de Windows en el portátil del backend (2,4 GHz). La API queda en `http://192.168.137.1:8000`.
+- **Windows bloqueaba `python.exe` en redes públicas.** Las reglas de bloqueo ganan a las de permitir, así que abrir el puerto 8000 no bastaba. En PowerShell como administrador:
+  ```
+  Get-NetFirewallRule -Direction Inbound -Action Block -Enabled True | Where-Object { $_.DisplayName -eq "python.exe" } | Disable-NetFirewallRule
+  New-NetFirewallRule -DisplayName "SpaceHealth API 8000" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Any
+  ```
 
 ## Calibración (con `# dbg` en el Monitor serie del UNO)
 

@@ -18,7 +18,7 @@
 // D1 (TX) -> divisor 1k/2k -> GPIO16 del ESP32
 
 #define SERIAL_BAUD          115200
-#define TELEMETRY_PERIOD_MS  5000UL
+#define TELEMETRY_PERIOD_MS  2000UL
 #define DEBUG_SENSORS        1      // 1 = imprime una linea "# dbg ..." por segundo (el ESP32 la ignora)
 
 // Prueba por partes: 1 = solo RC522 + HC-SR04, con mensajes legibles en el Monitor serie
