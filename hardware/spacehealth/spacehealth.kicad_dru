@@ -1,0 +1,31 @@
+(version 1)
+
+# A1 is the Arduino UNO underneath the shield: its courtyard covers the whole UNO,
+# so parts of the shield are expected to sit inside it.
+(rule "UNO host courtyard"
+	(condition "A.Reference == 'A1' || B.Reference == 'A1'")
+	(constraint courtyard_clearance)
+	(severity ignore))
+
+# J9 and J11 are alternative positions for the ESP32 right-hand row (25.4 / 22.86 mm).
+# Only one socket is fitted, so their courtyards may overlap.
+(rule "ESP32 alternative row"
+	(condition "(A.Reference == 'J9' && B.Reference == 'J11') || (A.Reference == 'J11' && B.Reference == 'J9')")
+	(constraint courtyard_clearance)
+	(severity ignore))
+
+(rule "ESP32 alternative row silkscreen"
+	(condition "A.memberOfFootprint('J11') || B.memberOfFootprint('J11')")
+	(constraint silk_clearance)
+	(severity ignore))
+
+# The UNO footprint outline (USB jack) reaches past the shield edge on purpose.
+(rule "UNO outline at board edge"
+	(condition "A.memberOfFootprint('A1') || B.memberOfFootprint('A1')")
+	(constraint silk_clearance)
+	(severity ignore))
+
+# GND pads always have a full connection on the other copper layer.
+(rule "GND thermal spokes"
+	(condition "A.NetName == 'GND'")
+	(constraint min_resolved_spokes 1))
