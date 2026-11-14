@@ -53,10 +53,11 @@ def test_umbrales_bien_formados(name, spec):
     ("pushup_drop_pct", 20, 1),       # NASA [V1 4024]: 80 % de la basal aún cumple
     ("pushup_drop_pct", 25, 2),       # por debajo del 80 %: incumple
     ("pushup_drop_pct", 45, 3),
-    ("humidity_pct", 68, 0),
-    ("humidity_pct", 72, 1),
+    ("humidity_pct", 58, 0),
+    ("humidity_pct", 62, 1),          # NASA-STD-3001 [V2 6013]: fuera de 30–60 %
     ("humidity_pct", 80, 2),          # NASA-STD-3001: fuera de 25–75 %
-    ("cabin_temp_c", 27.5, 2),        # NASA-STD-3001: fuera de 18–27 °C
+    ("cabin_temp_c", 25.5, 1),        # NASA-STD-3001 [V2 6013]: fuera de 20–25 °C
+    ("cabin_temp_c", 27.5, 2),        # NASA-STD-3001 [V2 6012]: fuera de 18–27 °C
     ("heat_index_c", 23.0, 0),
     ("heat_index_c", 33.0, 2),        # NOAA: precaución extrema
     ("condensation_margin_c", 12.6, 0),

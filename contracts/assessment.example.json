@@ -6,7 +6,7 @@
     "cardiovascular": { "level": 1, "reasons": ["Pulso 118 lat/min, por encima de 100 lat/min"] },
     "neuro": { "level": 0, "reasons": [] },
     "musculoskeletal": { "level": 0, "reasons": [] },
-    "environment": { "level": 1, "reasons": ["Humedad de cabina 72 %, por encima de 70 %"] }
+    "environment": { "level": 1, "reasons": ["Humedad de cabina 72 %, por encima de 60 %"] }
   },
   "trends": [
     { "indicator": "pushup_reps", "projected_7d": 14, "crosses_threshold_in_days": 4 }
