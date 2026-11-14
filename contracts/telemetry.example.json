@@ -6,13 +6,11 @@
   "vitals": {
     "heart_rate_bpm": 72,
     "hr_quality": 0.85,
-    "resp_rate_bpm": 14,
     "body_temp_c": 36.7
   },
   "motion": {
     "activity": "still",
-    "still_for_s": 120,
-    "sleep_state": "awake"
+    "still_for_s": 120
   },
   "cabin": {
     "temp_c": 23.0,
