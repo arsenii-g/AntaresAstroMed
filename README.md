@@ -21,6 +21,7 @@ El motor de riesgos es un paquete de Python que la API importa y llama en el mis
 |---|---|---|
 | `contracts/` | Los 4 contratos JSON: ejemplos y modelos Pydantic | todos |
 | `firmware/` | UNO + ESP32: sensores y envío por WiFi | Electrónico |
+| `hardware/` | PCB: esquemático, diseño y archivos de fabricación | Por confirmar |
 | `risk/` | Motor de riesgos y `thresholds.json` | Arsenii |
 | `simulator/` | Emite telemetría ① con escenarios | Arsenii |
 | `api/` | FastAPI: endpoints, base de datos, WebSocket | Jesus |
