@@ -132,11 +132,18 @@ class Systems(WireModel):
 
 class Trend(WireModel):
     indicator: str
-    projected_7d: Number
-    crosses_threshold_in_days: Number | None = None
+    label: str
+    unit: str
+    basis: Literal["count", "time"]
+    x_unit: str
+    points: list[tuple[Number, Number]]
+    slope: Number
+    intercept: Number
+    horizon: Number
+    projected: Number
     threshold: Number | None = None
     threshold_level: Level | None = None
-    slope_per_day: Number
+    crosses_in: Number | None = None
 
 
 class RiskAssessment(Timestamped):

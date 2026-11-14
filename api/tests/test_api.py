@@ -170,8 +170,8 @@ def test_one_week_of_history_reaches_real_trend_engine(client):
         assert client.post("/api/v1/checks", json=check).status_code == 200
     assessment = client.get(f"/api/v1/crew/{CREW}/latest").json()["assessment"]
     trend = next(t for t in assessment["trends"] if t["indicator"] == "glucose_mg_dl")
-    assert trend["slope_per_day"] == pytest.approx(3)
-    assert trend["crosses_threshold_in_days"] is not None
+    assert trend["slope"] == pytest.approx(3) and len(trend["points"]) == 7
+    assert trend["crosses_in"] is not None
 
 
 def test_engine_failure_does_not_lose_data_and_retry_recovers(client, monkeypatch):

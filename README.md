@@ -30,18 +30,22 @@ Se pueden copiar sus valores a `.env` y arrancar con `--env-file .env` para pers
 El ESP32 usa la misma API key y la dirección del portátil en `API_BASE`; los GET y el
 chequeo manual de la web no necesitan clave.
 
-En otra terminal, con el entorno activado, se puede sustituir la placa por el simulador:
+En otra terminal, con el entorno activado, se pueden sustituir las placas por el
+simulador: dos ESP32, uno por tripulante, con el nivel de cada uno en
+`simulator/config.json` (detalles en [`simulator/README.md`](simulator/README.md)):
 
 ```bash
-python -m simulator.simulate --scenario demo --history-days 7 --count 24 --url http://localhost:8000 --api-key spacehealth-dev-key-2026
+python -m simulator.simulate
+python -m simulator.simulate --level F3786E09=1 --level 336F8312=3
+python -m simulator.simulate --mode normal
 ```
 
 La consola sigue la tarjeta activa, permite seleccionar otro tripulante, muestra los
-datos en vivo, los motivos y las acciones del motor, las medidas históricas y su
-proyección, y un chequeo guiado en tres pasos. El resumen para Tierra se prepara y
+datos en vivo, los motivos y las acciones del motor, las rectas de tendencia que
+calcula el motor con sus puntos medidos, y un chequeo guiado en tres pasos. El resumen para Tierra se prepara y
 se copia; no se envía automáticamente a ningún servicio externo.
 
-La API acepta la telemetría actual cada 2 s y el simulador cada 5 s. Guarda el `ts`
+La placa y el simulador mandan telemetría cada 2 s. Guarda el `ts`
 original en UTC, deduplica los reintentos y llama al motor dentro del mismo proceso.
 Los detalles y los endpoints están en [`api/README.md`](api/README.md).
 
@@ -55,7 +59,7 @@ python -m pytest -q
 Las pruebas del frontend usan Node 20 o posterior, sin instalar paquetes:
 
 ```bash
-node --test frontend/boceto/tests/data.test.js
+node --test frontend/boceto/tests/*.test.js
 ```
 
 ## Cómo funciona
@@ -77,7 +81,7 @@ El motor de riesgos es un paquete de Python que la API importa y llama en el mis
 | `firmware/` | UNO + ESP32: sensores y envío por WiFi | Electrónico |
 | `hardware/` | PCB: esquemático, diseño y archivos de fabricación | Por confirmar |
 | `risk/` | Motor de riesgos y `thresholds.json` | Arsenii |
-| `simulator/` | Emite telemetría ① con escenarios | Arsenii |
+| `simulator/` | Dos ESP32 simulados para el vídeo, con nivel configurable | Arsenii |
 | `api/` | FastAPI: endpoints, base de datos, WebSocket | Jesus |
 | `frontend/boceto/` | Consola AstroMed conectada, cuerpo clicable, chequeo guiado y gráficas | Roberto |
 
@@ -103,7 +107,7 @@ evaluate(telemetry: list[dict], events: list[dict],
 
 Las listas llevan mensajes ① y ② de un solo `crew_id`, y `now` va en UTC. Devuelve la evaluación ③ (`contracts/assessment.example.json`). El motor no recibe perfil: le basta el `crew_id` que va en cada mensaje. El nombre y el rol los añade la API o el frontend.
 
-**Para la API:** qué mandar al motor (telemetría del último minuto; eventos y chequeos de los últimos 7 días), qué devuelve y cómo probar la tendencia de 7 días, en [`risk/README.md`](risk/README.md).
+**Para la API:** qué mandar al motor (telemetría del último minuto; eventos y chequeos de los últimos 7 días), qué devuelve y cómo funcionan las rectas de tendencia, en [`risk/README.md`](risk/README.md).
 
 ## Ramas
 
