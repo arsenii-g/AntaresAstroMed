@@ -1,5 +1,7 @@
 import copy
 import json
+
+import pytest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -91,8 +93,10 @@ def test_pulso_alto_es_ambar_y_explica_por_que():
 
 
 def test_el_sistema_toma_el_peor_indicador():
-    msg = telemetry(vitals={"heart_rate_bpm": 118, "body_temp_c": 38.3})
-    cardio = evaluate([msg], [], [check()], NOW)["systems"]["cardiovascular"]
+    msgs = hr_series(118, 118, 118)
+    for m in msgs:
+        m["vitals"]["body_temp_c"] = 38.3
+    cardio = evaluate(msgs, [], [check()], NOW)["systems"]["cardiovascular"]
     assert cardio["level"] == 2
     assert cardio["reasons"][0].startswith("Body temperature 38.3")
 
@@ -124,8 +128,14 @@ def test_pulso_alto_suelto_no_escala_hasta_que_se_sostiene():
     cardio = lambda msgs: evaluate(msgs, [], [check()], NOW)["systems"]["cardiovascular"]
     one = cardio(hr_series(155))
     assert one["level"] == 1 and "not sustained yet: 1 of 3 readings" in one["reasons"][0]
-    spike = cardio(hr_series(80, 80, 155))                   # un pico de la fotorresistencia
-    assert spike["level"] == 0
+    spike = cardio(hr_series(80, 80, 190))                   # un pico: ámbar, nunca verde
+    assert spike["level"] == 1 and "not sustained yet: 1 of 3 readings" in spike["reasons"][0]
+    noisy = cardio(hr_series(160, 160, 95))                  # un fallo bajo no esconde un 160
+    assert noisy["level"] == 1 and "2 of 3" in noisy["reasons"][0]
+    assert cardio(hr_series(80, 80, 80))["level"] == 0
+    flipped = cardio(hr_series(190, 40, 190))                # alto y bajo mezclados
+    assert flipped["level"] == 1 and "check the sensor" in flipped["reasons"][0]
+    assert "above" in flipped["reasons"][0]
     sustained = cardio(hr_series(155, 156, 158))
     assert sustained["level"] == 3 and "sustained over 3 readings" in sustained["reasons"][0]
     mixed = cardio(hr_series(155, 125, 158))                 # la menos grave manda
@@ -134,8 +144,9 @@ def test_pulso_alto_suelto_no_escala_hasta_que_se_sostiene():
 
 def test_pulso_alto_tras_flexiones_o_en_movimiento_baja_un_nivel():
     cardio = lambda msgs, ev=(): evaluate(msgs, list(ev), [check()], NOW)["systems"]["cardiovascular"]
-    moving = cardio(hr_series(155, 156, 158, activity="moving"))
-    assert moving["level"] == 2 and "after exercise; recheck at rest" in moving["reasons"][0]
+    moving = cardio(hr_series(125, 126, 128, activity="moving"))
+    assert moving["level"] == 1 and "after exercise; recheck at rest" in moving["reasons"][0]
+    assert cardio(hr_series(155, 156, 158, activity="moving"))["level"] == 3   # el rojo no se rebaja
     set_now = copy.deepcopy(load("event.example.json"))
     set_now["ts"] = (NOW - timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
     assert cardio(hr_series(125, 126, 128), [set_now])["level"] == 1
@@ -216,3 +227,45 @@ def test_mismas_claves_que_el_ejemplo_del_contrato():
         "indicator", "projected_7d", "crosses_threshold_in_days",
         "threshold", "threshold_level", "slope_per_day",
     }
+
+
+def test_temperatura_baja_suelta_no_da_rojo():
+    def temps(*values):
+        msgs = hr_series(*[75] * len(values))
+        for m, t in zip(msgs, values):
+            m["vitals"]["body_temp_c"] = t
+        return evaluate(msgs, [], [check()], NOW)
+    loose = temps(36.6, 36.7, 34.8)                     # termistor medio suelto
+    assert loose["systems"]["cardiovascular"]["level"] == 1 and loose["earth_summary"] is None
+    cold = temps(34.8, 34.7, 34.6)                      # hipotermia de verdad: menos de 35 °C
+    assert cold["systems"]["cardiovascular"]["level"] == 3 and cold["earth_summary"]
+
+
+def test_duplicados_cuentan_una_vez():
+    msg = hr_series(155)[0]
+    msg["device_id"] = "esp32-01"
+    cardio = evaluate([msg, copy.deepcopy(msg), copy.deepcopy(msg)], [], [check()], NOW)["systems"]["cardiovascular"]
+    assert cardio["level"] == 1                          # un reintento guardado 3 veces no es "sostenido"
+    c = check()
+    c["blood_pressure"] = {"systolic": 145, "diastolic": 80}
+    cardio = evaluate([], [], [c, copy.deepcopy(c)], NOW)["systems"]["cardiovascular"]
+    assert cardio["level"] == 1 and "first reading" in cardio["reasons"][0]
+
+
+def test_basura_no_lanza_excepciones():
+    junk = [
+        telemetry(vitals={"heart_rate_bpm": "80", "body_temp_c": True}, cabin={"temp_c": "x"}),
+        {**telemetry(), "vitals": [1], "motion": "still", "cabin": None},
+        "no soy un dict", None, 42,
+    ]
+    bad_checks = [{**check(), "mood": "3", "blood_pressure": [120, 80], "glucose_mg_dl": float("nan")}]
+    bad_events = [{"type": "exercise_summary", "ts": "2026-11-14T10:00:00Z", "data": "20 reps"}]
+    result = evaluate(junk, bad_events, bad_checks, NOW)
+    assert set(result) == set(load("assessment.example.json"))
+    assert "Heart rate: no data" in result["systems"]["cardiovascular"]["reasons"]
+    assert evaluate("basura", None, {"a": 1}, NOW)["overall_level"] is None
+
+
+def test_now_sin_zona_horaria_es_un_error():
+    with pytest.raises(ValueError, match="timezone-aware"):
+        evaluate([], [], [], datetime(2026, 11, 14, 10, 30))

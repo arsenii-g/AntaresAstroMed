@@ -115,3 +115,9 @@ def test_animo_frente_a_su_propia_media():
     assert neuro(usual_4)["level"] == 0                                            # 1 punto: normal
     two_before = [day_check(d, mood=5) for d in (2, 1)] + [day_check(0, mood=3)]
     assert neuro(two_before)["level"] == 0                                         # pocos chequeos previos
+
+
+def test_animo_baja_1_5_de_su_media():
+    usual = [day_check(d, mood=m) for d, m in zip((3, 2, 1), (5, 5, 4))] + [day_check(0, mood=3)]
+    neuro = evaluate([], [], usual, NOW)["systems"]["neuro"]
+    assert neuro["level"] == 1 and "below own average" in neuro["reasons"][0]

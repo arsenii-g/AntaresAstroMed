@@ -31,7 +31,7 @@
       "nasa_ref": null,
       "sustain_readings": 3,
       "exercise_recovery_s": 300,
-      "rules_source": "sustain_readings: el nivel 2 o 3 necesita 3 lecturas seguidas (15 s) en ese nivel, porque la fotorresistencia es ruidosa (notas del electrónico). exercise_recovery_s: durante 5 min tras una serie de flexiones, o con activity 'moving', el pulso alto baja un nivel (mínimo ámbar), porque subir el pulso con el ejercicio es normal. Ambos: criterio propio."
+      "rules_source": "sustain_readings: el nivel 2 o 3 necesita 3 lecturas seguidas (15 s) en ese nivel; mientras no, una lectura alta da ámbar, nunca verde. Lecturas altas y bajas mezcladas dan ámbar con aviso de revisar el sensor. Motivo: la fotorresistencia es ruidosa (notas del electrónico). exercise_recovery_s: durante 5 min tras una serie de flexiones, o con activity 'moving', el pulso alto en naranja baja a ámbar; el rojo (más de 150) no se rebaja. Todo: criterio propio."
     },
     "body_temp_c": {
       "label": "Body temperature",
@@ -49,7 +49,9 @@
         35.0
       ],
       "source": "Nivel 1 alto: fiebre por encima de 37,5 °C oral, Clinical Methods, NCBI (https://www.ncbi.nlm.nih.gov/books/NBK331/). Nivel 3 bajo: hipotermia por debajo de 35 °C, Mayo Clinic (https://www.mayoclinic.org/diseases-conditions/hypothermia/symptoms-causes/syc-20352682). Nivel 2 (38,0 y 35,5): guia. Resto: criterio propio.",
-      "nasa_ref": null
+      "nasa_ref": null,
+      "sustain_readings": 3,
+      "rules_source": "sustain_readings: igual que el pulso. Un termistor medio suelto da una lectura baja suelta, y eso no debe dar rojo ni resumen a Tierra. Criterio propio."
     },
     "systolic_mmhg": {
       "label": "Systolic blood pressure",
@@ -126,9 +128,9 @@
       ],
       "source": "Criterio propio sobre la escala de la guia (1 muy mal a 5 muy bien). Es el unico indicador neuro: no hay test de reaccion. Justificacion del sistema: NASA HRP, peligro de aislamiento y confinamiento (https://www.nasa.gov/hrp/hazards/).",
       "nasa_ref": null,
-      "personal_drop": 2,
+      "personal_drop": 1.5,
       "personal_min_checks": 3,
-      "rules_source": "personal_drop: ámbar si el ánimo de hoy está 2 puntos o más por debajo de la media del propio tripulante en los 7 días anteriores, con al menos 3 chequeos previos; se suma a los cortes fijos. Criterio propio."
+      "rules_source": "personal_drop: ámbar si el ánimo de hoy está 1,5 puntos o más por debajo de la media del propio tripulante en los 7 días anteriores, con al menos 3 chequeos previos; se suma a los cortes fijos. Criterio propio."
     },
     "pushup_drop_pct": {
       "label": "Push-up drop vs. own average",
