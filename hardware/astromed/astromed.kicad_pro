@@ -492,7 +492,7 @@
     "pinned_symbol_libs": []
   },
   "meta": {
-    "filename": "spacehealth.kicad_pro",
+    "filename": "astromed.kicad_pro",
     "version": 3
   },
   "net_settings": {
@@ -660,8 +660,8 @@
     "subpart_id_separator": 0,
     "top_level_sheets": [
       {
-        "filename": "spacehealth.kicad_sch",
-        "name": "spacehealth",
+        "filename": "astromed.kicad_sch",
+        "name": "astromed",
         "uuid": "00000000-0000-0000-0000-000000000000"
       }
     ],

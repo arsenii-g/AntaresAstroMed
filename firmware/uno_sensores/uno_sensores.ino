@@ -1,4 +1,4 @@
-// SpaceHealth - firmware del Arduino UNO
+// AstroMed - firmware del Arduino UNO
 //
 // Mide al tripulante (RFID, pulso, temperatura, movimiento, flexiones)
 // y la cabina (DHT11), y manda por el puerto serie (115200) una linea JSON por mensaje:
@@ -656,7 +656,7 @@ void setup() {
   pinMode(PIN_DHT, INPUT_PULLUP);
   digitalWrite(PIN_PULSE_LED, HIGH);   // el LED del pulso va siempre encendido
 
-  Serial.println(F("# SpaceHealth UNO arrancando"));
+  Serial.println(F("# AstroMed UNO arrancando"));
   delay(50);
   bool resetMission = digitalRead(PIN_BUTTON) == LOW;
   rtcSetup(resetMission);

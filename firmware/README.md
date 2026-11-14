@@ -1,4 +1,4 @@
-# SpaceHealth: firmware y conexiones
+# AstroMed: firmware y conexiones
 
 Sigue el documento «SpaceHealth qué se mide y qué se manda por JSON final.md», sin el sueño, la respiración ni el PIR. El HC-SR04 solo cuenta flexiones, y `resp_rate_bpm` va siempre a `null` para no cambiar el formato del JSON.
 
@@ -109,7 +109,7 @@ Lo que nos pasó en el hackathon, por si se repite:
 - **Windows bloqueaba `python.exe` en redes públicas.** Las reglas de bloqueo ganan a las de permitir, así que abrir el puerto 8000 no bastaba. En PowerShell como administrador:
   ```
   Get-NetFirewallRule -Direction Inbound -Action Block -Enabled True | Where-Object { $_.DisplayName -eq "python.exe" } | Disable-NetFirewallRule
-  New-NetFirewallRule -DisplayName "SpaceHealth API 8000" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Any
+  New-NetFirewallRule -DisplayName "AstroMed API 8000" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Any
   ```
 
 ## Calibración (con `# dbg` en el Monitor serie del UNO)
