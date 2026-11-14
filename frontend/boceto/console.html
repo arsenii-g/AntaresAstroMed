@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ArgosMed · Crew Health Console</title>
+  <title>AstroMed · Crew Health Console</title>
   <meta name="description" content="Crew health monitoring console: body sensor telemetry, daily checks and explainable risk rules.">
+  <link rel="icon" type="image/png" href="assets/astromed-mark.png">
   <!-- Fuentes: si no hay internet se usan las del sistema (ver styles.css). -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,17 +17,13 @@
 
   <!-- ───────── BARRA SUPERIOR ───────── -->
   <header class="topbar">
-    <a class="brand" href="index.html" aria-label="ArgosMed home">
-      <svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true">
-        <circle cx="16" cy="16" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
-        <ellipse cx="16" cy="16" rx="14" ry="5.2" fill="none" stroke="currentColor" stroke-width="1.2" transform="rotate(-24 16 16)" opacity=".7"/>
-        <circle cx="27.6" cy="10.6" r="1.8" fill="var(--accent)"/>
-      </svg>
-      <span>Argos<b>Med</b></span>
+    <a class="brand" href="index.html" aria-label="AstroMed home">
+      <img src="assets/astromed-mark.png" width="32" height="32" alt="">
+      <span>Astro<b>Med</b></span>
     </a>
 
     <dl class="mission mono">
-      <div><dt>Mission</dt><dd id="mission">ARGOS-1</dd></div>
+      <div><dt>Device</dt><dd id="device">—</dd></div>
       <div><dt>MET</dt><dd id="met">—</dd></div>
       <div><dt>UTC</dt><dd id="utc">—</dd></div>
     </dl>
@@ -80,7 +77,7 @@
 
     <section class="panel">
       <header class="ph">
-        <h2>7-day trend</h2>
+        <h2>Trends</h2><span class="mono dim" id="trendCount"></span>
         <span class="mono dim trend-key" aria-hidden="true">● measured <i></i>fit<i class="dash"></i>projection<i class="th"></i>threshold</span>
       </header>
       <div class="pb" id="trends"></div>
@@ -118,7 +115,7 @@
   <!-- ───────── VISTA: CHEQUEO DIARIO ───────── -->
   <main class="checkview" id="view-check" hidden>
     <form class="panel" id="checkForm" novalidate>
-      <header class="ph"><h2>Daily check</h2><span class="mono dim">About two minutes</span></header>
+      <header class="ph"><h2>Daily check</h2><span class="mono dim">Mood, blood pressure, glucose</span></header>
       <div class="pb check">
         <label class="row">Crew member
           <select id="checkCrew"></select>
@@ -150,7 +147,7 @@
   </main>
 
   <footer class="statusbar mono">
-    <span>ArgosMed · Team Argos · NASA Space Apps 2026</span>
+    <span>AstroMed · Team Antares · NASA Space Apps 2026</span>
     <span>Prototype · Not a medical device</span>
   </footer>
 

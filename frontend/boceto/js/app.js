@@ -1,8 +1,11 @@
 // Lógica de la consola. Habla con la API (api/main.py):
-//   GET  /api/v1/crew/{id}/latest      → último estado y nombre/rol, al cargar y al reconectar
+//   GET  /api/v1/crew/{id}/latest      → último estado y nombre, al cargar y al reconectar
 //   GET  /api/v1/crew/{id}/telemetry   → histórico, para las líneas de pulso y temperatura
-//   WS   /ws                           → mensajes { type, data }: telemetry, event, check, assessment
+//   GET  /api/v1/events                → registro de eventos guardados
+//   WS   /ws                           → mensajes { type, data }: telemetry, event, assessment
 //   POST /api/v1/checks                → chequeo diario (contrato ②)
+// Todo lo que se pinta sale de esos mensajes: niveles, motivos, acciones y
+// tendencias (con sus puntos y su recta) los calcula el motor (risk/).
 // Se puede cambiar desde la URL: console.html?api=http://192.168.1.20:8000&crew=F3786E09
 
 import { createPlanet } from "./planet.js";
@@ -16,8 +19,8 @@ const params = new URLSearchParams(location.search);
 const API_URL = (params.get("api") ?? (location.port === "5173" ? `${location.protocol}//${location.hostname}:8000` : location.origin)).replace(/\/$/, "");
 const WS_PATH = "/ws";
 const API_KEY = params.get("key"); // GET and manual checks do not require a key.
-// Tripulantes que la API conoce (crew_names en api/main.py). Los que lleguen por el
-// WebSocket con otro crew_id se añaden solos.
+// Tarjetas del kit (api/crew.py). Los que lleguen por el WebSocket con otro
+// crew_id se añaden solos.
 const KNOWN_CREW = ["F3786E09", "336F8312"];
 const STALE_S = 15;            // criterio propio: varios mensajes seguidos perdidos (la placa manda cada 2 s)
 const HISTORY = 48;            // puntos de las líneas de pulso y temperatura
@@ -29,7 +32,11 @@ const SYSTEMS = [
   ["musculoskeletal", "Musculoskeletal"],
   ["environment", "Environment"],
 ];
-const TREND_NAME = { pushup_reps: "Push-ups", glucose_mg_dl: "Glucose", systolic_mmhg: "Systolic pressure", diastolic_mmhg: "Diastolic pressure", mood: "Mood" };
+// Alertas locales de la placa (firmware/uno_sensores/config.h). No son niveles del motor.
+const BOARD_ALERT = {
+  HR_HIGH: "Pulse > 120", HR_LOW: "Pulse < 45", BODY_TEMP_HIGH: "Body temp > 38.0 °C", BODY_TEMP_LOW: "Body temp < 35.5 °C",
+  CABIN_TEMP_HIGH: "Cabin > 28 °C", CABIN_TEMP_LOW: "Cabin < 18 °C", HEAT_INDEX_HIGH: "Heat index > 32 °C", CONDENSATION_HIGH: "Condensation risk high",
+};
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -54,8 +61,6 @@ const state = {
   hrHistory: {},               // crew_id -> últimos pulsos, para la gráfica
   tempHistory: {},             // crew_id -> últimas temperaturas corporales, para la gráfica
   samples: {},
-  checks: {},
-  exercises: {},
   lastExercise: {},
   seenEvents: new Set(),
   lastPacket: {},              // crew_id -> hora local de llegada (ms)
@@ -92,7 +97,9 @@ function addCrew(id, name, role) {
 // `fromHistory`: datos pedidos por HTTP (no en directo); la antigüedad sale de su ts.
 function onMessage({ type, data }, { fromHistory = false } = {}) {
   if (!data) return;
-  if (!fromHistory && type === "telemetry") applyStation({ crew_id: data.crew_id, ts: data.ts });
+  // Con varias placas a la vez, la telemetría alterna de tripulante cada 2 s:
+  // "Follow sensor" sigue los fichajes RFID, y la telemetría solo si no hay nadie seleccionado.
+  if (!fromHistory && type === "telemetry" && !state.crewId) applyStation({ crew_id: data.crew_id, ts: data.ts });
   if (!fromHistory && type === "event" && data.type === "crew_checkin") {
     applyStation({ crew_id: data.data?.action === "in" ? data.crew_id : null, ts: data.ts });
   }
@@ -179,12 +186,13 @@ function renderRoster() {
   $("crewCount").textContent = `${crew.length} ON BOARD`;
   if (!crew.length) { $("roster").innerHTML = `<p class="pb empty">Waiting for crew data…</p>`; return; }
   $("roster").innerHTML = crew.map((c) => {
+    const role = c.role ? `${esc(c.role)} · ` : "";
     const a = state.assessment[c.crew_id], t = state.telemetry[c.crew_id];
     const age = ageS(state.lastPacket[c.crew_id]);
     const hr = t?.vitals?.heart_rate_bpm;
     return `<button class="crew" data-crew="${esc(c.crew_id)}" data-level="${lv(a?.overall_level)}" aria-pressed="${c.crew_id === state.crewId}">
       <b>${esc(c.name)}</b><span class="chip">${name(a?.overall_level)}</span>
-      <span class="sub">${c.role ? `${esc(c.role)} · ` : ""}${esc(c.crew_id)}</span>
+      <span class="sub">${role}${esc(c.crew_id)}${t?.device_id ? ` · ${esc(t.device_id)}` : ""}</span>
       <span class="meta mono ${age != null && age > STALE_S ? "stale" : ""}">${typeof hr === "number" ? `${hr} bpm · ` : ""}${ago(age)}</span>
     </button>`;
   }).join("");
@@ -281,13 +289,14 @@ function renderAssessment() {
   holo.setLevels(Object.fromEntries(SYSTEMS.map(([k]) => [k, a.systems?.[k]?.level ?? null])));
   renderSystems();
 
-  $("trends").innerHTML = a.trends?.length
-    // Una gráfica de 7 días por indicador; primero las que cruzan antes un umbral.
-    ? [...a.trends]
-        .sort((x, y) => (x.crosses_threshold_in_days ?? Infinity) - (y.crosses_threshold_in_days ?? Infinity))
-        .map((t) => trendChart(t, { names: TREND_NAME, levelName: name, points: observed(t.indicator, a) }))
-        .join("")
-    : `<p class="empty">Not enough readings yet to draw a 7-day trend.</p>`;
+  // Una gráfica por indicador con al menos 7 medidas. Primero las que cruzan un
+  // umbral; luego los chequeos y las series, y después los sensores.
+  const trends = [...(a.trends ?? [])].sort((x, y) =>
+    (x.crosses_in == null) - (y.crosses_in == null) || (x.basis === "time") - (y.basis === "time"));
+  $("trends").innerHTML = trends.length
+    ? trends.map((t) => trendChart(t, { levelName: name })).join("")
+    : `<p class="empty">A trend line appears after 7 readings of the same measure: 7 daily checks, 7 push-up sets or 14 s of sensor data.</p>`;
+  $("trendCount").textContent = trends.length ? `${trends.filter((t) => t.crosses_in != null).length} OF ${trends.length} CROSSING` : "";
 
   const recs = JSON.stringify(a.recommendations ?? []);
   if (recs !== lastRecs) {
@@ -344,6 +353,10 @@ function renderVitals() {
   const tLo = Math.min(...validTemp, 36), tHi = Math.max(...validTemp, 37.5);
   const tempLine = sparkPath(temps, tLo, tHi);
   const motion = t?.motion?.activity === "still" ? `Still ${num(t.motion.still_for_s)} s` : (t?.motion?.activity ?? "—");
+  const ex = state.lastExercise[state.crewId]?.data;
+  const exercise = ex ? `${num(ex.reps)} reps · ${num(ex.duration_s)} s` : "—";
+  const risk = t?.cabin?.condensation_risk;
+  const alerts = (t?.alerts ?? []).map((code) => `<span class="chip" data-level="1">${esc(BOARD_ALERT[code] ?? code)}</span>`).join("");
 
   holo.setBpm(t?.vitals?.heart_rate_bpm);
   $("vitals").innerHTML = `
@@ -354,9 +367,13 @@ function renderVitals() {
       <p class="val">${num(t?.vitals?.body_temp_c, 1)}<small>°C</small></p>
       <svg viewBox="0 0 100 44" preserveAspectRatio="none"><path d="${tempLine}" fill="none" stroke="currentColor" vector-effect="non-scaling-stroke"/></svg></div>
     <div class="vital wide"><p class="label">Motion</p><p class="val txt">${esc(motion)}</p></div>
-    <div class="vital wide"><p class="label">Last exercise</p><p class="val txt">${state.lastExercise[state.crewId] ? `${num(state.lastExercise[state.crewId].data?.reps)} reps` : "—"}</p></div>
+    <div class="vital wide"><p class="label">Last push-up set</p><p class="val txt">${esc(exercise)}</p></div>
     <div class="vital"><p class="label">Cabin temp</p><p class="val">${num(t?.cabin?.temp_c, 1)}<small>°C</small></p></div>
-    <div class="vital"><p class="label">Humidity</p><p class="val">${num(t?.cabin?.humidity_pct)}<small>%</small></p></div>`;
+    <div class="vital"><p class="label">Humidity</p><p class="val">${num(t?.cabin?.humidity_pct)}<small>%</small></p></div>
+    <div class="vital"><p class="label">Heat index</p><p class="val">${num(t?.cabin?.heat_index_c, 1)}<small>°C</small></p></div>
+    <div class="vital"><p class="label">Dew point</p><p class="val">${num(t?.cabin?.dew_point_c, 1)}<small>°C</small></p></div>
+    <div class="vital wide"><p class="label">Condensation risk</p><p class="val txt">${esc(risk ?? "—")}</p></div>
+    <div class="vital wide"><p class="label">Board alerts</p><p class="alerts">${alerts || `<span class="dim">${t ? "None" : "—"}</span>`}</p></div>`;
   renderAge();
 }
 
@@ -388,12 +405,14 @@ function renderLink() {
   $("linkState").textContent = stale ? "NO SIGNAL" : "CONNECTED";
   $("linkState").style.color = stale ? "var(--lv1)" : "var(--lv0)";
   $("link").innerHTML = `
+    <dt>Device</dt><dd>${esc(t?.device_id ?? "—")}</dd>
     <dt>Last reading</dt><dd class="${stale ? "warn" : ""}">${ago(age)}</dd>
-    <dt>Pulse signal</dt><dd>${typeof quality === "number" ? (quality >= 0.7 ? "Good" : "Weak: check the sensor") : "—"}</dd>
+    <dt>Pulse signal quality</dt><dd>${typeof quality === "number" ? `${Math.round(quality * 100)} %` : "—"}</dd>
     <dt>Status</dt><dd class="${stale ? "warn" : ""}">${stale ? "Check that the device is on and in place" : "Reading normally"}</dd>`;
 }
 function renderClock() {
   $("utc").textContent = new Date().toISOString().slice(11, 19);
+  $("device").textContent = state.telemetry[state.crewId]?.device_id ?? "—";
   if (state.met) {
     const s = state.met.s + (Date.now() - state.met.at) / 1000;
     const p = (n, l = 2) => String(Math.floor(n)).padStart(l, "0");
@@ -521,18 +540,13 @@ async function getJSON(path) {
 // Último estado de un tripulante, y su histórico de telemetría para las líneas.
 async function loadCrew(id) {
   const from = encodeURIComponent(new Date(Date.now() - 7 * 86400000).toISOString());
-  const [latest, history, checks, events] = await Promise.all([
+  const [latest, history, events] = await Promise.all([
     getJSON(`/api/v1/crew/${encodeURIComponent(id)}/latest`).catch((e) => { console.warn(e); return null; }),
     getJSON(`/api/v1/crew/${encodeURIComponent(id)}/telemetry?limit=${HISTORY}`).catch(() => null),
-    getJSON(`/api/v1/crew/${encodeURIComponent(id)}/checks?from=${from}`).catch(() => null),
     getJSON(`/api/v1/events?crew_id=${encodeURIComponent(id)}&from=${from}`).catch(() => null),
   ]);
   if (latest) addCrew(id, latest.crew_name, latest.crew_role);
-  if (checks) state.checks[id] = checks;
-  if (events) {
-    state.exercises[id] = events.filter((m) => m.type === "exercise_summary");
-    for (const event of events) onMessage({ type: "event", data: event }, { fromHistory: true });
-  }
+  if (events) for (const event of events) onMessage({ type: "event", data: event }, { fromHistory: true });
   if (latest?.last_exercise) state.lastExercise[id] = latest.last_exercise;
   if (Array.isArray(history)) {
     for (const t of history.slice(-HISTORY)) onMessage({ type: "telemetry", data: { ...t, crew_id: t.crew_id ?? id } }, { fromHistory: true });
@@ -550,15 +564,6 @@ async function loadAll() {
   const active = await getJSON("/api/v1/crew/active").catch(() => null);
   if (active) applyStation(active);
   await Promise.all([...new Set([...KNOWN_CREW, ...state.crew.keys()])].map(loadCrew));
-}
-
-function observed(indicator, assessment) {
-  const records = indicator === "pushup_reps" ? state.exercises[assessment.crew_id] ?? [] : state.checks[assessment.crew_id] ?? [];
-  return records.map((m) => ({
-    day: (tsMs(m.ts) - tsMs(assessment.ts)) / 86400000,
-    value: indicator === "pushup_reps" ? m.data?.reps : indicator === "systolic_mmhg" ? m.blood_pressure?.systolic
-      : indicator === "diastolic_mmhg" ? m.blood_pressure?.diastolic : m[indicator === "mood" ? "mood" : "glucose_mg_dl"],
-  })).filter((p) => p.day >= -7 && p.day <= 0 && typeof p.value === "number");
 }
 
 // WebSocket con reconexión: espera 1, 2, 4… s, hasta 30 s. Al volver, se pide el estado.
