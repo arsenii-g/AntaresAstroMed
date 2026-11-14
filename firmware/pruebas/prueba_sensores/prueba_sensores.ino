@@ -1,4 +1,4 @@
-// SpaceHealth - prueba de que todos los sensores estan conectados y funcionan
+// AstroMed - prueba de que todos los sensores estan conectados y funcionan
 //
 // Subelo al UNO y abre el Monitor serie a 115200.
 //   1. Primero hace las pruebas automaticas: RTC, RC522, DHT11, termistor, LED + fotorresistencia
@@ -319,7 +319,7 @@ void testUltrasonic() {
 void runAutoTests() {
   nOk = nWarn = nFail = 0;
   Serial.println();
-  Serial.println(F("=========== PRUEBA DE SENSORES SpaceHealth ==========="));
+  Serial.println(F("=========== PRUEBA DE SENSORES AstroMed ==========="));
   Serial.println(F("Quita el dedo del LED y no toques nada durante 10 s..."));
   Serial.println();
   testRtc();

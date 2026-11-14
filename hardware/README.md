@@ -1,6 +1,6 @@
 # Hardware: Arduino UNO + ESP32 shield
 
-Schematic and PCB for the SpaceHealth shield, a board that replaces the breadboard prototype. It sits on top of an **Arduino UNO R3**, carries an **ESP32 DevKit V1 (30-pin, CP2102)** in female headers, and provides connectors for every sensor.
+Schematic and PCB for the AstroMed shield, a board that replaces the breadboard prototype. It sits on top of an **Arduino UNO R3**, carries an **ESP32 DevKit V1 (30-pin, CP2102)** in female headers, and provides connectors for every sensor.
 
 ![PCB, 3D view](pcb_3d.png)
 
@@ -17,17 +17,17 @@ The PIR sensor, the sleep sensors and the HC-SR04 respiration measurement were r
 | `esquematico.pdf` | Schematic, A3 PDF |
 | `esquematico.png` | Schematic, PNG at 200 dpi |
 | `bom.csv` | Bill of materials exported from KiCad |
-| `spacehealth/spacehealth.kicad_pro` | KiCad project file |
-| `spacehealth/spacehealth.kicad_sch` | Schematic (KiCad 10 format) |
-| `spacehealth/spacehealth.net` | Netlist (KiCad S-expression) |
-| `spacehealth/erc.rpt` | Electrical rules check report |
-| `spacehealth/spacehealth.kicad_pcb` | PCB layout |
-| `spacehealth/spacehealth.kicad_dru` | Custom design rules (see [PCB](#pcb)) |
-| `spacehealth/drc.rpt` | Design rules check report, including schematic parity |
+| `astromed/astromed.kicad_pro` | KiCad project file |
+| `astromed/astromed.kicad_sch` | Schematic (KiCad 10 format) |
+| `astromed/astromed.net` | Netlist (KiCad S-expression) |
+| `astromed/erc.rpt` | Electrical rules check report |
+| `astromed/astromed.kicad_pcb` | PCB layout |
+| `astromed/astromed.kicad_dru` | Custom design rules (see [PCB](#pcb)) |
+| `astromed/drc.rpt` | Design rules check report, including schematic parity |
 | `pcb_top.png`, `pcb_bottom.png`, `pcb_3d.png` | 3D renders of the board |
 | `kicad_pcb_editor.png`, `kicad_3d_bottom.png` | Screenshots of the KiCad PCB editor and 3D viewer (bottom side) |
 | `gerbers/` | Gerber and Excellon drill files |
-| `spacehealth_gerbers.zip` | Same files zipped, ready to upload to a PCB manufacturer |
+| `astromed_gerbers.zip` | Same files zipped, ready to upload to a PCB manufacturer |
 | `fotos/` | Photos of the assembled board (optional, pending) |
 
 - **KiCad version:** 10.0.8. Files saved by KiCad 10 cannot be opened in KiCad 8 or 9.
@@ -185,7 +185,7 @@ Layout:
 - The divider resistors R4 and R5 sit under the ESP32, between its two rows. With the socket height, they fit under the module.
 - The UNO USB-B connector is close to the underside of the shield. Put a piece of insulating tape on top of it before stacking the boards.
 
-`spacehealth.kicad_dru` adds five rules for situations that are intended in this design: shield parts inside the UNO courtyard, the overlapping J9/J11 rows and their silkscreen, the UNO outline reaching past the board edge, and GND pads with a single thermal spoke on the top layer, which are still fully connected on the bottom layer.
+`astromed.kicad_dru` adds five rules for situations that are intended in this design: shield parts inside the UNO courtyard, the overlapping J9/J11 rows and their silkscreen, the UNO outline reaching past the board edge, and GND pads with a single thermal spoke on the top layer, which are still fully connected on the bottom layer.
 
 Screenshots from KiCad:
 
@@ -193,7 +193,7 @@ Screenshots from KiCad:
 
 ![KiCad 3D viewer, bottom side](kicad_3d_bottom.png)
 
-To order the board, upload `spacehealth_gerbers.zip`. Default options are fine: 2 layers, 1.6 mm, 1 oz copper, any solder mask colour.
+To order the board, upload `astromed_gerbers.zip`. Default options are fine: 2 layers, 1.6 mm, 1 oz copper, any solder mask colour.
 
 ## Verification
 
@@ -208,16 +208,16 @@ To order the board, upload `spacehealth_gerbers.zip`. Default options are fine: 
 From `hardware/`, with `kicad-cli` from KiCad 10:
 
 ```bash
-kicad-cli sch erc --severity-all -o spacehealth/erc.rpt spacehealth/spacehealth.kicad_sch
-kicad-cli sch export netlist -o spacehealth/spacehealth.net spacehealth/spacehealth.kicad_sch
-kicad-cli sch export bom --fields 'Reference,Value,Footprint,${QUANTITY},Mounting,${DNP}' --labels 'Reference,Value,Footprint,Quantity,Mounting,DNP' --group-by Value,Footprint --ref-range-delimiter '' -o bom.csv spacehealth/spacehealth.kicad_sch
-kicad-cli sch export pdf -o esquematico.pdf spacehealth/spacehealth.kicad_sch
+kicad-cli sch erc --severity-all -o astromed/erc.rpt astromed/astromed.kicad_sch
+kicad-cli sch export netlist -o astromed/astromed.net astromed/astromed.kicad_sch
+kicad-cli sch export bom --fields 'Reference,Value,Footprint,${QUANTITY},Mounting,${DNP}' --labels 'Reference,Value,Footprint,Quantity,Mounting,DNP' --group-by Value,Footprint --ref-range-delimiter '' -o bom.csv astromed/astromed.kicad_sch
+kicad-cli sch export pdf -o esquematico.pdf astromed/astromed.kicad_sch
 pdftoppm -png -r 200 -singlefile esquematico.pdf esquematico
-kicad-cli pcb drc --schematic-parity --severity-all --refill-zones --save-board -o spacehealth/drc.rpt spacehealth/spacehealth.kicad_pcb
-kicad-cli pcb export gerbers --no-protel-ext -l F.Cu,B.Cu,F.Silkscreen,B.Silkscreen,F.Mask,B.Mask,Edge.Cuts -o gerbers/ spacehealth/spacehealth.kicad_pcb
-kicad-cli pcb export drill --excellon-separate-th -o gerbers/ spacehealth/spacehealth.kicad_pcb
-(cd gerbers && zip ../spacehealth_gerbers.zip *)
-kicad-cli pcb render --side top --quality high -o pcb_top.png spacehealth/spacehealth.kicad_pcb
+kicad-cli pcb drc --schematic-parity --severity-all --refill-zones --save-board -o astromed/drc.rpt astromed/astromed.kicad_pcb
+kicad-cli pcb export gerbers --no-protel-ext -l F.Cu,B.Cu,F.Silkscreen,B.Silkscreen,F.Mask,B.Mask,Edge.Cuts -o gerbers/ astromed/astromed.kicad_pcb
+kicad-cli pcb export drill --excellon-separate-th -o gerbers/ astromed/astromed.kicad_pcb
+(cd gerbers && zip ../astromed_gerbers.zip *)
+kicad-cli pcb render --side top --quality high -o pcb_top.png astromed/astromed.kicad_pcb
 ```
 
 When using the AppImage, run `kicad-cli` as `./kicad.appimage kicad-cli <arguments>`.
