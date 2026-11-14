@@ -88,21 +88,21 @@ button, select, input { font: inherit; color: inherit; }
 
 /* ───────── MONITOR ───────── */
 .monitor, .checkview { width: 100%; max-width: 1680px; margin: 0 auto; padding: 12px 20px 20px; flex: 1; }
+/* Tres columnas independientes, sin filas compartidas, para que no queden huecos:
+   izquierda  tripulación, sistemas, acciones y sensor
+   centro     cuerpo, resumen para Tierra y registro (el registro ocupa lo que sobra)
+   derecha    constantes y tendencias */
 .monitor {
-  display: grid; gap: 12px; align-items: start;
+  display: grid; gap: 12px; align-items: stretch;
   grid-template-columns: 300px minmax(0, 1fr) 340px;
-  grid-template-areas:
-    "left scan right"
-    "down down down"
-    "log  log  link";
+  grid-template-areas: "left center right";
 }
-.a-left { grid-area: left; } .a-scan { grid-area: scan; align-self: stretch; } .a-right { grid-area: right; }
-/* Con muchas tendencias la columna derecha crece: el cuerpo se queda a la vista
-   y las tendencias hacen scroll dentro de su panel. */
-.monitor > .a-scan { position: sticky; top: 12px; align-self: start; height: calc(100vh - 112px); min-height: 560px; display: flex; flex-direction: column; }
-#trends { max-height: 720px; overflow-y: auto; overscroll-behavior: contain; }
+.a-left { grid-area: left; } .a-center { grid-area: center; } .a-right { grid-area: right; }
 .stack { display: grid; gap: 12px; align-content: start; min-width: 0; }
-.a-down { grid-area: down; } .a-log { grid-area: log; align-self: stretch; } .a-link { grid-area: link; }
+.a-center { display: flex; flex-direction: column; }
+/* El cuerpo se queda en su sitio, arriba, y deja ver el registro debajo sin scroll. */
+.a-scan { flex: none; height: clamp(500px, calc(100vh - 330px), 860px); display: flex; flex-direction: column; }
+#trends { max-height: 440px; overflow-y: auto; overscroll-behavior: contain; }
 
 .panel {
   position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r);
@@ -158,10 +158,10 @@ button, select, input { font: inherit; color: inherit; }
 .sys .none { color: var(--label); }
 
 /* Cuerpo */
-.scan { display: flex; flex-direction: column; min-height: 640px; }
+.scan { display: flex; flex-direction: column; }
 .scan .ph h2 { color: var(--ink); }
 .scan-status { display: flex; align-items: center; gap: 12px; }
-.holo { position: relative; flex: 1; min-height: 560px; background: radial-gradient(ellipse at 50% 62%, rgba(143, 216, 255, .08), transparent 62%); }
+.holo { position: relative; flex: 1; min-height: 0; background: radial-gradient(ellipse at 50% 62%, rgba(143, 216, 255, .08), transparent 62%); }
 .holo::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255, 255, 255, .016) 3px 4px); }
 #body { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: pan-y; }
 #body:active { cursor: grabbing; }
@@ -245,8 +245,9 @@ button, select, input { font: inherit; color: inherit; }
 .blink { width: 7px; height: 7px; border-radius: 50%; background: var(--lv3); animation: pulse 1s infinite; }
 
 /* Registro de eventos */
-.a-log { display: flex; flex-direction: column; }
-.log { list-style: none; padding: 0; flex: 1; min-height: 120px; max-height: 300px; overflow: auto; }
+/* Ocupa el alto que dejan libre las columnas laterales; su contenido hace scroll dentro. */
+.a-log { flex: 1; display: flex; flex-direction: column; min-height: 260px; }
+.log { list-style: none; padding: 0; flex: 1; min-height: 0; overflow: auto; contain: size; overscroll-behavior: contain; }
 .log li { display: grid; grid-template-columns: 82px 170px 96px 1fr; gap: 10px; align-items: baseline; padding: 7px 14px; border-bottom: 1px solid var(--line-2); font-size: 13.5px; }
 .log li.new { animation: flash 1.4s var(--ease); }
 .log time, .log .who { font: 400 12.5px var(--mono); color: var(--label); }
@@ -292,10 +293,10 @@ legend small { font: 400 12.5px var(--mono); margin-left: 8px; }
 @media (max-width: 1240px) {
   .monitor {
     grid-template-columns: 280px minmax(0, 1fr);
-    grid-template-areas: "left scan" "right right" "down down" "log log" "link link";
+    grid-template-areas: "left center" "right right";
   }
-  .a-right { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .monitor > .a-scan { position: static; height: auto; align-self: stretch; }
+  .a-right { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .a-scan { height: 620px; }
 }
 @media (max-width: 760px) {
   .topbar { gap: 12px; padding: 0 16px; }
@@ -304,9 +305,9 @@ legend small { font: 400 12.5px var(--mono); margin-left: 8px; }
   .brand span { display: none; }
   .link-pill span { display: none; }
   .monitor, .checkview { padding: 12px 16px 16px; }
-  .monitor { grid-template-columns: minmax(0, 1fr); grid-template-areas: "left" "scan" "right" "down" "log" "link"; }
+  .monitor { grid-template-columns: minmax(0, 1fr); grid-template-areas: "left" "center" "right"; }
   .a-right { grid-template-columns: minmax(0, 1fr); }
-  .scan { min-height: 520px; } .holo { min-height: 460px; }
+  .a-scan { height: 520px; }
   .fields { grid-template-columns: 1fr; }
   .log li { grid-template-columns: 82px 1fr; }
   .log .chip { grid-column: 2; } .log .msg { grid-column: 1 / -1; }
