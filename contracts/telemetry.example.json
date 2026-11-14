@@ -2,10 +2,11 @@
   "device_id": "esp32-01",
   "ts": "2026-11-14T10:30:05Z",
   "met_s": 18245,
-  "crew_id": "04A1B2C3",
+  "crew_id": "F3786E09",
   "vitals": {
     "heart_rate_bpm": 72,
     "hr_quality": 0.85,
+    "resp_rate_bpm": null,
     "body_temp_c": 36.7
   },
   "motion": {
