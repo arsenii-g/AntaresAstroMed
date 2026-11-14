@@ -37,6 +37,17 @@ El motor de riesgos es un paquete de Python que la API importa y llama en el mis
 
 Fechas en UTC (ISO 8601). Lo que no se mide va como `null`, que significa "sin dato", nunca "normal".
 
+La API llama al motor así, dentro del mismo proceso:
+
+```python
+from risk import evaluate
+
+evaluate(telemetry: list[dict], events: list[dict],
+         manual_checks: list[dict], now: datetime) -> dict
+```
+
+Las listas llevan mensajes ① y ② de un solo `crew_id`, y `now` va en UTC. Devuelve la evaluación ③ (`contracts/assessment.example.json`). El motor no recibe perfil: le basta el `crew_id` que va en cada mensaje. El nombre y el rol los añade la API o el frontend.
+
 ## Ramas
 
 - `main` está protegida: siempre arranca y solo se entra por PR revisado por otra persona.
