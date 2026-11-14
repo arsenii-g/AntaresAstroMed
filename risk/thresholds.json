@@ -1,0 +1,120 @@
+{
+  "_info": [
+    "Umbrales de demo, no clinicos. Contrastar con NASA HRP antes de presentarlos.",
+    "high: cortes por arriba para los niveles 1, 2 y 3. Nivel n si el valor es mayor que high[n-1].",
+    "low: cortes por abajo para los niveles 1, 2 y 3. Nivel n si el valor es menor que low[n-1].",
+    "inclusive: true cambia 'mayor que' por 'mayor o igual' y 'menor que' por 'menor o igual'.",
+    "null: ese nivel no se usa en este indicador.",
+    "Los cortes de la guia del equipo son el nivel 2 (naranja)."
+  ],
+  "indicators": {
+    "heart_rate_bpm": {
+      "label": "Pulso",
+      "unit": "lat/min",
+      "system": "cardiovascular",
+      "code": "HR",
+      "high": [100, 120, 150],
+      "low": [50, 45, 40]
+    },
+    "body_temp_c": {
+      "label": "Temperatura corporal",
+      "unit": "°C",
+      "system": "cardiovascular",
+      "code": "BODY_TEMP",
+      "high": [37.5, 38.0, 39.5],
+      "low": [36.0, 35.5, 35.0]
+    },
+    "systolic_mmhg": {
+      "label": "Tensión sistólica",
+      "unit": "mmHg",
+      "system": "cardiovascular",
+      "code": "BP_SYS",
+      "inclusive": true,
+      "high": [120, 140, 180],
+      "low": [null, null, null]
+    },
+    "diastolic_mmhg": {
+      "label": "Tensión diastólica",
+      "unit": "mmHg",
+      "system": "cardiovascular",
+      "code": "BP_DIA",
+      "inclusive": true,
+      "high": [80, 90, 120],
+      "low": [null, null, null]
+    },
+    "glucose_mg_dl": {
+      "label": "Glucosa",
+      "unit": "mg/dL",
+      "system": "cardiovascular",
+      "code": "GLUCOSE",
+      "high": [99, 125, 250],
+      "low": [null, 70, 54]
+    },
+    "reaction_mean_ms": {
+      "label": "Tiempo de reacción",
+      "unit": "ms",
+      "system": "neuro",
+      "code": "REACTION",
+      "high": [350, 450, null],
+      "low": [null, null, null]
+    },
+    "mood": {
+      "label": "Ánimo",
+      "unit": "/5",
+      "system": "neuro",
+      "code": "MOOD",
+      "high": [null, null, null],
+      "low": [3, 2, null]
+    },
+    "pushup_drop_pct": {
+      "label": "Caída de flexiones respecto a su media",
+      "unit": "%",
+      "system": "musculoskeletal",
+      "code": "PUSHUPS",
+      "inclusive": true,
+      "high": [20, 40, null],
+      "low": [null, null, null]
+    },
+    "still_for_s": {
+      "label": "Tiempo sin moverse",
+      "unit": "s",
+      "system": "musculoskeletal",
+      "code": "INACTIVITY",
+      "inclusive": true,
+      "high": [600, 1800, null],
+      "low": [null, null, null]
+    },
+    "cabin_temp_c": {
+      "label": "Temperatura de cabina",
+      "unit": "°C",
+      "system": "environment",
+      "code": "CABIN_TEMP",
+      "high": [26, 28, 32],
+      "low": [20, 18, 15]
+    },
+    "humidity_pct": {
+      "label": "Humedad de cabina",
+      "unit": "%",
+      "system": "environment",
+      "code": "HUMIDITY",
+      "high": [60, 70, null],
+      "low": [30, 25, null]
+    },
+    "heat_index_c": {
+      "label": "Índice de calor",
+      "unit": "°C",
+      "system": "environment",
+      "code": "HEAT_INDEX",
+      "high": [27, 32, 41],
+      "low": [null, null, null]
+    },
+    "condensation_margin_c": {
+      "label": "Margen sobre el punto de rocío",
+      "unit": "°C",
+      "system": "environment",
+      "code": "CONDENSATION",
+      "high": [null, null, null],
+      "low": [5, 2, null]
+    }
+  }
+}
