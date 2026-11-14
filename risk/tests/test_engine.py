@@ -5,7 +5,7 @@ from pathlib import Path
 from risk import evaluate
 
 CONTRACTS = Path(__file__).resolve().parents[2] / "contracts"
-SYSTEMS = {"cardiovascular", "neuro", "musculoskeletal", "sleep_environment"}
+SYSTEMS = {"cardiovascular", "neuro", "musculoskeletal", "environment"}
 
 
 def load(name: str) -> dict:
