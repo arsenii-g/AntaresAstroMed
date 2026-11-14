@@ -25,6 +25,7 @@ The PIR sensor, the sleep sensors and the HC-SR04 respiration measurement were r
 | `spacehealth/spacehealth.kicad_dru` | Custom design rules (see [PCB](#pcb)) |
 | `spacehealth/drc.rpt` | Design rules check report, including schematic parity |
 | `pcb_top.png`, `pcb_bottom.png`, `pcb_3d.png` | 3D renders of the board |
+| `kicad_pcb_editor.png`, `kicad_3d_bottom.png` | Screenshots of the KiCad PCB editor and 3D viewer (bottom side) |
 | `gerbers/` | Gerber and Excellon drill files |
 | `spacehealth_gerbers.zip` | Same files zipped, ready to upload to a PCB manufacturer |
 | `fotos/` | Photos of the assembled board (optional, pending) |
@@ -185,6 +186,12 @@ Layout:
 - The UNO USB-B connector is close to the underside of the shield. Put a piece of insulating tape on top of it before stacking the boards.
 
 `spacehealth.kicad_dru` adds five rules for situations that are intended in this design: shield parts inside the UNO courtyard, the overlapping J9/J11 rows and their silkscreen, the UNO outline reaching past the board edge, and GND pads with a single thermal spoke on the top layer, which are still fully connected on the bottom layer.
+
+Screenshots from KiCad:
+
+![KiCad PCB editor](kicad_pcb_editor.png)
+
+![KiCad 3D viewer, bottom side](kicad_3d_bottom.png)
 
 To order the board, upload `spacehealth_gerbers.zip`. Default options are fine: 2 layers, 1.6 mm, 1 oz copper, any solder mask colour.
 
