@@ -75,7 +75,7 @@ Solo hacen falta dos cables y un divisor de tensión, porque el TX del UNO da 5 
 
 ## Puesta en marcha
 
-1. Sube `uno_sensores` al UNO (placa «Arduino Uno»). En el Monitor serie, a 115200, verás las líneas `{"t":"tel",...}` cada 5 s y una línea `# dbg ...` por segundo.
+1. Sube `uno_sensores` al UNO (placa «Arduino Uno»). En el Monitor serie, a 115200, verás las líneas `{"t":"tel",...}` cada 2 s y una línea `# dbg ...` por segundo.
 2. Copia `esp32_gateway/config.example.h` como `esp32_gateway/config.h` y rellena el WiFi (**solo 2,4 GHz**), `API_BASE`, `API_KEY` y `DEVICE_ID`. `config.h` no se sube a git porque lleva claves.
 3. Sube `esp32_gateway` al ESP32 (placa «ESP32 Dev Module»). En su Monitor serie verás `[wifi]`, `[envio]` y `[estado]`.
 4. Si el backend aún no está, arranca `python3 mock_backend.py` en el PC y apunta `API_BASE` a la IP del PC.
