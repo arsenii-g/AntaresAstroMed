@@ -18,7 +18,7 @@ class IndicatorResult:
     value: float | None
     level: int | None  # None = sin dato; nunca se trata como verde
     code: str | None  # p. ej. "HR_HIGH"; None si está en rango o sin dato
-    reason: str | None  # texto para el frontend; None si está en rango
+    reason: str | None  # texto en inglés para el frontend; None si está en rango
     cut: float | None = None  # corte superado; None si está en rango o sin dato
 
 
@@ -53,7 +53,7 @@ def level_for(indicator: str, value: float | None, thresholds: dict | None = Non
     system = spec["system"]
 
     if value is None:
-        return IndicatorResult(indicator, system, None, None, None, f"{spec['label']}: sin dato")
+        return IndicatorResult(indicator, system, None, None, None, f"{spec['label']}: no data")
 
     inclusive = spec.get("inclusive", False)
     high_level = _band(value, spec.get("high", []), above=True, inclusive=inclusive)
@@ -64,13 +64,13 @@ def level_for(indicator: str, value: float | None, thresholds: dict | None = Non
 
     if high_level >= low_level:
         level, direction, cut = high_level, "HIGH", spec["high"][high_level - 1]
-        relation = "por encima de"
+        relation = "above"
     else:
         level, direction, cut = low_level, "LOW", spec["low"][low_level - 1]
-        relation = "por debajo de"
+        relation = "below"
 
     unit = spec["unit"]
-    reason = f"{spec['label']} {_fmt(value)} {unit}, {relation} {_fmt(cut)} {unit}"
+    reason = f"{spec['label']} {with_unit(value, unit)}, {relation} {with_unit(cut, unit)}"
     return IndicatorResult(indicator, system, value, level, f"{spec['code']}_{direction}", reason, cut)
 
 
@@ -90,6 +90,11 @@ def _band(value: float, cuts: list, *, above: bool, inclusive: bool) -> int:
 
 
 def _fmt(number: float) -> str:
-    """118 -> '118', 38.0 -> '38', 37.6 -> '37,6' (coma decimal)."""
-    text = f"{number:.1f}".rstrip("0").rstrip(".")
-    return text.replace(".", ",")
+    """118 -> '118', 38.0 -> '38', 37.6 -> '37.6' (punto decimal, en inglés)."""
+    return f"{number:.1f}".rstrip("0").rstrip(".")
+
+
+def with_unit(number: float, unit: str) -> str:
+    """'118 bpm', '72%', '2/5': sin espacio delante de % y de /5."""
+    sep = "" if unit.startswith(("%", "/")) else " "
+    return f"{_fmt(number)}{sep}{unit}"

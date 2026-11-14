@@ -9,7 +9,8 @@ Pasos (guía del equipo, sección 5):
      cada tendencia que cruce un umbral en 7 días.
   5. Resumen en inglés para Tierra cuando el nivel global es 3 (summary.py).
 
-Un dato ausente es "sin dato", nunca verde. Si un sistema no tiene ningún dato,
+Un dato ausente es "no data" (sin dato), nunca verde. Todos los textos de
+salida van en inglés. Si un sistema no tiene ningún dato,
 su nivel es None.
 """
 
@@ -146,7 +147,7 @@ def _blood_pressure(checks: list[dict], indicator: str, get) -> IndicatorResult:
         return last
     return IndicatorResult(
         last.indicator, last.system, last.value, 1, last.code,
-        f"{last.reason} (primera medida; se confirma con una segunda)", last.cut,
+        f"{last.reason} (first reading; confirm with a second one)", last.cut,
     )
 
 

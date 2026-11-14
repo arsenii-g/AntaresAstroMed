@@ -3,17 +3,17 @@
   "ts": "2026-11-14T10:30:05Z",
   "overall_level": 1,
   "systems": {
-    "cardiovascular": { "level": 1, "reasons": ["Pulso 118 lat/min, por encima de 100 lat/min"] },
+    "cardiovascular": { "level": 1, "reasons": ["Heart rate 118 bpm, above 100 bpm"] },
     "neuro": { "level": 0, "reasons": [] },
     "musculoskeletal": { "level": 0, "reasons": [] },
-    "environment": { "level": 1, "reasons": ["Humedad de cabina 72 %, por encima de 60 %"] }
+    "environment": { "level": 1, "reasons": ["Cabin humidity 72%, above 60%"] }
   },
   "trends": [
     { "indicator": "pushup_reps", "projected_7d": 14, "crosses_threshold_in_days": 4, "threshold": 16.2, "threshold_level": 2, "slope_per_day": -0.6 }
   ],
   "recommendations": [
-    "Repetir la medida de pulso en reposo dentro de 10 minutos",
-    "Revisar el control de humedad de la cabina"
+    "Seated rest for 10 minutes, then repeat the heart rate reading",
+    "Check cabin humidity control"
   ],
   "earth_summary": null
 }

@@ -2,7 +2,7 @@
 
 Ejemplos JSON de lo que se manda entre las partes. Todas las fechas van en UTC (ISO 8601). Cambiar un contrato necesita un PR que aprueben quien produce el dato y quien lo usa.
 
-Fuente de este documento: guía del equipo y notas del electrónico para el backend (14 de noviembre de 2026).
+Fuente de este documento: guía del equipo y «SpaceHealth: formato JSON para el backend» del electrónico (14 de noviembre de 2026, versión definitiva sacada del firmware). Si algo no cuadra, manda el firmware.
 
 | Archivo | Contrato | Endpoint |
 |---|---|---|
@@ -32,7 +32,13 @@ Además:
 - No existe `motion.sleep_state`.
 - `body_temp_c` ya llega `null` fuera de 30–45 °C, así que la API no debería tener que rechazarlo con un 422.
 
-Alertas locales posibles en `alerts`: `HR_HIGH`, `HR_LOW`, `BODY_TEMP_HIGH`, `BODY_TEMP_LOW`, `CABIN_TEMP_HIGH`, `CABIN_TEMP_LOW`, `HEAT_INDEX_HIGH`, `CONDENSATION_HIGH`. Nunca llegan `RESP_HIGH` ni `RESP_LOW`. Los niveles oficiales los da el motor, no estas alertas.
+- Un número con `.0` puede llegar como entero (`23` en vez de `23.0`), por cómo serializa ArduinoJson. Hay que leer los campos numéricos como número, sean enteros o decimales.
+- `heart_rate_bpm`, cuando tiene valor, está entre 35 y 200.
+- `motion.still_for_s` es 0 con `activity: "moving"` y 3 o más con `"still"`.
+
+Alertas locales posibles en `alerts`, siempre en este orden y sin repetir: `HR_HIGH`, `HR_LOW`, `BODY_TEMP_HIGH`, `BODY_TEMP_LOW`, `CABIN_TEMP_HIGH`, `CABIN_TEMP_LOW`, `HEAT_INDEX_HIGH`, `CONDENSATION_HIGH`. Nunca llegan `RESP_HIGH` ni `RESP_LOW`. Usan los umbrales de demo del firmware (pulso > 120 o < 45, temperatura corporal > 38,0 o < 35,5 °C, cabina > 28 o < 18 °C, índice de calor > 32 °C). Los niveles oficiales los da el motor, no estas alertas.
+
+Tarjetas del kit (el UID es el `crew_id`): `F3786E09` (tripulante 1) y `336F8312` (tripulante 2).
 
 ## Eventos ①: solo hay tres tipos
 
@@ -48,10 +54,14 @@ No existen `sleep_summary` ni `reaction_test`.
 
 | Respuesta | Qué hace el ESP32 |
 |---|---|
-| 2xx | Lo da por enviado. Da igual que el cuerpo sea `{"ok": true}` o no sea JSON |
+| 2xx con `{"ok": true}`, sin cuerpo o con un cuerpo que no es JSON | Lo da por enviado |
+| 2xx con `{"ok": false}` | Lo trata como fallo y **reintenta sin fin**: bloquea la cola. No lo respondas nunca |
 | 409 | Lo toma como duplicado ya guardado y no reintenta. Para duplicados vale 200 o 409 |
-| Otro 4xx (400, 401, 422…) | Descarta el mensaje y no reintenta: **ese dato se pierde** |
-| 5xx o sin respuesta | Reintenta a 1, 2, 4… s, hasta 30 s, con hasta 50 mensajes en cola |
+| 408 o 429 | Reintenta. Usa 429 si hay que limitar |
+| Otro 4xx (400, 401, 404, 422…) | Descarta el mensaje y no reintenta: **ese dato se pierde**. Usa 401 solo para la clave mala y 400 solo para JSON roto |
+| 5xx, 3xx o sin respuesta en 4 s | Reintenta a 1, 2, 4… s, hasta 30 s, con hasta 50 mensajes en cola. No sigue redirecciones |
+
+Los mensajes se mandan en orden: mientras el primero falla, los demás esperan. El `ts` no cambia en los reintentos, así que los duplicados se reconocen por `(device_id, ts, type)`, con `type` = telemetría en `/api/v1/telemetry`.
 
 **Hora sin Internet:** si no hay NTP, el ESP32 hace `GET /` al backend y toma la hora de la cabecera `Date`. Basta con que `/` responda algo, aunque sea un 404; casi todos los servidores ponen `Date` solos.
 
@@ -64,14 +74,14 @@ No existen `sleep_summary` ni `reaction_test`.
 | Campo | Qué es |
 |---|---|
 | `overall_level`, `systems.*.level` | 0 verde, 1 ámbar, 2 naranja, 3 rojo. **`null` si no hay ningún dato**: se pinta "sin dato", nunca verde |
-| `systems.*.reasons` | Motivos en español, primero los más graves y después los "sin dato" |
+| `systems.*.reasons` | Motivos en inglés, primero los más graves y después los "no data" |
 | `trends` | Un elemento por indicador con datos suficientes (al menos 3 medidas en al menos 1 día): `systolic_mmhg`, `diastolic_mmhg`, `glucose_mg_dl`, `mood`, `pushup_reps` |
 | `trends[].projected_7d` | Valor que da la recta dentro de 7 días |
 | `trends[].crosses_threshold_in_days` | Días hasta cruzar el siguiente umbral, o `null` si no lo cruza en 7 días |
 | `trends[].threshold`, `threshold_level` | Ese umbral y el nivel al que llevaría. `null` si no cruza |
 | `trends[].slope_per_day` | Pendiente de la recta, en unidades por día |
-| `recommendations` | En español: acción del nivel, contramedidas y avisos de tendencia |
-| `earth_summary` | Texto en **inglés** listo para enviar a los médicos en Tierra. Solo si `overall_level` es 3; si no, `null` |
+| `recommendations` | En inglés: acción del nivel, contramedidas y avisos de tendencia |
+| `earth_summary` | Texto en inglés listo para enviar a los médicos en Tierra. Solo si `overall_level` es 3; si no, `null` |
 
 Para que haya tendencias, la API tiene que pasar al motor los chequeos y los eventos de **los últimos 7 días**. La telemetría basta con la del último minuto.
 

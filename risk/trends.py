@@ -74,7 +74,7 @@ def trends_for(checks: list[dict], events: list[dict], now: datetime, parse_ts) 
         baseline = sum(v for _, v in points[:-1]) / len(points[:-1])
         drops = thresholds["pushup_drop_pct"].get("high", [])
         low_cuts = [None if d is None else round(baseline * (1 - d / 100), 1) for d in drops]
-        trend = _trend("pushup_reps", "Flexiones por serie", "rep", points, [], low_cuts, False)
+        trend = _trend("pushup_reps", "Push-ups per set", "reps", points, [], low_cuts, False)
         if trend:
             out.append(trend)
     return out
