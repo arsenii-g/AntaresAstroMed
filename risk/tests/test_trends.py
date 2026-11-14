@@ -43,7 +43,7 @@ def test_glucosa_que_sube_avisa_antes_de_salir_de_verde():
     assert t["slope_per_day"] == pytest.approx(3, abs=0.01)
     assert t["threshold"] == 99 and t["threshold_level"] == 1
     assert 0 < t["crosses_threshold_in_days"] <= 1
-    assert any(r.startswith("Tendencia: glucosa llegará a 99") for r in result["recommendations"])
+    assert any(r.startswith("Trend: glucose will reach 99 mg/dL") for r in result["recommendations"])
 
 
 def test_valores_estables_no_cruzan():
@@ -51,7 +51,7 @@ def test_valores_estables_no_cruzan():
     result = evaluate([], [], checks, NOW)
     assert {t["indicator"] for t in result["trends"]} == {"systolic_mmhg", "diastolic_mmhg", "glucose_mg_dl", "mood"}
     assert all(t["crosses_threshold_in_days"] is None for t in result["trends"])
-    assert not any(r.startswith("Tendencia") for r in result["recommendations"])
+    assert not any(r.startswith("Trend") for r in result["recommendations"])
 
 
 def test_animo_que_baja_cruza_por_abajo_y_no_baja_de_1():

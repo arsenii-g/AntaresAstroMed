@@ -67,7 +67,7 @@ def test_sin_datos_no_es_verde():
     assert result["crew_id"] is None
     assert result["overall_level"] is None
     assert result["systems"]["cardiovascular"]["level"] is None
-    assert "Pulso: sin dato" in result["systems"]["cardiovascular"]["reasons"]
+    assert "Heart rate: no data" in result["systems"]["cardiovascular"]["reasons"]
 
 
 def test_telemetria_sin_datos_del_contrato():
@@ -76,7 +76,7 @@ def test_telemetria_sin_datos_del_contrato():
     result = evaluate([msg], [], [], NOW)
     env = result["systems"]["environment"]
     assert env["level"] is None
-    assert "Humedad de cabina: sin dato" in env["reasons"]
+    assert "Cabin humidity: no data" in env["reasons"]
 
 
 # --- niveles ------------------------------------------------------------------------
@@ -85,22 +85,22 @@ def test_pulso_alto_es_ambar_y_explica_por_que():
     result = evaluate([telemetry(vitals={"heart_rate_bpm": 118})], [], [check()], NOW)
     cardio = result["systems"]["cardiovascular"]
     assert cardio["level"] == 1
-    assert cardio["reasons"] == ["Pulso 118 lat/min, por encima de 100 lat/min"]
+    assert cardio["reasons"] == ["Heart rate 118 bpm, above 100 bpm"]
     assert result["overall_level"] == 1
-    assert result["recommendations"] == ["Reposo sentado 10 minutos y repetir la medida de pulso"]
+    assert result["recommendations"] == ["Seated rest for 10 minutes, then repeat the heart rate reading"]
 
 
 def test_el_sistema_toma_el_peor_indicador():
     msg = telemetry(vitals={"heart_rate_bpm": 118, "body_temp_c": 38.3})
     cardio = evaluate([msg], [], [check()], NOW)["systems"]["cardiovascular"]
     assert cardio["level"] == 2
-    assert cardio["reasons"][0].startswith("Temperatura corporal 38,3")
+    assert cardio["reasons"][0].startswith("Body temperature 38.3")
 
 
 def test_nivel_2_avisa_al_oficial_medico():
     result = evaluate([telemetry(cabin={"humidity_pct": 80})], [], [check()], NOW)
     assert result["systems"]["environment"]["level"] == 2
-    assert result["recommendations"][0] == "Avisar al oficial médico de la tripulación"
+    assert result["recommendations"][0] == "Notify the crew medical officer"
 
 
 def test_usa_el_ultimo_dato_valido():
@@ -115,14 +115,14 @@ def test_telemetria_vieja_es_sin_dato():
     stale = telemetry(vitals={"heart_rate_bpm": 130})
     stale["ts"] = "2026-11-14T10:20:00Z"
     cardio = evaluate([stale], [], [check()], NOW)["systems"]["cardiovascular"]
-    assert "Pulso: sin dato" in cardio["reasons"]
+    assert "Heart rate: no data" in cardio["reasons"]
 
 
 def test_condensacion_por_margen_sobre_rocio():
     msg = telemetry(cabin={"temp_c": 20.0, "dew_point_c": 18.5})
     env = evaluate([msg], [], [check()], NOW)["systems"]["environment"]
     assert env["level"] == 2
-    assert any(r.startswith("Margen sobre el punto de rocío 1,5") for r in env["reasons"])
+    assert any(r.startswith("Margin above dew point 1.5") for r in env["reasons"])
 
 
 # --- chequeo manual -------------------------------------------------------------------
@@ -131,7 +131,7 @@ def test_tension_alta_una_sola_vez_se_queda_en_ambar():
     c = check(blood_pressure={"systolic": 145, "diastolic": 85})
     cardio = evaluate([telemetry()], [], [c], NOW)["systems"]["cardiovascular"]
     assert cardio["level"] == 1
-    assert "se confirma con una segunda" in cardio["reasons"][0]
+    assert "confirm with a second one" in cardio["reasons"][0]
 
 
 def test_tension_alta_dos_veces_es_naranja():
@@ -145,7 +145,7 @@ def test_tension_muy_alta_es_roja_con_una_medida():
     c = check(blood_pressure={"systolic": 185, "diastolic": 100})
     result = evaluate([telemetry()], [], [c], NOW)
     assert result["systems"]["cardiovascular"]["level"] == 3
-    assert result["recommendations"][0] == "Contactar con los médicos en Tierra"
+    assert result["recommendations"][0] == "Contact the medical team on Earth"
 
 
 def test_animo_bajo_sube_neuro():
@@ -157,14 +157,14 @@ def test_animo_bajo_sube_neuro():
 
 def test_flexiones_sin_basal_no_se_evaluan():
     musc = evaluate([telemetry()], [pushups(12, 5)], [check()], NOW)["systems"]["musculoskeletal"]
-    assert not any("flexiones" in r for r in musc["reasons"])
+    assert not any("Push-up" in r for r in musc["reasons"])
 
 
 def test_caida_de_flexiones_bajo_el_80_por_ciento_es_naranja():
     events = [pushups(20, 60 * 24), pushups(20, 60 * 12), pushups(14, 5)]   # 30 % menos
     musc = evaluate([telemetry()], events, [check()], NOW)["systems"]["musculoskeletal"]
     assert musc["level"] == 2
-    assert musc["reasons"][0].startswith("Caída de flexiones respecto a su media 30")
+    assert musc["reasons"][0].startswith("Push-up drop vs. own average 30%")
 
 
 def test_nunca_lanza_excepciones_con_basura():
