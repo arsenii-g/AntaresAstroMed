@@ -1,18 +1,15 @@
-// Portada: planeta de fondo, cinta de señales y aparición al hacer scroll.
+// Portada: planeta de fondo y aparición al hacer scroll.
 
-import { createPlanet } from "./planet.js";
+import { createPlanet, PALETTES } from "./planet.js";
 
 const $ = (id) => document.getElementById(id);
 
-createPlanet($("planet"));
+createPlanet($("planet"), { palette: PALETTES.antares });
 
 // Barra de navegación con fondo al bajar
 const onScroll = () => $("nav").classList.toggle("scrolled", window.scrollY > 30);
 window.addEventListener("scroll", onScroll, { passive: true }); onScroll();
 
-// Cinta de señales (duplicada para que el bucle no tenga corte)
-const SIGNALS = ["Heart rate", "Body temperature", "Blood pressure", "Glucose", "Mood", "Push-up trend", "Inactivity", "Cabin temperature", "Humidity", "Heat index", "Dew point"];
-$("marquee").innerHTML = [...SIGNALS, ...SIGNALS].map((s) => `<span>${s.toUpperCase()} <b>✦</b></span>`).join("");
 
 // Aparición al entrar en pantalla, escalonada entre hermanos
 const io = new IntersectionObserver((entries) => {
