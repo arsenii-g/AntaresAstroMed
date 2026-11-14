@@ -1,0 +1,13 @@
+{
+  "device_id": "esp32-01",
+  "ts": "2026-11-14T11:05:40Z",
+  "crew_id": "04A1B2C3",
+  "type": "reaction_test",
+  "severity": "info",
+  "data": {
+    "trials": 5,
+    "reaction_ms": [312, 287, 301, 345, 290],
+    "mean_ms": 307,
+    "false_starts": 0
+  }
+}
