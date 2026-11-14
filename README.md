@@ -48,6 +48,8 @@ evaluate(telemetry: list[dict], events: list[dict],
 
 Las listas llevan mensajes ① y ② de un solo `crew_id`, y `now` va en UTC. Devuelve la evaluación ③ (`contracts/assessment.example.json`). El motor no recibe perfil: le basta el `crew_id` que va en cada mensaje. El nombre y el rol los añade la API o el frontend.
 
+**Para la API:** qué mandar al motor (telemetría del último minuto; eventos y chequeos de los últimos 7 días), qué devuelve y cómo probar la tendencia de 7 días, en [`risk/README.md`](risk/README.md).
+
 ## Ramas
 
 - `main` está protegida: siempre arranca y solo se entra por PR revisado por otra persona.
