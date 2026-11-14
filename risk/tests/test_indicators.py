@@ -10,7 +10,7 @@ SYSTEMS = {"cardiovascular", "neuro", "musculoskeletal", "environment"}
 @pytest.mark.parametrize("name,spec", load_thresholds().items())
 def test_umbrales_bien_formados(name, spec):
     assert spec["system"] in SYSTEMS
-    for key in ("label", "unit", "code"):
+    for key in ("label", "unit", "code", "source"):
         assert spec[key], f"{name}: falta {key}"
     for side in ("high", "low"):
         cuts = spec.get(side, [])
@@ -36,7 +36,10 @@ def test_umbrales_bien_formados(name, spec):
     ("body_temp_c", 38.2, 2),
     ("systolic_mmhg", 118, 0),
     ("systolic_mmhg", 140, 2),        # inclusive: 140 ya cuenta
-    ("diastolic_mmhg", 120, 3),
+    ("systolic_mmhg", 180, 2),        # AHA: grave es "más de 180"
+    ("systolic_mmhg", 181, 3),
+    ("diastolic_mmhg", 120, 2),
+    ("diastolic_mmhg", 121, 3),
     ("glucose_mg_dl", 92, 0),
     ("glucose_mg_dl", 65, 2),
     ("glucose_mg_dl", 50, 3),
@@ -46,8 +49,12 @@ def test_umbrales_bien_formados(name, spec):
     ("reaction_mean_ms", 307, 0),
     ("reaction_mean_ms", 480, 2),
     ("still_for_s", 600, 1),
-    ("humidity_pct", 68, 1),
+    ("humidity_pct", 68, 0),
+    ("humidity_pct", 72, 1),
+    ("humidity_pct", 80, 2),          # NASA-STD-3001: fuera de 25–75 %
+    ("cabin_temp_c", 27.5, 2),        # NASA-STD-3001: fuera de 18–27 °C
     ("heat_index_c", 23.0, 0),
+    ("heat_index_c", 33.0, 2),        # NOAA: precaución extrema
     ("condensation_margin_c", 12.6, 0),
     ("condensation_margin_c", 1.5, 2),
 ])
