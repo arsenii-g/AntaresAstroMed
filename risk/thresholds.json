@@ -1,0 +1,232 @@
+{
+  "_info": [
+    "Umbrales de demo, no clinicos. Cada indicador cita su fuente en 'source'.",
+    "high: cortes por arriba para los niveles 1, 2 y 3. Nivel n si el valor es mayor que high[n-1].",
+    "low: cortes por abajo para los niveles 1, 2 y 3. Nivel n si el valor es menor que low[n-1].",
+    "inclusive: true cambia 'mayor que' por 'mayor o igual' y 'menor que' por 'menor o igual'.",
+    "null: ese nivel no se usa en este indicador.",
+    "Guia = 'SpaceHealth: guia del equipo (NASA Space Apps 2026)'. 'Criterio propio' = valor de demo sin fuente externa.",
+    "nasa_ref: requisito de NASA que fija el corte, o null si NASA no publica un limite numerico para ese indicador."
+  ],
+  "indicators": {
+    "heart_rate_bpm": {
+      "label": "Pulso",
+      "unit": "lat/min",
+      "system": "cardiovascular",
+      "code": "HR",
+      "high": [
+        100,
+        120,
+        150
+      ],
+      "low": [
+        50,
+        45,
+        40
+      ],
+      "source": "Nivel 1 alto: AHA, pulso normal en reposo 60-100 y taquicardia por encima de 100 (https://www.heart.org/en/health-topics/arrhythmia/about-arrhythmia/tachycardia--fast-heart-rate). Nivel 2 (120 y 45): guia. Resto: criterio propio.",
+      "nasa_ref": null
+    },
+    "body_temp_c": {
+      "label": "Temperatura corporal",
+      "unit": "°C",
+      "system": "cardiovascular",
+      "code": "BODY_TEMP",
+      "high": [
+        37.5,
+        38.0,
+        39.5
+      ],
+      "low": [
+        36.0,
+        35.5,
+        35.0
+      ],
+      "source": "Nivel 1 alto: fiebre por encima de 37,5 °C oral, Clinical Methods, NCBI (https://www.ncbi.nlm.nih.gov/books/NBK331/). Nivel 3 bajo: hipotermia por debajo de 35 °C, Mayo Clinic (https://www.mayoclinic.org/diseases-conditions/hypothermia/symptoms-causes/syc-20352682). Nivel 2 (38,0 y 35,5): guia. Resto: criterio propio.",
+      "nasa_ref": null
+    },
+    "systolic_mmhg": {
+      "label": "Tensión sistólica",
+      "unit": "mmHg",
+      "system": "cardiovascular",
+      "code": "BP_SYS",
+      "inclusive": true,
+      "high": [
+        120,
+        140,
+        181
+      ],
+      "low": [
+        null,
+        null,
+        null
+      ],
+      "source": "AHA/ACC: elevada 120-129, hipertension estadio 2 desde 140, grave por encima de 180 (181 con inclusive equivale a 'mas de 180' en mmHg enteros) (https://www.heart.org/en/health-topics/high-blood-pressure/understanding-blood-pressure-readings). Nivel 2 tambien en la guia.",
+      "nasa_ref": null
+    },
+    "diastolic_mmhg": {
+      "label": "Tensión diastólica",
+      "unit": "mmHg",
+      "system": "cardiovascular",
+      "code": "BP_DIA",
+      "inclusive": true,
+      "high": [
+        80,
+        90,
+        121
+      ],
+      "low": [
+        null,
+        null,
+        null
+      ],
+      "source": "AHA/ACC: estadio 1 desde 80, estadio 2 desde 90, grave por encima de 120 (121 con inclusive equivale a 'mas de 120') (https://www.heart.org/en/health-topics/high-blood-pressure/understanding-blood-pressure-readings). Nivel 2 tambien en la guia.",
+      "nasa_ref": null
+    },
+    "glucose_mg_dl": {
+      "label": "Glucosa",
+      "unit": "mg/dL",
+      "system": "cardiovascular",
+      "code": "GLUCOSE",
+      "high": [
+        99,
+        125,
+        250
+      ],
+      "low": [
+        null,
+        70,
+        54
+      ],
+      "source": "ADA Standards of Care 2026: en ayunas, 100-125 prediabetes y 126 o mas diabetes (https://diabetesjournals.org/care/article/49/Supplement_1/S27/163926/2-Diagnosis-and-Classification-of-Diabetes); hipoglucemia nivel 1 por debajo de 70 y nivel 2 por debajo de 54 (https://pmc.ncbi.nlm.nih.gov/articles/PMC12690178/). Nivel 3 alto (250): criterio propio.",
+      "nasa_ref": null
+    },
+    "mood": {
+      "label": "Ánimo",
+      "unit": "/5",
+      "system": "neuro",
+      "code": "MOOD",
+      "high": [
+        null,
+        null,
+        null
+      ],
+      "low": [
+        3,
+        2,
+        null
+      ],
+      "source": "Criterio propio sobre la escala de la guia (1 muy mal a 5 muy bien). Es el unico indicador neuro: no hay test de reaccion. Justificacion del sistema: NASA HRP, peligro de aislamiento y confinamiento (https://www.nasa.gov/hrp/hazards/).",
+      "nasa_ref": null
+    },
+    "pushup_drop_pct": {
+      "label": "Caída de flexiones respecto a su media",
+      "unit": "%",
+      "system": "musculoskeletal",
+      "code": "PUSHUPS",
+      "high": [
+        10,
+        20,
+        40
+      ],
+      "low": [
+        null,
+        null,
+        null
+      ],
+      "source": "Nivel 2: NASA-STD-3001 vol. 1 rev. C, [V1 4024], la fuerza muscular en mision se mantiene en el 80 % o mas de la basal; una caida de mas del 20 % la incumple (https://www.nasa.gov/wp-content/uploads/2023/11/nasa-std-3001-vol-1-rev-c-with-signature.pdf). Las flexiones se usan como medida indirecta de esa fuerza. Niveles 1 y 3: criterio propio.",
+      "nasa_ref": "NASA-STD-3001 vol. 1 rev. C, [V1 4024] Permissible Outcome Limit for Muscle Strength"
+    },
+    "still_for_s": {
+      "label": "Tiempo sin moverse",
+      "unit": "s",
+      "system": "musculoskeletal",
+      "code": "INACTIVITY",
+      "inclusive": true,
+      "high": [
+        600,
+        1800,
+        null
+      ],
+      "low": [
+        null,
+        null,
+        null
+      ],
+      "source": "Nivel 1 (600 s): guia, umbral del evento inactivity. Nivel 2: criterio propio.",
+      "nasa_ref": null
+    },
+    "cabin_temp_c": {
+      "label": "Temperatura de cabina",
+      "unit": "°C",
+      "system": "environment",
+      "code": "CABIN_TEMP",
+      "high": [
+        26,
+        27,
+        32
+      ],
+      "low": [
+        20,
+        18,
+        15
+      ],
+      "source": "Nivel 2 (27 y 18 °C): NASA-STD-3001 vol. 2, requisito [V2 6012], zona de 18 a 27 °C basada en ASHRAE 55 (https://www.nasa.gov/reference/6-0-natural-and-induced-environments-vol-2/). Resto: criterio propio.",
+      "nasa_ref": "NASA-STD-3001 vol. 2, [V2 6012] Crew Health Environmental Limits"
+    },
+    "humidity_pct": {
+      "label": "Humedad de cabina",
+      "unit": "%",
+      "system": "environment",
+      "code": "HUMIDITY",
+      "high": [
+        70,
+        75,
+        null
+      ],
+      "low": [
+        30,
+        25,
+        null
+      ],
+      "source": "Nivel 2 (75 y 25 %): NASA-STD-3001 vol. 2, requisito [V2 6012], zona de 25 a 75 % de humedad relativa (https://www.nasa.gov/reference/6-0-natural-and-induced-environments-vol-2/). Nivel 1: criterio propio.",
+      "nasa_ref": "NASA-STD-3001 vol. 2, [V2 6012] Crew Health Environmental Limits"
+    },
+    "heat_index_c": {
+      "label": "Índice de calor",
+      "unit": "°C",
+      "system": "environment",
+      "code": "HEAT_INDEX",
+      "high": [
+        26.7,
+        32.2,
+        39.4
+      ],
+      "low": [
+        null,
+        null,
+        null
+      ],
+      "source": "NOAA/NWS: precaucion 80-90 °F, precaucion extrema 90-103 °F, peligro 103-124 °F, pasado a °C (https://www.weather.gov/ama/heatindex).",
+      "nasa_ref": null
+    },
+    "condensation_margin_c": {
+      "label": "Margen sobre el punto de rocío",
+      "unit": "°C",
+      "system": "environment",
+      "code": "CONDENSATION",
+      "high": [
+        null,
+        null,
+        null
+      ],
+      "low": [
+        5,
+        2,
+        null
+      ],
+      "source": "Guia: riesgo de condensacion medio con margen de 2 a 5 °C y alto por debajo de 2 °C.",
+      "nasa_ref": null
+    }
+  }
+}
