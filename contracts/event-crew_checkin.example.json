@@ -1,0 +1,8 @@
+{
+  "device_id": "esp32-01",
+  "ts": "2026-11-14T10:32:10Z",
+  "crew_id": "F3786E09",
+  "type": "crew_checkin",
+  "severity": "info",
+  "data": { "action": "in" }
+}
