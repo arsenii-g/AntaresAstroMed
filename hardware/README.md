@@ -32,7 +32,7 @@ The PIR sensor, the sleep sensors and the HC-SR04 respiration measurement were r
 - **Sensor modules on 2.54 mm male headers.** The RC522, HC-SR04, DHT11 and RTC modules connect with female-to-female jumper wires. To plug a module directly into the board, replace its `PinHeader_1xNN` footprint with the equivalent `PinSocket_1xNN`.
 - **ESP32 on two 1x15 female headers (`J8`, `J9`).** KiCad has no symbol for the DevKit V1. Pin 1 of each header is at the antenna end. Measure the row spacing of the actual board before placing the headers: it is usually 25.4 mm on the 30-pin version, but some clones use 22.86 mm.
 - **Pulse sensor on a 4-pin connector (`J7`).** The LED and LDR face each other across the fingertip, so they are mounted in an external finger clip. The 220 Ω and 10 kΩ resistors are on the PCB.
-- **Off-board parts.** `TH1` (NTC), `D1` (LED), `R6` (LDR) and `SW2` (tilt switch) are drawn to show the complete circuit and are listed in the BOM. They are marked `on_board = no` (field *Montaje*), so they have no footprint and are not transferred to the PCB. Each one is wired to its connector.
+- **Off-board parts.** `TH1` (NTC), `D1` (LED), `R6` (LDR) and `SW2` (tilt switch) are drawn to show the complete circuit and are listed in the BOM. They are marked `on_board = no` (field *Mounting*), so they have no footprint and are not transferred to the PCB. Each one is wired to its connector.
 - **Push button `SW1`.** 6 mm tactile switch mounted on the board. It is optional.
 - **Spare pins.** D2, A2 and A3 are routed to header `J10` together with 5V and GND.
 
@@ -165,7 +165,7 @@ From `hardware/`, with `kicad-cli` from KiCad 10:
 ```bash
 kicad-cli sch erc --severity-all -o spacehealth/erc.rpt spacehealth/spacehealth.kicad_sch
 kicad-cli sch export netlist -o spacehealth/spacehealth.net spacehealth/spacehealth.kicad_sch
-kicad-cli sch export bom --group-by Value,Footprint -o bom.csv spacehealth/spacehealth.kicad_sch
+kicad-cli sch export bom --fields 'Reference,Value,Footprint,${QUANTITY},Mounting,${DNP}' --labels 'Reference,Value,Footprint,Quantity,Mounting,DNP' --group-by Value,Footprint --ref-range-delimiter '' -o bom.csv spacehealth/spacehealth.kicad_sch
 kicad-cli sch export pdf -o esquematico.pdf spacehealth/spacehealth.kicad_sch
 pdftoppm -png -r 200 -singlefile esquematico.pdf esquematico
 ```
