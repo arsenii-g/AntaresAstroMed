@@ -21,7 +21,7 @@ def test_devuelve_la_forma_del_contrato():
         now=now,
     )
 
-    assert result["crew_id"] == "04A1B2C3"
+    assert result["crew_id"] == "F3786E09"
     assert result["ts"] == "2026-11-14T10:30:05Z"
     assert result["overall_level"] in range(4)
     assert set(result["systems"]) == SYSTEMS

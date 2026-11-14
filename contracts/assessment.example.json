@@ -1,12 +1,12 @@
 {
-  "crew_id": "04A1B2C3",
+  "crew_id": "F3786E09",
   "ts": "2026-11-14T10:30:05Z",
   "overall_level": 1,
   "systems": {
-    "cardiovascular": { "level": 1, "reasons": ["Pulso 118 lat/min, cerca de 120"] },
+    "cardiovascular": { "level": 1, "reasons": ["Pulso 118 lat/min, por encima de 100 lat/min"] },
     "neuro": { "level": 0, "reasons": [] },
     "musculoskeletal": { "level": 0, "reasons": [] },
-    "environment": { "level": 1, "reasons": ["Humedad de cabina 68 %, cerca de 70 %"] }
+    "environment": { "level": 1, "reasons": ["Humedad de cabina 72 %, por encima de 70 %"] }
   },
   "trends": [
     { "indicator": "pushup_reps", "projected_7d": 14, "crosses_threshold_in_days": 4 }
