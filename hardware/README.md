@@ -1,170 +1,173 @@
-# Hardware: PCB (shield UNO + ESP32)
+# Hardware: Arduino UNO + ESP32 shield
 
-Esquemático del shield de SpaceHealth: una PCB que sustituye a la protoboard. Se monta encima del **Arduino UNO R3** y además lleva el **ESP32 DevKit V1 (30 pines, CP2102)** en zócalos hembra, más los conectores de todos los sensores.
+Schematic for the SpaceHealth shield, a PCB that replaces the breadboard prototype. It sits on top of an **Arduino UNO R3**, carries an **ESP32 DevKit V1 (30-pin, CP2102)** in female headers, and provides connectors for every sensor.
 
-![Esquemático](esquematico.png)
+![Schematic](esquematico.png)
 
-Fuente de verdad de los pines: [`firmware/uno_sensores/config.h`](../firmware/uno_sensores/config.h), [`firmware/esp32_gateway/config.h`](../firmware/esp32_gateway/config.h) y [`firmware/README.md`](../firmware/README.md) (secciones «Conexiones del Arduino UNO» y «UNO → ESP32»). **Si la PCB cambia algún pin, hay que cambiarlo también en `config.h` y avisar al electrónico.**
-No aparecen el PIR, los sensores de sueño ni el uso del HC-SR04 para la respiración, porque se quitaron del proyecto.
+Pin assignments follow [`firmware/uno_sensores/config.h`](../firmware/uno_sensores/config.h), [`firmware/esp32_gateway/config.h`](../firmware/esp32_gateway/config.h) and [`firmware/README.md`](../firmware/README.md). Any pin change on the PCB must also be made in `config.h` and communicated to the electronics lead.
 
-## Archivos
+The PIR sensor, the sleep sensors and the HC-SR04 respiration measurement were removed from the project and are not part of this design.
 
-| Archivo | Qué es |
+## Files
+
+| File | Description |
 |---|---|
-| `esquematico.pdf` | Esquemático en PDF (A3), para verlo sin instalar nada |
-| `esquematico.png` | El mismo esquemático como imagen (200 ppp) |
-| `bom.csv` | Lista de materiales que genera KiCad |
-| `spacehealth/spacehealth.kicad_pro` | Proyecto de KiCad (abrir este) |
-| `spacehealth/spacehealth.kicad_sch` | Esquemático (formato de KiCad 10) |
-| `spacehealth/spacehealth.net` | Netlist (KiCad S-expr) |
-| `spacehealth/erc.rpt` | Informe del ERC (0 errores, 0 avisos) |
-| `gerbers/` | **Pendiente:** archivos de fabricación, cuando esté hecho el layout |
-| `fotos/` | **Pendiente (opcional):** fotos de la placa montada |
+| `esquematico.pdf` | Schematic, A3 PDF |
+| `esquematico.png` | Schematic, PNG at 200 dpi |
+| `bom.csv` | Bill of materials exported from KiCad |
+| `spacehealth/spacehealth.kicad_pro` | KiCad project file |
+| `spacehealth/spacehealth.kicad_sch` | Schematic (KiCad 10 format) |
+| `spacehealth/spacehealth.net` | Netlist (KiCad S-expression) |
+| `spacehealth/erc.rpt` | Electrical rules check report |
+| `gerbers/` | Fabrication files (pending PCB layout) |
+| `fotos/` | Photos of the assembled board (optional, pending) |
 
-- **Versión de KiCad:** se generó y comprobó con KiCad **10.0.8** (el AppImage). KiCad 8 y 9 no abren archivos guardados por KiCad 10, así que todo el equipo necesita KiCad 10.
-- **Librerías:** solo se usan las librerías oficiales de KiCad (`Device`, `Connector_Generic`, `MCU_Module`, `Switch`, `Jumper`, `power`), así que no hace falta instalar nada más. Los símbolos van también incrustados en el `.kicad_sch`.
-- **Pasar a PCB:** abre el proyecto, abre el editor de PCB y usa *Herramientas → Actualizar PCB desde el esquemático* (F8). Todas las huellas existen en las librerías estándar y se han comprobado cargándolas con `pcbnew`.
+- **KiCad version:** 10.0.8. Files saved by KiCad 10 cannot be opened in KiCad 8 or 9.
+- **Libraries:** only the standard KiCad libraries are used (`Device`, `Connector_Generic`, `MCU_Module`, `Switch`, `Jumper`, `power`). Symbols are also embedded in the `.kicad_sch` file.
+- **Moving to PCB:** open the project, launch the PCB editor and run *Tools → Update PCB from Schematic* (F8). All footprints are available in the standard libraries.
 
-## Decisiones de diseño
+## Design notes
 
-- **Es un shield:** la huella de `A1` es `Module:Arduino_UNO_R3_WithMountingHoles`, que ya trae el contorno del UNO, los cuatro taladros y las tiras de pines en su sitio. Para el shield, suelda tiras macho largas (o *stackable*) en esas posiciones.
-- **Los módulos van en tiras macho de 2,54 mm:** RC522, HC-SR04, DHT11 y RTC se conectan con cables Dupont hembra-hembra. Si quieres pinchar algún módulo directamente, cambia su huella `PinHeader_1xNN` por `PinSocket_1xNN`, que es igual de tamaño.
-- **El ESP32 va en dos zócalos hembra 1x15 (`J8`, `J9`):** KiCad no trae un símbolo de la DevKit V1. El pin 1 de cada zócalo está en el extremo de la antena. **Mide la separación entre filas en tu placa** antes de colocar los zócalos en la PCB: suele ser 25,4 mm en la versión de 30 pines, pero hay clones con 22,86 mm.
-- **El pulso (LED + LDR) va por conector (`J7`, 4 pines):** el LED y la LDR tienen que quedar enfrentados con el dedo en medio, así que van en una pinza o dedal fuera de la placa. La resistencia de 220 Ω y la de 10 kΩ sí van en la PCB.
-- **Hay piezas fuera de placa:** `TH1` (NTC), `D1` (LED), `R6` (LDR) y `SW2` (inclinación) están dibujados en el esquema para que se vea el circuito completo y salen en el BOM. Llevan `on_board = no` (campo *Montaje = Fuera de placa*), así que no tienen huella ni pasan a la PCB. Cada una se conecta por cable a su conector.
-- **El pulsador `SW1`** va soldado en la placa (pulsador de 6 mm). Es opcional: si no lo montas, no pasa nada.
-- **Los pines libres D2, A2 y A3** salen a la tira `J10`, junto con 5V y GND.
+- **Shield form factor.** `A1` uses the `Module:Arduino_UNO_R3_WithMountingHoles` footprint, which provides the UNO outline, mounting holes and header positions. Use long-pin or stackable male headers.
+- **Sensor modules on 2.54 mm male headers.** The RC522, HC-SR04, DHT11 and RTC modules connect with female-to-female jumper wires. To plug a module directly into the board, replace its `PinHeader_1xNN` footprint with the equivalent `PinSocket_1xNN`.
+- **ESP32 on two 1x15 female headers (`J8`, `J9`).** KiCad has no symbol for the DevKit V1. Pin 1 of each header is at the antenna end. Measure the row spacing of the actual board before placing the headers: it is usually 25.4 mm on the 30-pin version, but some clones use 22.86 mm.
+- **Pulse sensor on a 4-pin connector (`J7`).** The LED and LDR face each other across the fingertip, so they are mounted in an external finger clip. The 220 Ω and 10 kΩ resistors are on the PCB.
+- **Off-board parts.** `TH1` (NTC), `D1` (LED), `R6` (LDR) and `SW2` (tilt switch) are drawn to show the complete circuit and are listed in the BOM. They are marked `on_board = no` (field *Mounting*), so they have no footprint and are not transferred to the PCB. Each one is wired to its connector.
+- **Push button `SW1`.** 6 mm tactile switch mounted on the board. It is optional.
+- **Spare pins.** D2, A2 and A3 are routed to header `J10` together with 5V and GND.
 
-## Conexiones
+## Connections
 
-### Arduino UNO (pines usados)
+### Arduino UNO
 
-| Pin UNO | Red (etiqueta) | Va a |
+| UNO pin | Net | Connects to |
 |---|---|---|
-| D1 (TX) | `UNO_TX` | R4 1 kΩ → `ESP_RX2` (divisor hacia el ESP32) |
-| D2 | `D2_SPARE` | J10-1 (libre) |
-| D3 | `D3_TILT` | J3-1 → interruptor de inclinación SW-520D → GND (pull-up interno) |
-| D4 | `D4_DHT` | J4-1 (S del DHT11) |
-| D5 | `D5_US_TRIG` | J2-2 (TRIG del HC-SR04) |
-| D6 | `D6_US_ECHO` | J2-3 (ECHO del HC-SR04) |
-| D7 | `D7_BTN` | SW1 → GND (pull-up interno) |
-| D8 | `D8_PULSE_LED` | R2 220 Ω → `PULSE_LED_A` → J7-1 (ánodo del LED) |
-| D9 | `D9_RFID_RST` | J1-7 (RST del RC522) |
-| D10 | `D10_RFID_SS` | J1-1 (SDA/SS del RC522) |
+| D1 (TX) | `UNO_TX` | R4 1 kΩ to `ESP_RX2` (level divider to the ESP32) |
+| D2 | `D2_SPARE` | J10-1 (spare) |
+| D3 | `D3_TILT` | J3-1, SW-520D tilt switch to GND (internal pull-up) |
+| D4 | `D4_DHT` | J4-1 (DHT11 data) |
+| D5 | `D5_US_TRIG` | J2-2 (HC-SR04 TRIG) |
+| D6 | `D6_US_ECHO` | J2-3 (HC-SR04 ECHO) |
+| D7 | `D7_BTN` | SW1 to GND (internal pull-up) |
+| D8 | `D8_PULSE_LED` | R2 220 Ω to `PULSE_LED_A`, J7-1 (LED anode) |
+| D9 | `D9_RFID_RST` | J1-7 (RC522 RST) |
+| D10 | `D10_RFID_SS` | J1-1 (RC522 SDA/SS) |
 | D11 | `D11_SPI_MOSI` | J1-3 (MOSI) |
 | D12 | `D12_SPI_MISO` | J1-4 (MISO) |
 | D13 | `D13_SPI_SCK` | J1-2 (SCK) |
-| A0 | `A0_NTC` | J6-2 (NTC hacia 5V) y R1 10 kΩ hacia GND |
-| A1 | `A1_PULSE_LDR` | J7-4 (LDR hacia 5V) y R3 10 kΩ hacia GND |
-| A2 | `A2_SPARE` | J10-2 (libre) |
-| A3 | `A3_SPARE` | J10-3 (libre) |
-| A4 (SDA) | `A4_I2C_SDA` | J5-3 (SDA del DS1307) |
-| A5 (SCL) | `A5_I2C_SCL` | J5-4 (SCL del DS1307) |
+| A0 | `A0_NTC` | J6-2 (NTC to 5V), R1 10 kΩ to GND |
+| A1 | `A1_PULSE_LDR` | J7-4 (LDR to 5V), R3 10 kΩ to GND |
+| A2 | `A2_SPARE` | J10-2 (spare) |
+| A3 | `A3_SPARE` | J10-3 (spare) |
+| A4 (SDA) | `A4_I2C_SDA` | J5-3 (DS1307 SDA) |
+| A5 (SCL) | `A5_I2C_SCL` | J5-4 (DS1307 SCL) |
 | 5V | `+5V` | J2-1, J4-2, J5-1, J6-1, J7-3, J10-4, JP1-1 |
-| 3.3V | `+3V3` | **solo** J1-8 (alimentación del RC522) |
-| GND (×3) | `GND` | común a todo, incluido el ESP32 |
+| 3.3V | `+3V3` | J1-8 only (RC522 supply) |
+| GND (x3) | `GND` | Common ground, including the ESP32 |
 
-Sin conectar: D0/RX (lo usa el USB para programar), VIN, RESET, IOREF, AREF, y los pines SDA/SCL junto a AREF (dentro del UNO son los mismos que A4/A5).
+Not connected: D0/RX (used by USB for programming), VIN, RESET, IOREF, AREF, and the SDA/SCL pins next to AREF (internally the same as A4/A5).
 
-### Conectores
+### Connectors
 
-| Ref. | Para | Pin 1 | Pin 2 | Pin 3 | Pin 4 | Pin 5 | Pin 6 | Pin 7 | Pin 8 |
+| Ref | Function | Pin 1 | Pin 2 | Pin 3 | Pin 4 | Pin 5 | Pin 6 | Pin 7 | Pin 8 |
 |---|---|---|---|---|---|---|---|---|---|
-| J1 (1x08) | RC522 | SDA → D10 | SCK → D13 | MOSI → D11 | MISO → D12 | IRQ (sin conectar) | GND | RST → D9 | 3.3V |
-| J2 (1x04) | HC-SR04 (en el suelo) | VCC 5V | TRIG → D5 | ECHO → D6 | GND | | | | |
-| J3 (1x02) | SW-520D (lo lleva el tripulante) | D3 | GND | | | | | | |
-| J4 (1x03) | DHT11 (módulo) | S → D4 | + 5V | − GND | | | | | |
-| J5 (1x04) | RTC DS1307 | VCC 5V | GND | SDA → A4 | SCL → A5 | | | | |
-| J6 (1x02) | NTC 10k (sobre la piel) | 5V | A0 | | | | | | |
-| J7 (1x04) | Pinza del pulso | ánodo del LED (tras 220 Ω) | cátodo del LED (GND) | LDR a 5V | LDR a A1 | | | | |
-| J10 (1x05) | Pines libres | D2 | A2 | A3 | 5V | GND | | | |
-| JP1 (1x02 + puente) | Alimentación del ESP32 | 5V del UNO | VIN del ESP32 | | | | | | |
+| J1 (1x08) | RC522 | SDA (D10) | SCK (D13) | MOSI (D11) | MISO (D12) | IRQ (NC) | GND | RST (D9) | 3.3V |
+| J2 (1x04) | HC-SR04 (floor-mounted) | VCC 5V | TRIG (D5) | ECHO (D6) | GND | | | | |
+| J3 (1x02) | SW-520D (worn by crew member) | D3 | GND | | | | | | |
+| J4 (1x03) | DHT11 module | DATA (D4) | 5V | GND | | | | | |
+| J5 (1x04) | DS1307 RTC | VCC 5V | GND | SDA (A4) | SCL (A5) | | | | |
+| J6 (1x02) | 10k NTC (skin contact) | 5V | A0 | | | | | | |
+| J7 (1x04) | Pulse finger clip | LED anode (after 220 Ω) | LED cathode (GND) | LDR to 5V | LDR to A1 | | | | |
+| J10 (1x05) | Spare pins | D2 | A2 | A3 | 5V | GND | | | |
+| JP1 (1x02 + jumper) | ESP32 power | UNO 5V | ESP32 VIN | | | | | | |
 
-Para los pines del DHT11 y del RTC, el orden de esta tabla es el de la placa, no necesariamente el del módulo: conecta cada cable **por el nombre** del pin del módulo (los módulos de distintos fabricantes ordenan los pines de forma distinta).
+The pin order for the DHT11 and RTC connectors is the board order, which may not match the module. Pinouts vary between manufacturers, so wire each lead by the pin name printed on the module.
 
-### ESP32 DevKit V1 (J8 = fila izquierda, J9 = fila derecha, pin 1 en el lado de la antena)
+### ESP32 DevKit V1
 
-| Pin | J8 | Conexión | J9 | Conexión |
+J8 is the left row, J9 the right row, pin 1 at the antenna end.
+
+| Pin | J8 | Connection | J9 | Connection |
 |---|---|---|---|---|
-| 1 | EN | — | D23 | — |
-| 2 | VP (GPIO36) | — | D22 | — |
-| 3 | VN (GPIO39) | — | TX0 | — |
-| 4 | D34 | — | RX0 | — |
-| 5 | D35 | — | D21 | — |
-| 6 | D32 | — | D19 | — |
-| 7 | D33 | — | D18 | — |
-| 8 | D25 | — | D5 | — |
-| 9 | D26 | — | TX2 (GPIO17) | sin conectar |
-| 10 | D27 | — | **RX2 (GPIO16)** | **`ESP_RX2`** |
-| 11 | D14 | — | D4 | — |
-| 12 | D12 | — | D2 | — (LED azul de la placa) |
-| 13 | D13 | — | D15 | — |
-| 14 | **GND** | **GND común** | **GND** | **GND común** |
-| 15 | **VIN** | **`ESP_VIN`** (JP1) | 3V3 | sin conectar |
+| 1 | EN | NC | D23 | NC |
+| 2 | VP (GPIO36) | NC | D22 | NC |
+| 3 | VN (GPIO39) | NC | TX0 | NC |
+| 4 | D34 | NC | RX0 | NC |
+| 5 | D35 | NC | D21 | NC |
+| 6 | D32 | NC | D19 | NC |
+| 7 | D33 | NC | D18 | NC |
+| 8 | D25 | NC | D5 | NC |
+| 9 | D26 | NC | TX2 (GPIO17) | NC |
+| 10 | D27 | NC | **RX2 (GPIO16)** | **`ESP_RX2`** |
+| 11 | D14 | NC | D4 | NC |
+| 12 | D12 | NC | D2 | NC (on-board blue LED) |
+| 13 | D13 | NC | D15 | NC |
+| 14 | **GND** | **GND** | **GND** | **GND** |
+| 15 | **VIN** | **`ESP_VIN`** (JP1) | 3V3 | NC |
 
-### Enlace serie UNO → ESP32 (115200 baudios)
+### UART link, UNO to ESP32 (115200 baud)
 
 ```
-UNO D1 (TX) ──R4 1k──┬── ESP32 GPIO16 (RX2)     5 V × 2k/(1k+2k) = 3,33 V
+UNO D1 (TX) ──R4 1k──┬── ESP32 GPIO16 (RX2)     5 V × 2k/(1k+2k) = 3.33 V
                      └──R5 2k── GND
 ```
 
-- El ESP32 no le responde al UNO (TX2 sin conectar).
-- **JP1 puesto:** el ESP32 se alimenta con el 5V del UNO por VIN. **JP1 quitado:** el ESP32 va por su propio USB. GND es común en ambos casos.
-- **Con JP1 quitado y el ESP32 apagado,** el divisor sigue metiendo unos 3,3 V en GPIO16. No se rompe nada, pero lo normal es encender las dos placas a la vez.
+- The link is one-way. ESP32 TX2 is not connected.
+- With JP1 fitted, the ESP32 is powered from the UNO 5V rail through VIN. With JP1 removed, the ESP32 is powered from its own USB port. Ground is shared in both cases.
+- With JP1 removed and the ESP32 unpowered, the divider still applies about 3.3 V to GPIO16. This does not damage the board, but both boards should normally be powered together.
 
-### Circuitos analógicos
+### Analog circuits
 
-- **Temperatura corporal:** 5V → NTC (por J6, en la **muñeca** del tripulante) → A0 → R1 10 kΩ → GND.
-- **Pulso, emisor:** D8 → R2 220 Ω → LED rojo (por J7) → GND.
-- **Pulso, receptor:** 5V → LDR (por J7) → A1 → R3 10 kΩ → GND.
+- **Body temperature:** 5V, NTC (via J6, on the crew member's wrist), A0, R1 10 kΩ, GND.
+- **Pulse emitter:** D8, R2 220 Ω, red LED (via J7), GND.
+- **Pulse receiver:** 5V, LDR (via J7), A1, R3 10 kΩ, GND.
 
-## BOM
+## Bill of materials
 
-| Ref. | Cant. | Valor / pieza | Huella KiCad | Montaje |
+| Ref | Qty | Part | KiCad footprint | Mounting |
 |---|---|---|---|---|
-| A1 | 1 | Arduino UNO R3 (la PCB es su shield) | `Module:Arduino_UNO_R3_WithMountingHoles` | tiras macho largas o *stackable* |
-| — | 1 | ESP32 DevKit V1, 30 pines, CP2102 | (en J8/J9) | pinchado en los zócalos |
-| J8, J9 | 2 | Zócalo hembra 1x15, 2,54 mm | `Connector_PinSocket_2.54mm:PinSocket_1x15_P2.54mm_Vertical` | en placa |
-| J1 | 1 | Tira macho 1x08, 2,54 mm (RC522) | `Connector_PinHeader_2.54mm:PinHeader_1x08_P2.54mm_Vertical` | en placa |
-| J2, J5, J7 | 3 | Tira macho 1x04, 2,54 mm (HC-SR04, RTC, pulso) | `Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical` | en placa |
-| J4 | 1 | Tira macho 1x03, 2,54 mm (DHT11) | `Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical` | en placa |
-| J3, J6 | 2 | Tira macho 1x02, 2,54 mm (inclinación, NTC) | `Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical` | en placa |
-| J10 | 1 | Tira macho 1x05, 2,54 mm (pines libres) | `Connector_PinHeader_2.54mm:PinHeader_1x05_P2.54mm_Vertical` | en placa |
-| JP1 | 1 | Tira macho 1x02 + puente (*jumper*) | `Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical` | en placa |
-| R1, R3 | 2 | Resistencia 10 kΩ, 1/4 W | `Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal` | en placa |
-| R2 | 1 | Resistencia 220 Ω, 1/4 W | ídem | en placa |
-| R4 | 1 | Resistencia 1 kΩ, 1/4 W | ídem | en placa |
-| R5 | 1 | Resistencia 2 kΩ, 1/4 W (o 2,2 kΩ: da 3,4 V, también vale) | ídem | en placa |
-| SW1 | 1 | Pulsador táctil 6×6 mm (opcional) | `Button_Switch_THT:SW_PUSH_6mm` | en placa |
-| TH1 | 1 | Termistor NTC 10 kΩ | — | fuera de placa, por cable a J6 |
-| D1 | 1 | LED rojo 5 mm | — | fuera de placa, por cable a J7 |
-| R6 | 1 | Fotorresistencia (LDR, p. ej. GL5528) | — | fuera de placa, por cable a J7 |
-| SW2 | 1 | Interruptor de inclinación SW-520D | — | fuera de placa, por cable a J3 |
-| — | 1 | Módulo RC522 + tarjetas | — | por cable a J1 |
-| — | 1 | Módulo HC-SR04 | — | por cable a J2 (en el suelo) |
-| — | 1 | Módulo DHT11 (3 pines) | — | por cable a J4 |
-| — | 1 | Módulo RTC DS1307 | — | por cable a J5 |
+| A1 | 1 | Arduino UNO R3 (host board) | `Module:Arduino_UNO_R3_WithMountingHoles` | Long-pin or stackable headers |
+| - | 1 | ESP32 DevKit V1, 30-pin, CP2102 | (on J8/J9) | Plugged into headers |
+| J8, J9 | 2 | Female header 1x15, 2.54 mm | `Connector_PinSocket_2.54mm:PinSocket_1x15_P2.54mm_Vertical` | On board |
+| J1 | 1 | Male header 1x08, 2.54 mm (RC522) | `Connector_PinHeader_2.54mm:PinHeader_1x08_P2.54mm_Vertical` | On board |
+| J2, J5, J7 | 3 | Male header 1x04, 2.54 mm (HC-SR04, RTC, pulse) | `Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical` | On board |
+| J4 | 1 | Male header 1x03, 2.54 mm (DHT11) | `Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical` | On board |
+| J3, J6 | 2 | Male header 1x02, 2.54 mm (tilt, NTC) | `Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical` | On board |
+| J10 | 1 | Male header 1x05, 2.54 mm (spare pins) | `Connector_PinHeader_2.54mm:PinHeader_1x05_P2.54mm_Vertical` | On board |
+| JP1 | 1 | Male header 1x02 with jumper | `Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical` | On board |
+| R1, R3 | 2 | Resistor 10 kΩ, 1/4 W | `Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal` | On board |
+| R2 | 1 | Resistor 220 Ω, 1/4 W | Same as above | On board |
+| R4 | 1 | Resistor 1 kΩ, 1/4 W | Same as above | On board |
+| R5 | 1 | Resistor 2 kΩ, 1/4 W (2.2 kΩ also acceptable, 3.4 V) | Same as above | On board |
+| SW1 | 1 | Tactile switch 6x6 mm (optional) | `Button_Switch_THT:SW_PUSH_6mm` | On board |
+| TH1 | 1 | NTC thermistor 10 kΩ | - | Off board, wired to J6 |
+| D1 | 1 | Red LED 5 mm | - | Off board, wired to J7 |
+| R6 | 1 | Photoresistor (LDR, e.g. GL5528) | - | Off board, wired to J7 |
+| SW2 | 1 | SW-520D tilt switch | - | Off board, wired to J3 |
+| - | 1 | RC522 module with cards | - | Wired to J1 |
+| - | 1 | HC-SR04 module | - | Wired to J2 (floor-mounted) |
+| - | 1 | DHT11 module (3-pin) | - | Wired to J4 |
+| - | 1 | DS1307 RTC module | - | Wired to J5 |
 
-La versión que genera KiCad está en `bom.csv`.
+The KiCad export is in `bom.csv`.
 
-## Comprobaciones hechas
+## Verification
 
-- **ERC:** `kicad-cli sch erc --severity-all` da **0 errores y 0 avisos**. El único `PWR_FLAG` está en GND. +5V y 3V3 no lo necesitan, porque ya los entrega el UNO.
-- **Netlist:** salen 25 redes con nombre y se comprobaron una por una con un script contra la tabla de conexiones de arriba. Todas coinciden, incluidas las piezas de fuera de placa.
-- **Huellas:** todas las del netlist se cargan con `pcbnew` de KiCad 10.0.8, y el número de pads coincide con los pines de cada símbolo (el UNO tiene 32).
-- **Sin probar:** no se ha hecho el layout de la PCB, no se ha comprobado la separación real entre las filas del ESP32 (mídela) y no se ha fabricado ni probado ninguna placa.
+- **ERC:** `kicad-cli sch erc --severity-all` reports 0 errors and 0 warnings. A single `PWR_FLAG` is placed on GND; +5V and 3V3 are driven by the UNO power pins.
+- **Netlist:** all 25 named nets were checked against the connection tables above, including off-board parts.
+- **Footprints:** every footprint in the netlist loads in KiCad 10.0.8 `pcbnew`, and pad counts match the symbol pin counts (32 for the UNO).
+- **Not yet done:** PCB layout, measurement of the ESP32 row spacing, and fabrication and testing of a board.
 
-## Regenerar las salidas
+## Regenerating outputs
 
-Con el AppImage de KiCad (`kicad-cli` va dentro), desde `hardware/`:
+From `hardware/`, with `kicad-cli` from KiCad 10:
 
 ```bash
 kicad-cli sch erc --severity-all -o spacehealth/erc.rpt spacehealth/spacehealth.kicad_sch
 kicad-cli sch export netlist -o spacehealth/spacehealth.net spacehealth/spacehealth.kicad_sch
-kicad-cli sch export bom --group-by Value,Footprint -o bom.csv spacehealth/spacehealth.kicad_sch
+kicad-cli sch export bom --fields 'Reference,Value,Footprint,${QUANTITY},Mounting,${DNP}' --labels 'Reference,Value,Footprint,Quantity,Mounting,DNP' --group-by Value,Footprint --ref-range-delimiter '' -o bom.csv spacehealth/spacehealth.kicad_sch
 kicad-cli sch export pdf -o esquematico.pdf spacehealth/spacehealth.kicad_sch
 pdftoppm -png -r 200 -singlefile esquematico.pdf esquematico
 ```
 
-Para usar `kicad-cli` desde el AppImage: `./kicad-10.0.8-x86_64.AppImage kicad-cli <argumentos>`.
+When using the AppImage, run `kicad-cli` as `./kicad-10.0.8-x86_64.AppImage kicad-cli <arguments>`.
