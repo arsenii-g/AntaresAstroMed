@@ -62,7 +62,7 @@ def evaluate(
     telemetry = _sorted_recent(telemetry, now, TELEMETRY_MAX_AGE)
     checks_week = _sorted_recent(manual_checks, now, HISTORY_WINDOW)
     checks_today = [c for c in checks_week if _parse_ts(c.get("ts")) >= now - CHECK_MAX_AGE]
-    events = _sorted_recent(events, now, HISTORY_WINDOW)
+    events = _without_carried_sets(_sorted_recent(events, now, HISTORY_WINDOW))
 
     results = (
         _telemetry_indicators(telemetry, events, now)
@@ -278,6 +278,24 @@ def _latest(messages: list[dict], get):
         if value is not None:
             return value
     return None
+
+
+def _without_carried_sets(events: list[dict]) -> list[dict]:
+    """Quita las series de flexiones que no son de este tripulante. Si alguien
+    pasa su tarjeta con una serie a medias, la placa manda el resumen justo
+    después del crew_checkin "in", con el crew_id del que acaba de entrar
+    (firmware: resetCrewState). Esa serie es del anterior y estropearía la
+    basal del nuevo, así que se descarta la que llega hasta 3 s después."""
+    entries = [
+        ts for e in events
+        if e.get("type") == "crew_checkin" and _obj(e.get("data")).get("action") == "in"
+        and (ts := _parse_ts(e.get("ts"))) is not None
+    ]
+    def carried(e):
+        ts = _parse_ts(e.get("ts"))
+        return (e.get("type") == "exercise_summary" and ts is not None
+                and any(timedelta(0) <= ts - t <= timedelta(seconds=3) for t in entries))
+    return [e for e in events if not carried(e)]
 
 
 def _obj(value) -> dict:
