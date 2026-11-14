@@ -52,8 +52,20 @@
       <header class="ph"><h2>Systems</h2><span class="mono dim" id="sysFocus">ALL</span></header>
       <div id="systems"></div>
     </section>
+
+    <section class="panel">
+      <header class="ph"><h2>Actions</h2></header>
+      <div class="pb"><ol class="recs" id="recs"></ol></div>
+    </section>
+
+    <section class="panel a-link">
+      <header class="ph"><h2>Body sensor</h2><span class="mono dim" id="linkState">—</span></header>
+      <canvas id="planet" aria-hidden="true"></canvas>
+      <dl class="pb kv mono" id="link"></dl>
+    </section>
     </div>
 
+    <div class="stack a-center">
     <section class="panel a-scan scan">
       <header class="ph">
         <h2><span id="scanCrew">—</span></h2>
@@ -68,26 +80,6 @@
         <p class="holo-hint mono">CLICK A REGION TO FILTER · DRAG TO ROTATE</p>
       </div>
     </section>
-
-    <div class="stack a-right">
-    <section class="panel">
-      <header class="ph"><h2>Vitals</h2><span class="mono dim" id="vitalsAge">—</span></header>
-      <div class="pb vitals" id="vitals"></div>
-    </section>
-
-    <section class="panel">
-      <header class="ph">
-        <h2>Trends</h2><span class="mono dim" id="trendCount"></span>
-        <span class="mono dim trend-key" aria-hidden="true">● measured <i></i>fit<i class="dash"></i>projection<i class="th"></i>threshold</span>
-      </header>
-      <div class="pb" id="trends"></div>
-    </section>
-
-    <section class="panel">
-      <header class="ph"><h2>Actions</h2></header>
-      <div class="pb"><ol class="recs" id="recs"></ol></div>
-    </section>
-    </div>
 
     <section class="panel a-down downlink" id="downlink" hidden>
       <header class="ph">
@@ -104,12 +96,25 @@
       </header>
       <ol class="log" id="log"></ol>
     </section>
+    </div>
 
-    <section class="panel a-link">
-      <header class="ph"><h2>Body sensor</h2><span class="mono dim" id="linkState">—</span></header>
-      <canvas id="planet" aria-hidden="true"></canvas>
-      <dl class="pb kv mono" id="link"></dl>
+    <div class="stack a-right">
+    <section class="panel">
+      <header class="ph"><h2>Vitals</h2><span class="mono dim" id="vitalsAge">—</span></header>
+      <div class="pb vitals" id="vitals"></div>
     </section>
+
+    <section class="panel">
+      <header class="ph">
+        <h2>Trends</h2><span class="mono dim" id="trendCount"></span>
+        <span class="mono dim trend-key" aria-hidden="true">● measured <i></i>fit<i class="dash"></i>projection<i class="th"></i>threshold</span>
+      </header>
+      <div class="pb" id="trends"></div>
+    </section>
+    </div>
+
+
+
   </main>
 
   <!-- ───────── VISTA: CHEQUEO DIARIO ───────── -->
