@@ -51,7 +51,9 @@
       "source": "Nivel 1 alto: fiebre por encima de 37,5 °C oral, Clinical Methods, NCBI (https://www.ncbi.nlm.nih.gov/books/NBK331/). Nivel 3 bajo: hipotermia por debajo de 35 °C, Mayo Clinic (https://www.mayoclinic.org/diseases-conditions/hypothermia/symptoms-causes/syc-20352682). Nivel 2 (38,0 y 35,5): guia. Resto: criterio propio.",
       "nasa_ref": null,
       "sustain_readings": 3,
-      "rules_source": "sustain_readings: igual que el pulso. Un termistor medio suelto da una lectura baja suelta, y eso no debe dar rojo ni resumen a Tierra. Criterio propio."
+      "rules_source": "sustain_readings: igual que el pulso. Un termistor medio suelto da una lectura baja suelta, y eso no debe dar rojo ni resumen a Tierra. Criterio propio. low_max_level: el termistor va en la muñeca, y la piel se enfría con el ambiente: 'in warm conditions, skin temperature can be close to core body temperature, but several degrees lower in cold conditions' (Polar Research Center, 'Skin temperature', white paper, 16/06/2023, https://polar.com/img/static/whitepapers/pdf/polar-skin-temperature-white-paper.pdf). Por eso la temperatura baja da como mucho ámbar y pide confirmar con un termómetro; la alta (fiebre) mantiene sus niveles. Límite en ámbar: criterio propio.",
+      "low_max_level": 1,
+      "low_note": "wrist reading; confirm with a thermometer"
     },
     "systolic_mmhg": {
       "label": "Systolic blood pressure",
