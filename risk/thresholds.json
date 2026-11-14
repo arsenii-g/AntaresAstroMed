@@ -162,7 +162,7 @@
       "system": "environment",
       "code": "CABIN_TEMP",
       "high": [
-        26,
+        25,
         27,
         32
       ],
@@ -171,8 +171,8 @@
         18,
         15
       ],
-      "source": "Nivel 2 (27 y 18 °C): NASA-STD-3001 vol. 2, requisito [V2 6012], zona de 18 a 27 °C basada en ASHRAE 55 (https://www.nasa.gov/reference/6-0-natural-and-induced-environments-vol-2/). Resto: criterio propio.",
-      "nasa_ref": "NASA-STD-3001 vol. 2, [V2 6012] Crew Health Environmental Limits"
+      "source": "Nivel 1 (25 y 20 °C): NASA-STD-3001 vol. 2, requisito [V2 6013] Crew Performance Environmental Zone, cuya justificación da 20–25 °C y 30–60 % de humedad como zona de confort y rendimiento. Nivel 2 (27 y 18 °C): requisito [V2 6012] Crew Health Environmental Limits, zona de 18 a 27 °C basada en ASHRAE 55 (https://www.nasa.gov/reference/6-0-natural-and-induced-environments-vol-2/). Nivel 3 (32 y 15 °C): criterio propio.",
+      "nasa_ref": "NASA-STD-3001 vol. 2, [V2 6013] Crew Performance Environmental Zone y [V2 6012] Crew Health Environmental Limits"
     },
     "humidity_pct": {
       "label": "Humedad de cabina",
@@ -180,7 +180,7 @@
       "system": "environment",
       "code": "HUMIDITY",
       "high": [
-        70,
+        60,
         75,
         null
       ],
@@ -189,8 +189,8 @@
         25,
         null
       ],
-      "source": "Nivel 2 (75 y 25 %): NASA-STD-3001 vol. 2, requisito [V2 6012], zona de 25 a 75 % de humedad relativa (https://www.nasa.gov/reference/6-0-natural-and-induced-environments-vol-2/). Nivel 1: criterio propio.",
-      "nasa_ref": "NASA-STD-3001 vol. 2, [V2 6012] Crew Health Environmental Limits"
+      "source": "Nivel 1 (60 y 30 %): NASA-STD-3001 vol. 2, requisito [V2 6013] Crew Performance Environmental Zone, 30–60 % de humedad. Nivel 2 (75 y 25 %): requisito [V2 6012] Crew Health Environmental Limits, zona de 25 a 75 % de humedad relativa (https://www.nasa.gov/reference/6-0-natural-and-induced-environments-vol-2/). Sin nivel 3.",
+      "nasa_ref": "NASA-STD-3001 vol. 2, [V2 6013] Crew Performance Environmental Zone y [V2 6012] Crew Health Environmental Limits"
     },
     "heat_index_c": {
       "label": "Índice de calor",
