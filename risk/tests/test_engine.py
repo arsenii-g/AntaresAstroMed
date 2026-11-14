@@ -237,8 +237,12 @@ def test_temperatura_baja_suelta_no_da_rojo():
         return evaluate(msgs, [], [check()], NOW)
     loose = temps(36.6, 36.7, 34.8)                     # termistor medio suelto
     assert loose["systems"]["cardiovascular"]["level"] == 1 and loose["earth_summary"] is None
-    cold = temps(34.8, 34.7, 34.6)                      # hipotermia de verdad: menos de 35 °C
-    assert cold["systems"]["cardiovascular"]["level"] == 3 and cold["earth_summary"]
+    cold = temps(34.8, 34.7, 34.6)                      # muñeca fría: como mucho ámbar
+    cardio = cold["systems"]["cardiovascular"]
+    assert cardio["level"] == 1 and cold["earth_summary"] is None
+    assert cardio["reasons"][0] == "Body temperature 34.6 °C, below 36 °C (wrist reading; confirm with a thermometer)"
+    fever = temps(39.6, 39.7, 39.8)                     # la fiebre sí llega a rojo
+    assert fever["systems"]["cardiovascular"]["level"] == 3
 
 
 def test_duplicados_cuentan_una_vez():
