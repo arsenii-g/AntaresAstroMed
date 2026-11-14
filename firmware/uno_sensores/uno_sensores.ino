@@ -3,7 +3,7 @@
 // Mide al tripulante (RFID, pulso, temperatura, movimiento, flexiones)
 // y la cabina (DHT11), y manda por el puerto serie (115200) una linea JSON por mensaje:
 //
-//   {"t":"tel", ...}   telemetria cada 5 s
+//   {"t":"tel", ...}   telemetria cada 2 s
 //   {"t":"evt", ...}   eventos: crew_checkin, inactivity, exercise_summary
 //
 // El ESP32 lee esas lineas, les pone device_id y ts (hora NTP) y las manda al backend.
