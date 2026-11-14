@@ -1,19 +1,28 @@
 """evaluate(): punto de entrada del motor de riesgos.
 
-STUB: de momento devuelve siempre el ejemplo ③ de contracts/, con el crew_id
-y la hora de la llamada. La firma y la forma de la respuesta ya son las
-definitivas, así que la API puede integrarlo desde ahora; cuando llegue el
-motor real, solo cambia lo de dentro.
+Pasos (guía del equipo, sección 5):
+  1. Nivel por indicador contra thresholds.json (indicators.py).
+  2. Nivel por sistema: el peor de sus indicadores.
+  3. Tendencia a 7 días: pendiente (día 2), de momento lista vacía.
+  4. Recomendaciones: una contramedida por cada ámbar o peor.
+
+Un dato ausente es "sin dato", nunca verde. Si un sistema no tiene ningún dato,
+su nivel es None.
 """
 
 from __future__ import annotations
 
-import copy
-import json
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import datetime, timedelta, timezone
 
-_EXAMPLE = Path(__file__).resolve().parent.parent / "contracts" / "assessment.example.json"
+from .indicators import IndicatorResult, level_for
+from .recommendations import recommendations_for
+
+SYSTEMS = ("cardiovascular", "neuro", "musculoskeletal", "environment")
+
+# Antigüedad máxima de un dato para darlo por válido (criterio propio).
+TELEMETRY_MAX_AGE = timedelta(seconds=60)   # llega cada 5 s
+CHECK_MAX_AGE = timedelta(hours=24)         # un chequeo manual al día
+EXERCISE_BASELINE_WINDOW = timedelta(days=7)
 
 
 def evaluate(
@@ -26,40 +35,166 @@ def evaluate(
 
     Args:
         telemetry: mensajes ① de telemetría (contracts/telemetry.example.json),
-            todos del mismo crew_id. Los vitales pueden venir como None.
-        events: eventos ① (contracts/event.example.json) del mismo crew_id.
-        manual_checks: chequeos manuales ② (contracts/check.example.json)
-            del mismo crew_id.
+            todos del mismo crew_id. Cualquier campo puede venir como None.
+        events: eventos ① (crew_checkin, inactivity, exercise_summary) del
+            mismo crew_id.
+        manual_checks: chequeos manuales ② del mismo crew_id.
         now: hora actual, datetime con zona horaria UTC.
 
     Returns:
-        La evaluación ③ (contracts/assessment.example.json): overall_level,
-        systems (level y reasons de cada sistema), trends y recommendations.
+        La evaluación ③ (contracts/assessment.example.json). El nivel de un
+        sistema sin ningún dato, y overall_level si no hay ninguno, es None.
 
-    No lanza excepciones por datos ausentes: lo que falta se trata como
-    "sin dato".
+    Nunca lanza excepciones por datos ausentes o incompletos.
     """
-    result = copy.deepcopy(_load_example())
-    result["crew_id"] = _find_crew_id(telemetry, events, manual_checks)
-    result["ts"] = _iso_utc(now)
-    return result
+    now = _aware(now)
+    telemetry = _sorted_recent(telemetry, now, TELEMETRY_MAX_AGE)
+    manual_checks = _sorted_recent(manual_checks, now, CHECK_MAX_AGE)
+    events = _sorted_recent(events, now, EXERCISE_BASELINE_WINDOW)
+
+    results = (
+        _telemetry_indicators(telemetry)
+        + _check_indicators(manual_checks)
+        + _exercise_indicators(events)
+    )
+
+    systems = {}
+    for name in SYSTEMS:
+        own = [r for r in results if r.system == name]
+        known = [r.level for r in own if r.level is not None]
+        flagged = sorted((r for r in own if r.level), key=lambda r: -r.level)
+        missing = [r for r in own if r.level is None]
+        systems[name] = {
+            "level": max(known) if known else None,
+            "reasons": [r.reason for r in flagged + missing],
+        }
+
+    levels = [s["level"] for s in systems.values() if s["level"] is not None]
+    return {
+        "crew_id": _find_crew_id(telemetry, events, manual_checks),
+        "ts": _iso(now),
+        "overall_level": max(levels) if levels else None,
+        "systems": systems,
+        "trends": [],
+        "recommendations": recommendations_for(results),
+    }
 
 
-def _load_example() -> dict:
-    with _EXAMPLE.open(encoding="utf-8") as f:
-        return json.load(f)
+# --- indicadores ---------------------------------------------------------------
+
+def _telemetry_indicators(telemetry: list[dict]) -> list[IndicatorResult]:
+    vitals = lambda m: m.get("vitals") or {}
+    motion = lambda m: m.get("motion") or {}
+    cabin = lambda m: m.get("cabin") or {}
+
+    def margin(m):
+        c = cabin(m)
+        if c.get("temp_c") is None or c.get("dew_point_c") is None:
+            return None
+        return round(c["temp_c"] - c["dew_point_c"], 1)
+
+    getters = {
+        "heart_rate_bpm": lambda m: vitals(m).get("heart_rate_bpm"),
+        "body_temp_c": lambda m: vitals(m).get("body_temp_c"),
+        "still_for_s": lambda m: motion(m).get("still_for_s"),
+        "cabin_temp_c": lambda m: cabin(m).get("temp_c"),
+        "humidity_pct": lambda m: cabin(m).get("humidity_pct"),
+        "heat_index_c": lambda m: cabin(m).get("heat_index_c"),
+        "condensation_margin_c": margin,
+    }
+    # El dato más reciente que no sea None dentro de la ventana de 60 s.
+    return [level_for(name, _latest(telemetry, get)) for name, get in getters.items()]
+
+
+def _check_indicators(checks: list[dict]) -> list[IndicatorResult]:
+    bp = lambda c: c.get("blood_pressure") or {}
+    results = [
+        _blood_pressure(checks, "systolic_mmhg", lambda c: bp(c).get("systolic")),
+        _blood_pressure(checks, "diastolic_mmhg", lambda c: bp(c).get("diastolic")),
+        level_for("glucose_mg_dl", _latest(checks, lambda c: c.get("glucose_mg_dl"))),
+        level_for("mood", _latest(checks, lambda c: c.get("mood"))),
+    ]
+    return results
+
+
+def _blood_pressure(checks: list[dict], indicator: str, get) -> IndicatorResult:
+    """La guía pide escalar con 140/90 "en dos medidas": el nivel 2 necesita
+    dos medidas seguidas de nivel 2 o más. El nivel 3 cuenta con una sola."""
+    values = [get(c) for c in checks if get(c) is not None]
+    if not values:
+        return level_for(indicator, None)
+    last = level_for(indicator, values[-1])
+    if last.level != 2:
+        return last
+    previous = level_for(indicator, values[-2]) if len(values) >= 2 else None
+    if previous is not None and (previous.level or 0) >= 2:
+        return last
+    return IndicatorResult(
+        last.indicator, last.system, last.value, 1, last.code,
+        f"{last.reason} (primera medida; se confirma con una segunda)",
+    )
+
+
+def _exercise_indicators(events: list[dict]) -> list[IndicatorResult]:
+    """Caída de flexiones de la última serie frente a la media de las anteriores
+    de los últimos 7 días. Sin series previas no hay basal y no se evalúa."""
+    reps = [
+        (e.get("data") or {}).get("reps")
+        for e in events
+        if e.get("type") == "exercise_summary"
+    ]
+    reps = [r for r in reps if isinstance(r, (int, float))]
+    if len(reps) < 2:
+        return []
+    baseline = sum(reps[:-1]) / len(reps[:-1])
+    if baseline <= 0:
+        return []
+    drop = max(0.0, round((baseline - reps[-1]) / baseline * 100, 1))
+    return [level_for("pushup_drop_pct", drop)]
+
+
+# --- utilidades -----------------------------------------------------------------
+
+def _latest(messages: list[dict], get):
+    for message in reversed(messages):
+        value = get(message)
+        if value is not None:
+            return value
+    return None
+
+
+def _sorted_recent(messages: list[dict] | None, now: datetime, max_age: timedelta) -> list[dict]:
+    out = []
+    for m in messages or []:
+        ts = _parse_ts(m.get("ts"))
+        if ts is not None and now - max_age <= ts <= now + timedelta(seconds=5):
+            out.append((ts, m))
+    out.sort(key=lambda pair: pair[0])
+    return [m for _, m in out]
+
+
+def _parse_ts(value) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return _aware(datetime.fromisoformat(value.replace("Z", "+00:00")))
+    except ValueError:
+        return None
 
 
 def _find_crew_id(*sources: list[dict]) -> str | None:
     for messages in sources:
-        for message in messages or []:
-            crew_id = message.get("crew_id")
-            if crew_id:
-                return crew_id
+        for message in reversed(messages):
+            if message.get("crew_id"):
+                return message["crew_id"]
     return None
 
 
-def _iso_utc(moment: datetime) -> str:
+def _aware(moment: datetime) -> datetime:
     if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=timezone.utc)
-    return moment.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return moment.replace(tzinfo=timezone.utc)
+    return moment.astimezone(timezone.utc)
+
+
+def _iso(moment: datetime) -> str:
+    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
