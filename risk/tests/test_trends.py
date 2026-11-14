@@ -82,7 +82,7 @@ def test_resumen_a_tierra_solo_en_rojo_y_en_ingles():
     red = evaluate([], [], [day_check(0, systolic=185, diastolic=100)], NOW)
     text = red["earth_summary"]
     assert red["overall_level"] == 3
-    assert text.startswith("SPACEHEALTH MEDICAL SUMMARY")
+    assert text.startswith("ARGOSMED MEDICAL SUMMARY")
     assert "Crew member: F3786E09" in text
     assert "[red] Systolic blood pressure 185 mmHg, above 181 mmHg" in text
     assert "Rest for 5 minutes and repeat the blood pressure" in text
