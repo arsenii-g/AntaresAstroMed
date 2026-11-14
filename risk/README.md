@@ -18,6 +18,8 @@ from risk import evaluate
 | | `now` | `datetime.now(timezone.utc)` |
 | **Te devuelve** | un `dict` | La evaluación ③, como `contracts/assessment.example.json` |
 
+Todos los textos que devuelve (motivos, recomendaciones, resumen) van **en inglés**, porque el proyecto se presenta en inglés.
+
 Todo de **un solo `crew_id`**, como dicts con el mismo JSON que llegó a la API. No hace falta ordenarlos: el motor ordena por `ts`.
 
 ## 1. Qué le mandas
@@ -65,10 +67,10 @@ await ws.broadcast({"type": "assessment", "data": assessment})
   "ts": "2026-11-14T10:30:05Z",
   "overall_level": 1,
   "systems": {
-    "cardiovascular": { "level": 1, "reasons": ["Pulso 118 lat/min, por encima de 100 lat/min"] },
+    "cardiovascular": { "level": 1, "reasons": ["Heart rate 118 bpm, above 100 bpm"] },
     "neuro": { "level": 0, "reasons": [] },
     "musculoskeletal": { "level": 0, "reasons": [] },
-    "environment": { "level": 1, "reasons": ["Humedad de cabina 72 %, por encima de 60 %"] }
+    "environment": { "level": 1, "reasons": ["Cabin humidity 72%, above 60%"] }
   },
   "trends": [
     { "indicator": "pushup_reps", "projected_7d": 14, "crosses_threshold_in_days": 4,
@@ -82,12 +84,12 @@ await ws.broadcast({"type": "assessment", "data": assessment})
 | Campo | Qué es | Ojo con |
 |---|---|---|
 | `overall_level` | El peor de los 4 sistemas: 0 verde, 1 ámbar, 2 naranja, 3 rojo | **Puede ser `null`** si no hay ningún dato |
-| `systems.*.level` | Nivel de cada sistema | **Puede ser `null`**: la web lo pinta gris, "sin dato", nunca verde |
-| `systems.*.reasons` | Motivos en español, primero los más graves y luego los "sin dato" | |
+| `systems.*.level` | Nivel de cada sistema | **Puede ser `null`**: la web lo pinta gris, "no data", nunca verde |
+| `systems.*.reasons` | Motivos **en inglés**, primero los más graves y luego los "no data" | |
 | `trends` | Proyección a 7 días de `systolic_mmhg`, `diastolic_mmhg`, `glucose_mg_dl`, `mood` y `pushup_reps` | Solo aparecen los que tienen al menos 3 medidas en al menos 1 día |
 | `trends[].crosses_threshold_in_days` | Días hasta cruzar el siguiente umbral | `null` si no lo cruza en 7 días |
-| `recommendations` | En español: primero la acción del nivel, luego las contramedidas y los avisos de tendencia | |
-| `earth_summary` | Texto en **inglés** listo para mandar a los médicos en Tierra | Solo en nivel 3; si no, `null` |
+| `recommendations` | **En inglés**: primero la acción del nivel, luego las contramedidas y los avisos de tendencia | |
+| `earth_summary` | Texto en inglés listo para mandar a los médicos en Tierra | Solo en nivel 3; si no, `null` |
 
 Los cuatro sistemas se reparten así en la web: `cardiovascular`, `neuro` y `musculoskeletal` van en el muñeco del tripulante; `environment`, en la cabina.
 
@@ -115,32 +117,32 @@ Comprueban, entre otras cosas, que una glucosa que sube 3 mg/dl al día avisa an
 
 ### b) Simulador contra el motor en local, sin API
 
-`--history-days 7` genera antes una semana de chequeos (08:00) y series de flexiones (18:00). Con `sano` son estables; con `empeora` y `demo`, la tensión, la glucosa y el ánimo empeoran y las flexiones caen.
+`--history-days 7` genera antes una semana de chequeos (08:00) y series de flexiones (18:00). Con `healthy` son estables; con `worsening` y `demo`, la tensión, la glucosa y el ánimo empeoran y las flexiones caen.
 
 ```bash
-.venv/bin/python -m simulator.simulate --scenario sano --fast --evaluate --count 1 --history-days 7
-.venv/bin/python -m simulator.simulate --scenario empeora --fast --evaluate --count 1 --history-days 7
+.venv/bin/python -m simulator.simulate --scenario healthy --fast --evaluate --count 1 --history-days 7
+.venv/bin/python -m simulator.simulate --scenario worsening --fast --evaluate --count 1 --history-days 7
 ```
 
 El primero no da ninguna tendencia; el segundo, algo así:
 
 ```
-t=   0s  F3786E09 pulso=75 temp=36.8 ... → global=1 cardio=0 neuro=— músculo=1 cabina=0
-        recomienda: Revisar el plan de ejercicio de fuerza
-        tendencia: systolic_mmhg cruza 140 en 5.8 días
-        tendencia: pushup_reps cruza 14.8 en 0.8 días
+t=   0s  F3786E09 hr=75 temp=36.8 ... → overall=1 cardio=0 neuro=— muscle=1 cabin=0
+        recommends: Review the strength training plan
+        trend: systolic_mmhg crosses 140 in 5.7 days
+        trend: pushup_reps crosses 14.8 in 0.8 days
 ```
 
 Sin `--evaluate` imprime los JSON que mandaría, para verlos o guardarlos en un archivo:
 
 ```bash
-.venv/bin/python -m simulator.simulate --scenario empeora --fast --count 1 --history-days 7 > historia.jsonl
+.venv/bin/python -m simulator.simulate --scenario worsening --fast --count 1 --history-days 7 > historia.jsonl
 ```
 
 ### c) Simulador contra tu API
 
 ```bash
-python -m simulator.simulate --scenario empeora --history-days 7 \
+python -m simulator.simulate --scenario worsening --history-days 7 \
     --url http://localhost:8000 --api-key demo
 ```
 

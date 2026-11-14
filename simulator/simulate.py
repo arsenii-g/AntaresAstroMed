@@ -4,14 +4,14 @@ Sirve para probar la API, el motor y el frontend sin hardware.
 
 Uso:
     python -m simulator.simulate                        # JSON por pantalla, cada 5 s
-    python -m simulator.simulate --scenario empeora --fast --evaluate
+    python -m simulator.simulate --scenario worsening --fast --evaluate
     python -m simulator.simulate --url http://localhost:8000 --api-key demo
 
-Escenarios:
-    sano      constantes normales, cabina en rango.
-    empeora   en 5 minutos sube el pulso, la temperatura corporal y la cabina
+Escenarios (los nombres antiguos sano, empeora y sin-datos siguen valiendo):
+    healthy   constantes normales, cabina en rango.
+    worsening en 5 minutos sube el pulso, la temperatura corporal y la cabina
               se calienta y humedece, hasta pasar por ámbar, naranja y rojo.
-    sin-datos sin tripulante fichado y el DHT11 fallando: todo llega null.
+    no-data   sin tripulante fichado y el DHT11 fallando: todo llega null.
     demo      sigue el guion de la demo (guía, sección 10) en 2 minutos:
               ficha el tripulante, se queda quieto hasta dar ámbar por
               inactividad, hace flexiones y vuelve a verde, y a los 100 s
@@ -19,13 +19,14 @@ Escenarios:
               SPACEHEALTH_DEMO=1 (inactividad a 30 s).
 
 Con --history-days N genera antes N días de chequeos manuales y series de
-flexiones (sano: estables; empeora y demo: van a peor) para que se vean las
+flexiones (healthy: estables; worsening y demo: van a peor) para que se vean las
 tendencias a 7 días.
 
 Con --url se comporta como el ESP32 ante las respuestas de la API
-(contracts/README.md): 2xx y 409 dan el mensaje por enviado, otro 4xx lo
-descarta y 5xx o sin respuesta reintenta a 1, 2, 4… s hasta 30 s, con hasta
-50 mensajes en cola.
+(contracts/README.md y el documento del firmware): 2xx y 409 dan el mensaje
+por enviado; 2xx con {"ok": false}, 408, 429, 3xx, 5xx o sin respuesta en 4 s
+reintentan a 1, 2, 4… s hasta 30 s; cualquier otro 4xx lo descarta. Hasta 50
+mensajes en cola.
 
 Solo usa la biblioteca estándar.
 """
@@ -47,15 +48,17 @@ from datetime import datetime, timedelta, timezone
 DEVICE_ID = "esp32-sim"
 CREW_ID = "F3786E09"
 INTERVAL_S = 5            # la placa manda telemetría cada 5 s
-WORSEN_TICKS = 60         # "empeora" llega al peor punto en 60 envíos (5 min)
+WORSEN_TICKS = 60         # "worsening" llega al peor punto en 60 envíos (5 min)
 PUSHUP_EVERY = 24         # una serie de flexiones cada 2 min
 MAX_QUEUE = 50
 MAX_BACKOFF_S = 30
 
-SCENARIOS = ("sano", "empeora", "sin-datos", "demo")
+SCENARIOS = ("healthy", "worsening", "no-data", "demo")
+# Nombres antiguos en español, para que los comandos viejos sigan funcionando.
+ALIASES = {"sano": "healthy", "empeora": "worsening", "sin-datos": "no-data"}
 
 # Guion de la demo, en envíos de 5 s (criterio propio, ajustado a la sección 10 de la guía).
-DEMO_CREW_B = "C42A9B17"
+DEMO_CREW_B = "336F8312"     # segunda tarjeta del kit
 DEMO_CHECKIN_TICK = 3        # 15 s: "Identificación"
 DEMO_PUSHUP_TICK = 15        # 75 s: "Contramedida verificada"
 DEMO_MOVING_TICKS = 4        # se mueve 20 s tras las flexiones
@@ -102,14 +105,14 @@ def _ramp(tick: int, start: float, end: float) -> float:
 
 def scenario_values(scenario: str, tick: int, rng: random.Random) -> dict:
     """Valores "reales" del instante tick para un escenario."""
-    if scenario == "sano":
+    if scenario == "healthy":
         return {
             "hr": 72 + rng.uniform(-4, 4),
             "body": 36.7 + rng.uniform(-0.1, 0.1),
             "cabin": 23.0 + rng.uniform(-0.2, 0.2),
             "rh": 45 + rng.uniform(-2, 2),
         }
-    if scenario == "empeora":
+    if scenario == "worsening":
         return {
             "hr": _ramp(tick, 75, 155) + rng.uniform(-2, 2),
             "body": _ramp(tick, 36.8, 39.7) + rng.uniform(-0.05, 0.05),
@@ -124,7 +127,7 @@ def scenario_values(scenario: str, tick: int, rng: random.Random) -> dict:
             "cabin": 23.0 + rng.uniform(-0.2, 0.2),
             "rh": 45 + rng.uniform(-2, 2),
         }
-    raise ValueError(f"escenario desconocido: {scenario}")
+    raise ValueError(f"unknown scenario: {scenario}")
 
 
 def demo_crew(tick: int) -> str | None:
@@ -133,15 +136,24 @@ def demo_crew(tick: int) -> str | None:
     return DEMO_CREW_B if tick >= DEMO_SWITCH_TICK else CREW_ID
 
 
+def motion(still_s: int) -> dict:
+    """Como el firmware: "moving" (y 0 s) si el interruptor se movió en los
+    últimos 3 s; si no, "still" con 3 s o más."""
+    if still_s < 3:
+        return {"activity": "moving", "still_for_s": 0}
+    return {"activity": "still", "still_for_s": still_s}
+
+
 def demo_motion(tick: int) -> dict:
-    """Quieto desde que ficha; flexiones y 20 s moviéndose; luego quieto otra vez."""
-    if tick < DEMO_CHECKIN_TICK:
-        return {"activity": "still", "still_for_s": 0}
+    """Se mueve hasta fichar (pasar la tarjeta cuenta como movimiento), quieto
+    después; flexiones y 20 s moviéndose; luego quieto otra vez."""
+    if tick <= DEMO_CHECKIN_TICK:
+        return motion(0)
     after = DEMO_PUSHUP_TICK + DEMO_MOVING_TICKS
     if DEMO_PUSHUP_TICK <= tick < after:
-        return {"activity": "moving", "still_for_s": 0}
+        return motion(0)
     since = after if tick >= after else DEMO_CHECKIN_TICK
-    return {"activity": "still", "still_for_s": (tick - since) * INTERVAL_S}
+    return motion((tick - since) * INTERVAL_S)
 
 
 def make_telemetry(scenario: str, tick: int, ts: datetime, rng: random.Random) -> dict:
@@ -152,11 +164,11 @@ def make_telemetry(scenario: str, tick: int, ts: datetime, rng: random.Random) -
         "met_s": tick * INTERVAL_S,
         "crew_id": None,
         "vitals": {"heart_rate_bpm": None, "hr_quality": 0, "resp_rate_bpm": None, "body_temp_c": None},
-        "motion": {"activity": "still", "still_for_s": tick * INTERVAL_S},
+        "motion": motion(tick * INTERVAL_S),
         "cabin": {k: None for k in ("temp_c", "humidity_pct", "dew_point_c", "heat_index_c", "condensation_risk")},
         "alerts": [],
     }
-    if scenario == "sin-datos":
+    if scenario == "no-data":
         return base
 
     v = scenario_values(scenario, tick, rng)
@@ -178,8 +190,7 @@ def make_telemetry(scenario: str, tick: int, ts: datetime, rng: random.Random) -
     if scenario == "demo":
         base["motion"] = demo_motion(tick)
     else:
-        base["motion"] = {"activity": "moving" if moving else "still",
-                          "still_for_s": 0 if moving else (tick % PUSHUP_EVERY) * INTERVAL_S}
+        base["motion"] = motion(0 if moving else (tick % PUSHUP_EVERY) * INTERVAL_S)
     base["cabin"] = {"temp_c": temp, "humidity_pct": rh, "dew_point_c": dew,
                      "heat_index_c": hi, "condensation_risk": condensation_risk(temp - dew)}
     base["alerts"] = _local_alerts(base)
@@ -188,8 +199,8 @@ def make_telemetry(scenario: str, tick: int, ts: datetime, rng: random.Random) -
 
 def make_events(scenario: str, tick: int, ts: datetime, rng: random.Random) -> list[dict]:
     """crew_checkin al empezar y una serie de flexiones cada PUSHUP_EVERY envíos.
-    En "empeora" cada serie sale con menos repeticiones."""
-    if scenario == "sin-datos":
+    En "worsening" cada serie sale con menos repeticiones."""
+    if scenario == "no-data":
         return []
     if scenario == "demo":
         return demo_events(tick, ts)
@@ -198,7 +209,7 @@ def make_events(scenario: str, tick: int, ts: datetime, rng: random.Random) -> l
         events.append(_event(ts, "crew_checkin", "info", {"action": "in"}))
     if tick > 0 and tick % PUSHUP_EVERY == 0:
         series = tick // PUSHUP_EVERY
-        reps = 20 + rng.randint(-1, 1) if scenario == "sano" else max(4, 20 - 5 * (series - 1))
+        reps = 20 + rng.randint(-1, 1) if scenario == "healthy" else max(4, 20 - 5 * (series - 1))
         events.append(_event(ts, "exercise_summary", "info", {
             "exercise": "pushup", "reps": reps,
             "duration_s": reps * 2, "cadence_rpm": 30.0,
@@ -227,11 +238,11 @@ def demo_events(tick: int, ts: datetime) -> list[dict]:
 
 def make_history(scenario: str, days: int, start: datetime, rng: random.Random) -> tuple[list[dict], list[dict]]:
     """Días anteriores a start: un chequeo manual a las 08:00 y una serie de
-    flexiones a las 18:00. En "sano" todo es estable; en "empeora" y "demo"
+    flexiones a las 18:00. En "healthy" todo es estable; en "worsening" y "demo"
     la glucosa, la tensión y el ánimo empeoran y las flexiones caen."""
     checks, events = [], []
-    worse = scenario in ("empeora", "demo")
-    if scenario == "sin-datos":
+    worse = scenario in ("worsening", "demo")
+    if scenario == "no-data":
         return checks, events
     for d in range(days, 0, -1):
         day = (start - timedelta(days=d)).replace(hour=8, minute=0, second=0)
@@ -257,22 +268,24 @@ def _event(ts: datetime, kind: str, severity: str, data: dict, crew_id: str | No
 
 
 def _local_alerts(msg: dict) -> list[str]:
-    """Alertas que levanta la placa por su cuenta (no son los niveles del motor)."""
+    """Alertas que levanta la placa por su cuenta, con los umbrales de
+    firmware/uno_sensores/config.h y en el mismo orden fijo. No son los
+    niveles del motor."""
     v, c, out = msg["vitals"], msg["cabin"], []
     hr, body = v["heart_rate_bpm"], v["body_temp_c"]
     if hr is not None and hr > 120:
         out.append("HR_HIGH")
     if hr is not None and hr < 45:
         out.append("HR_LOW")
-    if body is not None and body >= 38.0:
+    if body is not None and body > 38.0:
         out.append("BODY_TEMP_HIGH")
     if body is not None and body < 35.5:
         out.append("BODY_TEMP_LOW")
-    if c["temp_c"] is not None and c["temp_c"] > 27:
+    if c["temp_c"] is not None and c["temp_c"] > 28:
         out.append("CABIN_TEMP_HIGH")
     if c["temp_c"] is not None and c["temp_c"] < 18:
         out.append("CABIN_TEMP_LOW")
-    if c["heat_index_c"] is not None and c["heat_index_c"] >= 32.2:
+    if c["heat_index_c"] is not None and c["heat_index_c"] > 32:
         out.append("HEAT_INDEX_HIGH")
     if c["condensation_risk"] == "high":
         out.append("CONDENSATION_HIGH")
@@ -284,7 +297,7 @@ def _local_alerts(msg: dict) -> list[str]:
 class Sender:
     """Cola de envío con la misma lógica de reintentos que el ESP32."""
 
-    def __init__(self, url: str, api_key: str | None, timeout: float = 3.0, sleep=time.sleep):
+    def __init__(self, url: str, api_key: str | None, timeout: float = 4.0, sleep=time.sleep):
         self.url = url.rstrip("/")
         self.api_key = api_key
         self.timeout = timeout
@@ -315,9 +328,9 @@ class Sender:
             if status == 409:
                 self.stats["duplicate"] += 1
                 return status
-            if status is not None and 400 <= status < 500:
+            if status is not None and 400 <= status < 500 and status not in (408, 429):
                 self.stats["dropped"] += 1
-                print(f"[sim] {path} → {status}: mensaje descartado", file=sys.stderr)
+                print(f"[sim] {path} → {status}: message dropped", file=sys.stderr)
                 return status
             if waited + wait > deadline_s:
                 return None
@@ -327,18 +340,36 @@ class Sender:
             wait = min(wait * 2, MAX_BACKOFF_S)
 
     def _post(self, path: str, body: dict) -> int | None:
+        """Código de la respuesta, o None si hay que reintentar por tiempo
+        agotado o sin conexión. Igual que el ESP32: no sigue redirecciones
+        (un 3xx se reintenta) y un 2xx con {"ok": false} cuenta como fallo."""
         req = urllib.request.Request(
             self.url + path, data=json.dumps(body).encode(), method="POST",
             headers={"Content-Type": "application/json",
                      **({"X-API-Key": self.api_key} if self.api_key else {})},
         )
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                return resp.status
+            with _NO_REDIRECTS.open(req, timeout=self.timeout) as resp:
+                status, raw = resp.status, resp.read()
         except urllib.error.HTTPError as err:
             return err.code
         except (urllib.error.URLError, TimeoutError, ConnectionError):
             return None
+        try:
+            reply = json.loads(raw) if raw else None
+        except ValueError:
+            reply = None
+        if isinstance(reply, dict) and "ok" in reply and reply["ok"] is not True:
+            return 500          # el ESP32 lo reintenta
+        return status
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None             # el 3xx llega como HTTPError y se reintenta
+
+
+_NO_REDIRECTS = urllib.request.build_opener(_NoRedirect)
 
 
 # --- bucle principal -----------------------------------------------------------------
@@ -402,22 +433,22 @@ def _summary(tick, telemetry, history_t, history_e, checks, now, show_trends) ->
 
     crew = telemetry["crew_id"]
     if crew is None:
-        return f"t={tick * INTERVAL_S:>4}s sin fichar: la API no llama al motor sin crew_id"
+        return f"t={tick * INTERVAL_S:>4}s no crew checked in: the API does not call the engine without crew_id"
     mine = lambda msgs: [m for m in msgs if m.get("crew_id") == crew]
     result = evaluate(mine(history_t[-20:]), mine(history_e), mine(checks), now)
-    names = {"cardiovascular": "cardio", "neuro": "neuro", "musculoskeletal": "músculo", "environment": "cabina"}
+    names = {"cardiovascular": "cardio", "neuro": "neuro", "musculoskeletal": "muscle", "environment": "cabin"}
     levels = " ".join(f"{names[k]}={_lvl(s['level'])}" for k, s in result["systems"].items())
     v, c = telemetry["vitals"], telemetry["cabin"]
-    line = (f"t={tick * INTERVAL_S:>4}s {crew or 'sin fichar':>9} pulso={v['heart_rate_bpm']} "
-            f"temp={v['body_temp_c']} quieto={telemetry['motion']['still_for_s']}s "
-            f"cabina={c['temp_c']}°C/{c['humidity_pct']}% → global={_lvl(result['overall_level'])} {levels}")
+    line = (f"t={tick * INTERVAL_S:>4}s {crew:>9} hr={v['heart_rate_bpm']} "
+            f"temp={v['body_temp_c']} still={telemetry['motion']['still_for_s']}s "
+            f"cabin={c['temp_c']}°C/{c['humidity_pct']}% → overall={_lvl(result['overall_level'])} {levels}")
     if result["recommendations"]:
-        line += f"\n        recomienda: {result['recommendations'][0]}"
+        line += f"\n        recommends: {result['recommendations'][0]}"
     if show_trends:
         for t in result["trends"]:
             if t["crosses_threshold_in_days"] is not None:
-                line += (f"\n        tendencia: {t['indicator']} cruza {t['threshold']} "
-                         f"en {t['crosses_threshold_in_days']} días")
+                line += (f"\n        trend: {t['indicator']} crosses {t['threshold']} "
+                         f"in {t['crosses_threshold_in_days']} days")
     if result.get("earth_summary") and show_trends:
         line += "\n" + "\n".join("        | " + l for l in result["earth_summary"].splitlines())
     return line
@@ -432,16 +463,18 @@ def _iso(moment: datetime) -> str:
 
 
 def parse_args(argv=None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Simulador del ESP32 de SpaceHealth")
-    p.add_argument("--scenario", choices=SCENARIOS, default="sano")
-    p.add_argument("--count", type=int, default=None, help="número de envíos (por defecto, sin fin)")
-    p.add_argument("--fast", action="store_true", help="no espera 5 s; las horas avanzan igual de 5 en 5 s")
+    p = argparse.ArgumentParser(description="SpaceHealth ESP32 simulator")
+    p.add_argument("--scenario", choices=SCENARIOS + tuple(ALIASES), default="healthy")
+    p.add_argument("--count", type=int, default=None, help="number of sends (default: forever)")
+    p.add_argument("--fast", action="store_true", help="do not wait 5 s; timestamps still advance 5 s per send")
     p.add_argument("--seed", type=int, default=1)
-    p.add_argument("--url", help="base de la API, p. ej. http://localhost:8000")
-    p.add_argument("--api-key", help="se manda en la cabecera X-API-Key")
-    p.add_argument("--evaluate", action="store_true", help="pasa los datos por el motor y muestra los niveles")
-    p.add_argument("--history-days", type=int, default=0, help="días de chequeos y flexiones previos (p. ej. 7)")
-    return p.parse_args(argv)
+    p.add_argument("--url", help="API base URL, e.g. http://localhost:8000")
+    p.add_argument("--api-key", help="sent in the X-API-Key header")
+    p.add_argument("--evaluate", action="store_true", help="run the data through the engine locally and print the levels")
+    p.add_argument("--history-days", type=int, default=0, help="days of past manual checks and push-up sets to send first (e.g. 7)")
+    args = p.parse_args(argv)
+    args.scenario = ALIASES.get(args.scenario, args.scenario)
+    return args
 
 
 if __name__ == "__main__":
