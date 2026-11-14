@@ -1,22 +1,22 @@
 (export
 	(version "E")
 	(design
-		(source "/home/therin/Documents/nasa_hackathon/hardware/spacehealth/spacehealth.kicad_sch")
-		(date "2026-11-14T16:21:36")
+		(source "/tmp/claude-1000/-home-therin-Documents-nasa-hackathon/3a33381c-106c-427b-adc9-5eeb013a7448/scratchpad/en/spacehealth/spacehealth.kicad_sch")
+		(date "2026-11-14T18:27:21")
 		(tool "Eeschema 10.0.8")
 		(sheet
 			(number "1")
 			(name "/")
 			(tstamps "/")
 			(title_block
-				(title "SpaceHealth - shield UNO + ESP32")
+				(title "SpaceHealth - UNO + ESP32 shield")
 				(company "NASA Space Apps - SpaceHealth")
 				(rev "A")
 				(date "2026-11-14")
 				(source "spacehealth.kicad_sch")
 				(comment
 					(number "1")
-					(value "Arduino UNO R3 (sensores) -> serie 115200 -> ESP32 DevKit V1 (WiFi)")
+					(value "Arduino UNO R3 (sensors) -> UART 115200 -> ESP32 DevKit V1 (WiFi)")
 				)
 				(comment
 					(number "2")
@@ -204,7 +204,7 @@
 			(footprint "Connector_PinHeader_2.54mm:PinHeader_1x08_P2.54mm_Vertical")
 			(fields
 				(field
-					(name "Pines") "1 SDA, 2 SCK, 3 MOSI, 4 MISO, 5 IRQ, 6 GND, 7 RST, 8 3.3V")
+					(name "Pins") "1 SDA, 2 SCK, 3 MOSI, 4 MISO, 5 IRQ, 6 GND, 7 RST, 8 3.3V")
 				(field
 					(name "Footprint") "Connector_PinHeader_2.54mm:PinHeader_1x08_P2.54mm_Vertical")
 				(field
@@ -220,7 +220,7 @@
 				(description "Generic connector, single row, 01x08, script generated (kicad-library-utils/schlib/autogen/connector/)")
 			)
 			(property
-				(name "Pines")
+				(name "Pins")
 				(value "1 SDA, 2 SCK, 3 MOSI, 4 MISO, 5 IRQ, 6 GND, 7 RST, 8 3.3V")
 			)
 			(property
@@ -282,7 +282,7 @@
 			(footprint "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical")
 			(fields
 				(field
-					(name "Pines") "1 VCC, 2 TRIG, 3 ECHO, 4 GND")
+					(name "Pins") "1 VCC, 2 TRIG, 3 ECHO, 4 GND")
 				(field
 					(name "Footprint") "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical")
 				(field
@@ -298,7 +298,7 @@
 				(description "Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)")
 			)
 			(property
-				(name "Pines")
+				(name "Pins")
 				(value "1 VCC, 2 TRIG, 3 ECHO, 4 GND")
 			)
 			(property
@@ -348,7 +348,7 @@
 			(footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical")
 			(fields
 				(field
-					(name "Pines") "1 D3, 2 GND")
+					(name "Pins") "1 D3, 2 GND")
 				(field
 					(name "Footprint") "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical")
 				(field
@@ -364,7 +364,7 @@
 				(description "Generic connector, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)")
 			)
 			(property
-				(name "Pines")
+				(name "Pins")
 				(value "1 D3, 2 GND")
 			)
 			(property
@@ -408,7 +408,7 @@
 			(footprint "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical")
 			(fields
 				(field
-					(name "Pines") "1 S, 2 +, 3 -")
+					(name "Pins") "1 S, 2 +, 3 -")
 				(field
 					(name "Footprint") "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical")
 				(field
@@ -424,7 +424,7 @@
 				(description "Generic connector, single row, 01x03, script generated (kicad-library-utils/schlib/autogen/connector/)")
 			)
 			(property
-				(name "Pines")
+				(name "Pins")
 				(value "1 S, 2 +, 3 -")
 			)
 			(property
@@ -471,7 +471,7 @@
 			(footprint "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical")
 			(fields
 				(field
-					(name "Pines") "1 VCC, 2 GND, 3 SDA, 4 SCL")
+					(name "Pins") "1 VCC, 2 GND, 3 SDA, 4 SCL")
 				(field
 					(name "Footprint") "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical")
 				(field
@@ -487,7 +487,7 @@
 				(description "Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)")
 			)
 			(property
-				(name "Pines")
+				(name "Pins")
 				(value "1 VCC, 2 GND, 3 SDA, 4 SCL")
 			)
 			(property
@@ -537,7 +537,7 @@
 			(footprint "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical")
 			(fields
 				(field
-					(name "Pines") "1 5V, 2 A0 (NTC entre ambos)")
+					(name "Pins") "1 5V, 2 A0 (NTC between them)")
 				(field
 					(name "Footprint") "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical")
 				(field
@@ -553,8 +553,8 @@
 				(description "Generic connector, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)")
 			)
 			(property
-				(name "Pines")
-				(value "1 5V, 2 A0 (NTC entre ambos)")
+				(name "Pins")
+				(value "1 5V, 2 A0 (NTC between them)")
 			)
 			(property
 				(name "Sheetname")
@@ -593,11 +593,11 @@
 		)
 		(comp
 			(ref "J7")
-			(value "PULSO")
+			(value "PULSE")
 			(footprint "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical")
 			(fields
 				(field
-					(name "Pines") "1 LED anodo, 2 LED catodo/GND, 3 LDR a 5V, 4 LDR a A1")
+					(name "Pins") "1 LED anode, 2 LED cathode/GND, 3 LDR to 5V, 4 LDR to A1")
 				(field
 					(name "Footprint") "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical")
 				(field
@@ -613,8 +613,8 @@
 				(description "Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)")
 			)
 			(property
-				(name "Pines")
-				(value "1 LED anodo, 2 LED catodo/GND, 3 LDR a 5V, 4 LDR a A1")
+				(name "Pins")
+				(value "1 LED anode, 2 LED cathode/GND, 3 LDR to 5V, 4 LDR to A1")
 			)
 			(property
 				(name "Sheetname")
@@ -659,11 +659,11 @@
 		)
 		(comp
 			(ref "J8")
-			(value "ESP32_IZQ")
+			(value "ESP32_LEFT")
 			(footprint "Connector_PinSocket_2.54mm:PinSocket_1x15_P2.54mm_Vertical")
 			(fields
 				(field
-					(name "Pines") "1 EN, 2 VP (GPIO36), 3 VN (GPIO39), 4 D34, 5 D35, 6 D32, 7 D33, 8 D25, 9 D26, 10 D27, 11 D14, 12 D12, 13 D13, 14 GND, 15 VIN")
+					(name "Pins") "1 EN, 2 VP (GPIO36), 3 VN (GPIO39), 4 D34, 5 D35, 6 D32, 7 D33, 8 D25, 9 D26, 10 D27, 11 D14, 12 D12, 13 D13, 14 GND, 15 VIN")
 				(field
 					(name "Footprint") "Connector_PinSocket_2.54mm:PinSocket_1x15_P2.54mm_Vertical")
 				(field
@@ -679,7 +679,7 @@
 				(description "Generic connector, single row, 01x15, script generated (kicad-library-utils/schlib/autogen/connector/)")
 			)
 			(property
-				(name "Pines")
+				(name "Pins")
 				(value "1 EN, 2 VP (GPIO36), 3 VN (GPIO39), 4 D34, 5 D35, 6 D32, 7 D33, 8 D25, 9 D26, 10 D27, 11 D14, 12 D12, 13 D13, 14 GND, 15 VIN")
 			)
 			(property
@@ -758,11 +758,11 @@
 		)
 		(comp
 			(ref "J9")
-			(value "ESP32_DER")
+			(value "ESP32_RIGHT")
 			(footprint "Connector_PinSocket_2.54mm:PinSocket_1x15_P2.54mm_Vertical")
 			(fields
 				(field
-					(name "Pines") "1 D23, 2 D22, 3 TX0, 4 RX0, 5 D21, 6 D19, 7 D18, 8 D5, 9 TX2 (GPIO17), 10 RX2 (GPIO16), 11 D4, 12 D2, 13 D15, 14 GND, 15 3V3")
+					(name "Pins") "1 D23, 2 D22, 3 TX0, 4 RX0, 5 D21, 6 D19, 7 D18, 8 D5, 9 TX2 (GPIO17), 10 RX2 (GPIO16), 11 D4, 12 D2, 13 D15, 14 GND, 15 3V3")
 				(field
 					(name "Footprint") "Connector_PinSocket_2.54mm:PinSocket_1x15_P2.54mm_Vertical")
 				(field
@@ -778,7 +778,7 @@
 				(description "Generic connector, single row, 01x15, script generated (kicad-library-utils/schlib/autogen/connector/)")
 			)
 			(property
-				(name "Pines")
+				(name "Pins")
 				(value "1 D23, 2 D22, 3 TX0, 4 RX0, 5 D21, 6 D19, 7 D18, 8 D5, 9 TX2 (GPIO17), 10 RX2 (GPIO16), 11 D4, 12 D2, 13 D15, 14 GND, 15 3V3")
 			)
 			(property
@@ -857,11 +857,11 @@
 		)
 		(comp
 			(ref "J10")
-			(value "LIBRES")
+			(value "SPARE")
 			(footprint "Connector_PinHeader_2.54mm:PinHeader_1x05_P2.54mm_Vertical")
 			(fields
 				(field
-					(name "Pines") "1 D2, 2 A2, 3 A3, 4 5V, 5 GND")
+					(name "Pins") "1 D2, 2 A2, 3 A3, 4 5V, 5 GND")
 				(field
 					(name "Footprint") "Connector_PinHeader_2.54mm:PinHeader_1x05_P2.54mm_Vertical")
 				(field
@@ -877,7 +877,7 @@
 				(description "Generic connector, single row, 01x05, script generated (kicad-library-utils/schlib/autogen/connector/)")
 			)
 			(property
-				(name "Pines")
+				(name "Pins")
 				(value "1 D2, 2 A2, 3 A3, 4 5V, 5 GND")
 			)
 			(property
@@ -1250,7 +1250,7 @@
 		)
 		(comp
 			(ref "SW1")
-			(value "Pulsador 6 mm")
+			(value "Push button 6 mm")
 			(footprint "Button_Switch_THT:SW_PUSH_6mm")
 			(fields
 				(field
