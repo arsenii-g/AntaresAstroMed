@@ -117,3 +117,55 @@ def test_sin_api_guarda_la_cola():
     sender.flush()
     assert waits == [1, 2, 4, 8]          # 1+2+4+8 = 15; el siguiente (16) pasaría de 30 s
     assert len(sender.queue) == 1
+
+
+# --- escenario demo e historia ----------------------------------------------------
+
+from risk.indicators import load_thresholds
+from simulator.simulate import (
+    DEMO_CREW_B, DEMO_PUSHUP_TICK, DEMO_SWITCH_TICK, demo_crew, make_history,
+)
+
+
+def run_demo(monkeypatch):
+    """Evalúa cada envío del guion como lo haría la API, por crew_id."""
+    monkeypatch.setenv("SPACEHEALTH_DEMO", "1")
+    from datetime import timedelta
+    rng, tel, ev, out = random.Random(1), [], [], {}
+    for t in range(24):
+        ts = TS + timedelta(seconds=5 * t)
+        tel.append(make_telemetry("demo", t, ts, rng))
+        ev.extend(make_events("demo", t, ts, rng))
+        crew = demo_crew(t)
+        if crew:
+            mine = lambda msgs: [m for m in msgs if m.get("crew_id") == crew]
+            out[t] = evaluate(mine(tel[-20:]), mine(ev), [], ts)
+    return out, ev
+
+
+def test_guion_de_la_demo(monkeypatch):
+    out, events = run_demo(monkeypatch)
+    still_amber = [t for t, r in out.items() if "Hacer una serie de flexiones o moverse unos minutos" in r["recommendations"]]
+    assert still_amber and max(still_amber) < DEMO_PUSHUP_TICK          # ámbar antes de las flexiones
+    assert out[DEMO_PUSHUP_TICK]["overall_level"] == 0                     # y verde justo después
+    assert out[DEMO_SWITCH_TICK]["crew_id"] == DEMO_CREW_B
+    assert out[DEMO_SWITCH_TICK]["overall_level"] == 3
+    assert out[DEMO_SWITCH_TICK]["earth_summary"].startswith("SPACEHEALTH MEDICAL SUMMARY")
+    kinds = [(e["type"], e["data"].get("action")) for e in events]
+    assert ("inactivity", None) in kinds
+    assert kinds.count(("crew_checkin", "in")) == 2 and ("crew_checkin", "out") in kinds
+
+
+def test_historia_de_una_semana_da_tendencias():
+    checks, events = make_history("empeora", 7, TS, random.Random(1))
+    assert len(checks) == 7 and len(events) == 7
+    assert all(m["ts"] < "2026-11-14T10:30:05Z" for m in checks + events)    # todo es anterior a TS
+    result = evaluate([], events, checks, TS)
+    crossing = {t["indicator"] for t in result["trends"] if t["crosses_threshold_in_days"] is not None}
+    assert {"systolic_mmhg", "pushup_reps"} <= crossing
+
+
+def test_historia_sana_no_cruza_nada():
+    checks, events = make_history("sano", 7, TS, random.Random(1))
+    result = evaluate([], events, checks, TS)
+    assert result["trends"] and all(t["crosses_threshold_in_days"] is None for t in result["trends"])

@@ -171,3 +171,13 @@ def test_nunca_lanza_excepciones_con_basura():
     junk = [{}, {"ts": "no es fecha"}, {"ts": "2026-11-14T10:30:00Z", "vitals": None, "cabin": None}]
     result = evaluate(junk, junk, junk, NOW)
     assert set(result["systems"]) == SYSTEMS
+
+
+def test_mismas_claves_que_el_ejemplo_del_contrato():
+    example = load("assessment.example.json")
+    result = evaluate([load("telemetry.example.json")], [], [load("check.example.json")], NOW)
+    assert set(result) == set(example)
+    assert set(example["trends"][0]) == {
+        "indicator", "projected_7d", "crosses_threshold_in_days",
+        "threshold", "threshold_level", "slope_per_day",
+    }
