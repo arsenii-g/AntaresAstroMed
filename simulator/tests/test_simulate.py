@@ -53,11 +53,11 @@ def test_formulas_de_cabina():
 
 def test_sano_sale_verde_y_empeora_llega_a_rojo():
     def last_level(scenario):
+        from datetime import timedelta
         rng, tel = random.Random(1), []
         for t in range(70):
-            tel.append(make_telemetry(scenario, t, TS, rng))
-        return evaluate(tel[-12:], [], [], TS)["overall_level"]
-    # Las horas no avanzan en este test: todos los mensajes valen como recientes.
+            tel.append(make_telemetry(scenario, t, TS + timedelta(seconds=5 * t), rng))
+        return evaluate(tel[-12:], [], [], TS + timedelta(seconds=5 * 69))["overall_level"]
     assert last_level("healthy") == 0
     assert last_level("worsening") == 3
 

@@ -51,6 +51,7 @@ def level_for(indicator: str, value: float | None, thresholds: dict | None = Non
     """
     spec = (thresholds or load_thresholds())[indicator]
     system = spec["system"]
+    value = as_number(value)
 
     if value is None:
         return IndicatorResult(indicator, system, None, None, None, f"{spec['label']}: no data")
@@ -82,11 +83,22 @@ def restate(result: IndicatorResult, level: int, note: str, thresholds: dict | N
         return IndicatorResult(result.indicator, result.system, result.value, 0, None, None)
     direction = "HIGH" if (result.code or "").endswith("_HIGH") else "LOW"
     cuts = spec.get("high" if direction == "HIGH" else "low", [])
-    cut = cuts[level - 1] if level - 1 < len(cuts) and cuts[level - 1] is not None else result.cut
+    # El corte de ese nivel; si es null, el más cercano por debajo (o el primero que haya).
+    below = [c for c in cuts[:level] if c is not None]
+    above = [c for c in cuts[level:] if c is not None]
+    cut = below[-1] if below else above[0] if above else result.cut
     relation = "above" if direction == "HIGH" else "below"
     unit = spec["unit"]
     reason = f"{spec['label']} {with_unit(result.value, unit)}, {relation} {with_unit(cut, unit)} ({note})"
     return IndicatorResult(result.indicator, result.system, result.value, level, result.code, reason, cut)
+
+
+def as_number(value):
+    """El valor si es un número de verdad (int o float, no bool); si no, None.
+    Así un "80" o un [1] que se cuele cuenta como sin dato, no rompe el motor."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return value if value == value else None          # NaN también es sin dato
 
 
 def _band(value: float, cuts: list, *, above: bool, inclusive: bool) -> int:

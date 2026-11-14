@@ -57,7 +57,12 @@ await ws.broadcast({"type": "assessment", "data": assessment})
 
 `db.telemetry`, `db.events` y `db.checks` son de ejemplo: cómo lees la base de datos es cosa tuya. Cada una devuelve una lista de dicts.
 
-`evaluate()` no lanza excepciones con datos ausentes, incompletos o con basura. Aun así, envuélvelo en un `try` para que un fallo del motor nunca tumbe el endpoint que guarda los datos.
+`evaluate()` no lanza excepciones con datos ausentes, incompletos o con basura (textos donde va un número, listas, `null`…): eso cuenta como "no data". Aun así, envuélvelo en un `try` para que un fallo del motor nunca tumbe el endpoint que guarda los datos.
+
+Dos detalles:
+
+- **`now` tiene que llevar zona horaria:** `datetime.now(timezone.utc)`. Con un `datetime.now()` sin zona, el motor lanza `ValueError`. Si lo aceptara, en UTC+1 toda la telemetría parecería de hace una hora y saldría todo "no data".
+- **Duplicados:** el motor cuenta una sola vez los mensajes con el mismo `(device_id, ts, type)`, que es lo que la placa repite en los reintentos. Aun así, conviene no guardarlos dos veces.
 
 ## 2. Qué te devuelve
 
@@ -95,14 +100,14 @@ Los cuatro sistemas se reparten así en la web: `cardiovascular`, `neuro` y `mus
 
 ## 3. Reglas que evitan falsas alarmas
 
-Además de los umbrales de `thresholds.json`, el motor aplica cuatro reglas. No cambian el contrato ③: solo deciden el nivel y añaden una nota al final del motivo, en inglés. Las cuatro son **criterio propio** y se ajustan en `thresholds.json` (`rules_source` explica cada una).
+Además de los umbrales de `thresholds.json`, el motor aplica estas reglas. No cambian el contrato ③: solo deciden el nivel y añaden una nota al final del motivo, en inglés. Todas son **criterio propio** y se ajustan en `thresholds.json` (`rules_source` explica cada una).
 
 | Regla | Qué hace | Por qué | Ajuste |
 |---|---|---|---|
-| **Pulso sostenido** | Naranja o rojo solo si las **3 últimas lecturas** (15 s) están en ese nivel o peor. Manda la menos grave de las tres. Con menos de 3 lecturas en nivel alto, se queda en ámbar: `(not sustained yet: 1 of 3 readings)` | La fotorresistencia es ruidosa: un pico suelto no debe llamar a Tierra | `heart_rate_bpm.sustain_readings` |
-| **Pulso tras ejercicio** | Si el último mensaje dice `activity: "moving"`, o hubo una serie de flexiones en los últimos 5 min, el pulso **alto** baja un nivel (mínimo ámbar): `(after exercise; recheck at rest)`. El pulso bajo no se perdona | Subir el pulso con el esfuerzo es normal; la contramedida ya pide repetir en reposo | `heart_rate_bpm.exercise_recovery_s` |
+| **Pulso y temperatura sostenidos** | Naranja o rojo solo si las **3 últimas lecturas** (15 s) están en ese nivel o peor. Mientras no, cualquier lectura alta da **ámbar, nunca verde**: `(not sustained yet: 1 of 3 readings)`. Lecturas altas y bajas mezcladas dan ámbar con `(inconsistent readings; check the sensor)` | La fotorresistencia es ruidosa y el termistor se puede soltar: un pico suelto no debe llamar a Tierra, pero un fallo del sensor tampoco debe esconder un problema real | `sustain_readings` en `heart_rate_bpm` y `body_temp_c` |
+| **Pulso tras ejercicio** | Si el último mensaje dice `activity: "moving"`, o hubo una serie de flexiones en los últimos 5 min, el pulso alto en **naranja** baja a ámbar: `(after exercise; recheck at rest)`. El rojo (más de 150 lpm) y el pulso bajo no se rebajan | Subir el pulso con el esfuerzo es normal, pero más de 150 ya no se explica por unas flexiones | `heart_rate_bpm.exercise_recovery_s` |
 | **Tensión entre días** | El naranja necesita dos medidas seguidas en naranja o peor. La última tiene que ser de las últimas 24 h; la anterior puede ser de cualquiera de los 7 días | La guía dice "140/90 en dos medidas", y en la misión se mide una vez al día. Antes, la medida de ayer (a 25 h) no contaba | Ventana de 7 días |
-| **Ánimo frente a su media** | Ámbar si el ánimo de hoy está **2 puntos o más** por debajo de la media del propio tripulante en los 7 días anteriores, con al menos 3 chequeos previos. Se suma al corte fijo (menos de 3) | Un 3/5 es normal para alguien que suele estar en 3, pero es una bajada clara para alguien que siempre está en 5 | `mood.personal_drop`, `mood.personal_min_checks` |
+| **Ánimo frente a su media** | Ámbar si el ánimo de hoy está **1,5 puntos o más** por debajo de la media del propio tripulante en los 7 días anteriores, con al menos 3 chequeos previos. Se suma al corte fijo (menos de 3) | Un 3/5 es normal para alguien que suele estar en 3, pero es una bajada clara para alguien que siempre está en 5 | `mood.personal_drop`, `mood.personal_min_checks` |
 
 Consecuencia para la demo: el segundo tripulante sale en ámbar a los 100 s y en **rojo a los 110 s**, cuando ya hay 3 lecturas de 156 lpm.
 

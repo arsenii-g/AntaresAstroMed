@@ -18,7 +18,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from .indicators import load_thresholds
+from .indicators import as_number, load_thresholds
+
+
+def _obj(value) -> dict:
+    return value if isinstance(value, dict) else {}
 
 HORIZON_DAYS = 7
 MIN_POINTS = 3
@@ -26,8 +30,8 @@ MIN_SPAN_DAYS = 1.0
 
 # indicador de la tendencia -> (indicador de umbrales, cómo sacar el valor de un chequeo)
 CHECK_TRENDS = {
-    "systolic_mmhg": lambda c: (c.get("blood_pressure") or {}).get("systolic"),
-    "diastolic_mmhg": lambda c: (c.get("blood_pressure") or {}).get("diastolic"),
+    "systolic_mmhg": lambda c: _obj(c.get("blood_pressure")).get("systolic"),
+    "diastolic_mmhg": lambda c: _obj(c.get("blood_pressure")).get("diastolic"),
     "glucose_mg_dl": lambda c: c.get("glucose_mg_dl"),
     "mood": lambda c: c.get("mood"),
 }
@@ -69,7 +73,7 @@ def trends_for(checks: list[dict], events: list[dict], now: datetime, parse_ts) 
             out.append(trend)
 
     pushups = [e for e in events if e.get("type") == "exercise_summary"]
-    points = _points(pushups, lambda e: (e.get("data") or {}).get("reps"), now, parse_ts)
+    points = _points(pushups, lambda e: _obj(e.get("data")).get("reps"), now, parse_ts)
     if len(points) >= 2:
         baseline = sum(v for _, v in points[:-1]) / len(points[:-1])
         drops = thresholds["pushup_drop_pct"].get("high", [])
@@ -83,8 +87,8 @@ def trends_for(checks: list[dict], events: list[dict], now: datetime, parse_ts) 
 def _points(messages, get, now, parse_ts) -> list[tuple[float, float]]:
     points = []
     for m in messages:
-        value, ts = get(m), parse_ts(m.get("ts"))
-        if isinstance(value, (int, float)) and not isinstance(value, bool) and ts is not None:
+        value, ts = as_number(get(m)), parse_ts(m.get("ts"))
+        if value is not None and ts is not None:
             points.append(((ts - now).total_seconds() / 86400, float(value)))
     return points
 
