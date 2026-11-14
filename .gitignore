@@ -37,3 +37,4 @@ firmware/esp32_gateway/config.h
 *.lck
 *-backups/
 fp-info-cache
+.history/
