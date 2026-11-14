@@ -128,9 +128,9 @@ export function createPlanet(canvas, { horizon = 0.76, radius = (w) => Math.max(
     ctx.beginPath(); ctx.arc(sx, sy, 16, 0, 6.2832); ctx.fill();
 
     ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = 0.75;
+    ctx.globalAlpha = 0.95;
     ctx.fillStyle = "#8fd8ff";
-    ctx.font = '10px "JetBrains Mono", ui-monospace, monospace';
+    ctx.font = '500 12.5px "JetBrains Mono", ui-monospace, monospace';
     ctx.fillText("ARGOS-1", sx + 14, sy - 10);
     ctx.globalAlpha = 1;
   });

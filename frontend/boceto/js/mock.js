@@ -14,6 +14,12 @@ const sys = (cardiovascular, neuro, musculoskeletal, environment) => ({
 });
 const ok = { level: 0, reasons: [] };
 
+// Tendencias de ejemplo (contrato ③). En cada una, projected_7d y
+// crosses_threshold_in_days salen de la misma recta, como hace el motor.
+const PUSHUPS_DOWN = { indicator: "pushup_reps", projected_7d: 14.4, crosses_threshold_in_days: 4, threshold: 16.2, threshold_level: 2, slope_per_day: -0.6 };
+const SYSTOLIC_UP = { indicator: "systolic_mmhg", projected_7d: 142.7, crosses_threshold_in_days: 5.7, threshold: 140, threshold_level: 2, slope_per_day: 2.1 };
+const MOOD_FLAT = { indicator: "mood", projected_7d: 3.6, crosses_threshold_in_days: null, threshold: null, threshold_level: null, slope_per_day: -0.05 };
+
 // Cada tripulante pasa por estos estados, uno cada STEP_MS.
 const SCRIPT = {
   F3786E09: [
@@ -27,7 +33,7 @@ const SCRIPT = {
         overall_level: 1,
         systems: sys(ok, { level: null, reasons: ["Mood: no data"] },
           { level: 1, reasons: ["Time without moving 45 s, above 30 s"] }, ok),
-        trends: [],
+        trends: [PUSHUPS_DOWN],
         recommendations: ["Stand up and move for 2 minutes", "Complete today's check: mood is missing"],
         earth_summary: null,
       },
@@ -36,7 +42,7 @@ const SCRIPT = {
       hr: 96, temp: 36.8, activity: "moving", still: 0,
       a: {
         overall_level: 0, systems: sys(ok, ok, ok, ok),
-        trends: [{ indicator: "pushup_reps", projected_7d: 14, crosses_threshold_in_days: 4, threshold: 16.2, threshold_level: 2, slope_per_day: -0.6 }],
+        trends: [PUSHUPS_DOWN],
         recommendations: ["Push-up count is trending down: add one resistance session this week"],
         earth_summary: null,
       },
@@ -49,7 +55,7 @@ const SCRIPT = {
         overall_level: 1,
         systems: sys({ level: 1, reasons: ["Heart rate 118 bpm, above 100 bpm"] }, ok, ok,
           { level: 1, reasons: ["Cabin humidity 72%, above 60%"] }),
-        trends: [],
+        trends: [SYSTOLIC_UP, MOOD_FLAT],
         recommendations: ["Seated rest for 10 minutes, then repeat the heart rate reading", "Check cabin humidity control"],
         earth_summary: null,
       },
@@ -60,7 +66,7 @@ const SCRIPT = {
         overall_level: 1,
         systems: sys({ level: 1, reasons: ["Heart rate 156 bpm, above 100 bpm (not sustained yet: 1 of 3 readings)"] }, ok, ok,
           { level: 1, reasons: ["Cabin humidity 72%, above 60%"] }),
-        trends: [],
+        trends: [SYSTOLIC_UP, MOOD_FLAT],
         recommendations: ["Stay seated and keep the sensor still", "Check cabin humidity control"],
         earth_summary: null,
       },
@@ -71,7 +77,7 @@ const SCRIPT = {
         overall_level: 3,
         systems: sys({ level: 3, reasons: ["Heart rate 157 bpm, above 150 bpm (sustained over 3 readings)"] }, ok, ok,
           { level: 1, reasons: ["Cabin humidity 72%, above 60%"] }),
-        trends: [],
+        trends: [SYSTOLIC_UP, MOOD_FLAT],
         recommendations: ["Stop all activity and lie down", "Contact the flight surgeon now", "Check cabin humidity control"],
         earth_summary: "CREW A1B2C3D4 — LEVEL 3\nCardiovascular: heart rate 157 bpm at rest, above 150 bpm, sustained over 3 readings.\nEnvironment: cabin humidity 72%.\nAction taken: crew member at rest. Requesting medical guidance.",
       },

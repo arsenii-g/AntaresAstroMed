@@ -10,7 +10,15 @@ Los módulos de JavaScript no cargan abriendo el archivo con doble clic; hace fa
 python3 -m http.server 5173 --directory frontend/boceto
 ```
 
-Y abrir <http://localhost:5173>. Sale con **datos de ejemplo** (`js/mock.js`): cada tripulante pasa por tres estados, uno cada 7 s. El segundo tripulante llega a nivel 3: salta el aviso arriba y aparece el resumen para Tierra.
+Y abrir <http://localhost:5173/console.html>. La consola se conecta a la API (`api/main.py`) en el mismo ordenador, puerto 8000:
+
+```bash
+python -m uvicorn api.main:app --port 8000
+```
+
+Si la API está en otra máquina: `console.html?api=http://IP:8000`. También admite `&crew=F3786E09` (tripulante seleccionado al abrir) y `&key=...` (cabecera `X-API-Key`; por defecto la de `api/main.py`).
+
+Qué usa de la API: `GET /api/v1/crew/{id}/latest` (estado, nombre y rol) y `GET /api/v1/crew/{id}/telemetry` (líneas de pulso y temperatura) al cargar y al reconectar; el WebSocket `/ws` con mensajes `telemetry`, `event`, `check` y `assessment`; y `POST /api/v1/checks` para el chequeo diario. Si se cae el enlace, la pastilla de arriba dice *NO LINK TO BASE* y reintenta sola (1, 2, 4… s, hasta 30 s).
 
 ## Qué hay
 
@@ -21,8 +29,8 @@ Y abrir <http://localhost:5173>. Sale con **datos de ejemplo** (`js/mock.js`): c
 | `console.html` | Consola, con dos vistas. **Monitor**: tripulación, sistemas, cuerpo, constantes, tendencia, acciones, resumen para Tierra, registro de eventos y enlace con el vehículo. **Daily check**: el formulario del contrato ② |
 | `styles.css` | Estilo de la consola. Colores, fuentes y niveles son variables al principio |
 | `js/app.js` | Recibe mensajes `{ type, data }` y pinta. También lleva el registro de eventos (cambios de nivel por sistema), el aviso con botón *Acknowledge* y la antigüedad de los datos |
-| `js/mock.js` | Datos de ejemplo con la forma de los contratos ① y ③ |
-| `js/hologram.js` | Cuerpo 3D de puntos, coloreado por sistema; se puede hacer clic y girar |
+| `js/mock.js` | Datos de ejemplo antiguos; ya no se usan |
+| `js/hologram.js` | Cuerpo 3D de puntos con forma de cilindros redondeados, coloreado por sistema; se puede hacer clic y girar |
 | `js/planet.js` | Planeta 3D: fondo de la portada y panel *Vehicle link* de la consola (cambia con sus opciones) |
 | `js/stage.js` | Bucle de dibujo común a los dos lienzos |
 
@@ -36,14 +44,11 @@ Decisiones de criterio propio, ajustables en `js/app.js`:
 
 ## Qué falta (para Roberto)
 
-1. **Conectar la API.** En `js/app.js`, poner `API_URL` (por ejemplo `"http://localhost:8000"`). La página abre un WebSocket y espera mensajes como `contracts/ws-message.example.json`. Falta acordar con Jesus:
-   - la ruta del WebSocket (ahora `WS_PATH = "/ws"`, inventada);
-   - si la telemetría también llega por WebSocket con `type: "telemetry"`. Las casillas de pulso, temperatura y cabina la necesitan; la evaluación ③ solo trae los motivos, no los valores;
-   - pedir el último estado al cargar con `GET /api/v1/crew/{crew_id}/latest`.
-2. **Tripulantes.** Nombre y rol están escritos a mano en `js/mock.js` (`CREW`). Deberían venir de la API.
-3. **Chequeo diario.** El formulario ya construye el JSON del contrato ② (no se enseña en pantalla; en modo demo sale en la consola del navegador). Con `API_URL` puesto lo envía a `POST /api/v1/checks` con la cabecera `X-API-Key`. Falta validar rangos y hacerlo guiado, paso a paso.
-4. **Gráficas.** Solo hay una línea con los últimos pulsos y una barra por tendencia. Falta la gráfica de 7 días por indicador.
+1. **La API todavía no evalúa.** `api/main.py` guarda y reenvía telemetría, eventos y chequeos, pero no llama a `risk.evaluate()`: la evaluación ③ solo llega si alguien hace `POST /api/v1/assessment`. Hasta entonces, sistemas, tendencias y acciones salen en gris (*No data*). Además importa `contracts.schemas`, que aún no está en el repositorio.
+2. **Tripulantes.** No hay endpoint con la lista: la consola pide a la API los de `KNOWN_CREW` en `js/app.js` (los mismos que `crew_names` en `api/main.py`) y añade sola cualquier `crew_id` nuevo que llegue por el WebSocket.
+3. **Chequeo diario.** Falta validar rangos y hacerlo guiado, paso a paso.
+4. **Gráficas.** Falta el histórico de 7 días con las medidas reales: el motor solo manda la recta.
 5. **Registro y reconocimientos.** Ahora viven solo en la memoria de la página: al recargar se pierden. Si el equipo los quiere guardar, hace falta un endpoint.
-6. **Cuerpo.** `hologram.js` es un boceto hecho con elipsoides. Se puede cambiar por un SVG o un modelo real sin tocar `app.js` si se mantienen `setLevels`, `setFocus`, `setBpm` y `onPick`.
+6. **Cuerpo.** `hologram.js` es un boceto hecho con cilindros redondeados (cápsulas) de puntos. Se puede cambiar por un SVG o un modelo real sin tocar `app.js` si se mantienen `setLevels`, `setFocus`, `setBpm` y `onPick`.
 
 Los textos de la página y de los datos de ejemplo son inventados, salvo los nombres de campos, que salen de `contracts/`.

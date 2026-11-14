@@ -1,15 +1,25 @@
-// Lógica de la consola. Recibe mensajes { type, data } (contrato ④) y pinta.
-// Con API_URL = null usa los datos de ejemplo de mock.js.
+// Lógica de la consola. Habla con la API (api/main.py):
+//   GET  /api/v1/crew/{id}/latest      → último estado y nombre/rol, al cargar y al reconectar
+//   GET  /api/v1/crew/{id}/telemetry   → histórico, para las líneas de pulso y temperatura
+//   WS   /ws                           → mensajes { type, data }: telemetry, event, check, assessment
+//   POST /api/v1/checks                → chequeo diario (contrato ②)
+// Se puede cambiar desde la URL: console.html?api=http://192.168.1.20:8000&crew=F3786E09
 
 import { createPlanet } from "./planet.js";
 import { createHologram } from "./hologram.js";
-import { CREW, subscribe as subscribeMock } from "./mock.js";
+import { trendChart, attachTrendHover } from "./trendchart.js";
 
 // ─── Configuración ──────────────────────────────────────────────────────────
-const API_URL = null;          // p. ej. "http://localhost:8000" para usar la API real
-const WS_PATH = "/ws";         // POR ACORDAR con Jesus: ruta del WebSocket
-const API_KEY = "demo";        // cabecera X-API-Key, igual que la placa y el simulador
-const STALE_S = 15;            // criterio propio: 3 mensajes seguidos perdidos (la placa manda cada 5 s)
+const params = new URLSearchParams(location.search);
+// Por defecto, la API en el mismo ordenador que sirve la web, puerto 8000 (uvicorn)
+const API_URL = (params.get("api") ?? `${location.protocol}//${location.hostname || "localhost"}:8000`).replace(/\/$/, "");
+const WS_PATH = "/ws";
+const API_KEY = params.get("key") ?? "spacehealth-dev-key-2026";   // API_KEY_SECRET de api/main.py
+// Tripulantes que la API conoce (crew_names en api/main.py). Los que lleguen por el
+// WebSocket con otro crew_id se añaden solos.
+const KNOWN_CREW = ["F3786E09", "04D4E5F6"];
+const STALE_S = 15;            // criterio propio: varios mensajes seguidos perdidos (la placa manda cada 2 s)
+const HISTORY = 48;            // puntos de las líneas de pulso y temperatura
 
 const LEVEL_NAME = { 0: "Nominal", 1: "Watch", 2: "Alert", 3: "Critical", null: "No data" };
 const SYSTEMS = [
@@ -25,30 +35,35 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 const lv = (level) => (level == null ? "" : String(level));      // valor de data-level
 const name = (level) => LEVEL_NAME[level ?? null];
 const hms = (ts) => new Date(ts).toISOString().slice(11, 19);
-const crewOf = (id) => CREW.find((c) => c.crew_id === id) ?? { crew_id: id, name: id, role: "" };
+const crewOf = (id) => state.crew.get(id) ?? { crew_id: id, name: id, role: "" };
+const crewList = () => [...state.crew.values()];
+const tsMs = (ts) => { const t = Date.parse(ts ?? ""); return Number.isNaN(t) ? null : t; };
 const ageS = (ms) => (ms == null ? null : Math.max(0, Math.round((Date.now() - ms) / 1000)));
 const ago = (s) => (s == null ? "—" : s < 60 ? `${s} s ago` : `${Math.floor(s / 60)} min ago`);
 
 // ─── Estado ─────────────────────────────────────────────────────────────────
 const state = {
-  crewId: CREW[0].crew_id,
+  crew: new Map(),             // crew_id -> { crew_id, name, role }
+  crewId: params.get("crew") ?? KNOWN_CREW[0],
   focus: null,                 // sistema filtrado, o null
   assessment: {},              // crew_id -> última evaluación ③
   telemetry: {},               // crew_id -> última telemetría ①
   hrHistory: {},               // crew_id -> últimos pulsos, para la gráfica
+  tempHistory: {},             // crew_id -> últimas temperaturas corporales, para la gráfica
   lastPacket: {},              // crew_id -> hora local de llegada (ms)
   packets: 0,
   met: null,                   // { s, at }: último met_s recibido y cuándo
   log: [],
   logOnlySelected: false,
   acked: new Set(),            // avisos reconocidos en esta consola
-  source: API_URL ? "connecting" : "mock",
+  source: "connecting",        // connecting | live | lost (estado del WebSocket)
 };
 let lastRecs = null, lastEarth = null, typing = 0;       // para no repintar lo que no cambia
 
 // ─── 3D ─────────────────────────────────────────────────────────────────────
 createPlanet($("planet"), { horizon: 0.58, radius: (w) => w * 0.9, parallax: false });
 const holo = createHologram($("body"), { onPick: setFocus });
+attachTrendHover($("trends"));
 
 function setFocus(system) {
   state.focus = state.focus === system ? null : system;
@@ -57,23 +72,52 @@ function setFocus(system) {
 }
 
 // ─── Entrada de datos ───────────────────────────────────────────────────────
-function onMessage({ type, data }) {
-  if (!data || !data.crew_id) return;
+function addCrew(id, name, role) {
+  const known = state.crew.get(id);
+  if (known && !name) return;
+  state.crew.set(id, { crew_id: id, name: name ?? known?.name ?? id, role: role ?? known?.role ?? "" });
+  if (!state.crew.has(state.crewId)) state.crewId = id;
+  renderCrewOptions(); renderRoster();
+  if (id === state.crewId) $("scanCrew").textContent = `${crewOf(id).name} · ${id}`;
+}
+
+// `fromHistory`: datos pedidos por HTTP (no en directo); la antigüedad sale de su ts.
+function onMessage({ type, data }, { fromHistory = false } = {}) {
+  if (!data || !data.crew_id) return;            // sin tripulante (nadie ha fichado con la tarjeta)
   const id = data.crew_id;
+  if (!state.crew.has(id)) addCrew(id);
   if (type === "assessment") {
+    const prev = state.assessment[id];
+    if (prev && tsMs(prev.ts) && tsMs(data.ts) && tsMs(data.ts) < tsMs(prev.ts)) return;   // llegó tarde
     logChanges(state.assessment[id], data);
     state.assessment[id] = data;
     renderRoster(); renderAlert();
     if (id === state.crewId) renderAssessment();
   } else if (type === "telemetry") {
+    const prev = state.telemetry[id];
+    if (fromHistory && prev && (tsMs(prev.ts) ?? 0) >= (tsMs(data.ts) ?? 0)) return;
     state.telemetry[id] = data;
-    state.lastPacket[id] = Date.now();
+    state.lastPacket[id] = fromHistory ? Math.min(Date.now(), tsMs(data.ts) ?? 0) || null : Date.now();
     state.packets++;
     const hr = data.vitals?.heart_rate_bpm;
     const hist = (state.hrHistory[id] ??= []);
-    if (typeof hr === "number") { hist.push(hr); if (hist.length > 48) hist.shift(); }
-    if (typeof data.met_s === "number") state.met = { s: data.met_s, at: Date.now() };
+    if (typeof hr === "number") { hist.push(hr); if (hist.length > HISTORY) hist.shift(); }
+    const temp = data.vitals?.body_temp_c;
+    const tempHist = (state.tempHistory[id] ??= []);
+    if (typeof temp === "number") { tempHist.push(temp); if (tempHist.length > HISTORY) tempHist.shift(); }
+    if (typeof data.met_s === "number" && !fromHistory) state.met = { s: data.met_s, at: Date.now() };
     if (id === state.crewId) renderVitals();
+    renderRoster();
+  } else if (type === "event") {
+    const d = data.data ?? {};
+    const msg = {
+      exercise_summary: `Exercise: ${d.reps ?? "?"} ${d.exercise ?? ""} reps in ${d.duration_s ?? "?"} s`,
+      inactivity: `No movement for ${d.still_for_s ?? "?"} s`,
+      crew_checkin: d.action === "out" ? "Crew member checked out" : "Crew member checked in",
+    }[data.type] ?? `Event: ${data.type}`;
+    addLog(data, data.severity === "medium" ? 1 : undefined, msg);     // info = sin nivel
+  } else if (type === "check") {
+    addLog(data, undefined, "Daily check received");
   }
 }
 
@@ -100,7 +144,7 @@ function renderLog(fresh = false) {
   $("log").innerHTML = rows.length
     ? rows.map((e, i) => `<li data-level="${lv(e.level)}" class="${fresh && i === 0 ? "new" : ""}">
         <time>${hms(e.ts)}</time><span class="who">${esc(crewOf(e.crew_id).name)}</span>
-        <span class="chip">${name(e.level)}</span><span class="msg">${esc(e.msg)}</span></li>`).join("")
+        <span class="chip">${e.level === undefined ? "Info" : name(e.level)}</span><span class="msg">${esc(e.msg)}</span></li>`).join("")
     : `<li><span class="msg dim">No events yet.</span></li>`;
 }
 $("logFilter").addEventListener("click", (e) => {
@@ -111,14 +155,16 @@ $("logFilter").addEventListener("click", (e) => {
 
 // ─── Tripulación ────────────────────────────────────────────────────────────
 function renderRoster() {
-  $("crewCount").textContent = `${CREW.length} ON BOARD`;
-  $("roster").innerHTML = CREW.map((c) => {
+  const crew = crewList();
+  $("crewCount").textContent = `${crew.length} ON BOARD`;
+  if (!crew.length) { $("roster").innerHTML = `<p class="pb empty">Waiting for crew data…</p>`; return; }
+  $("roster").innerHTML = crew.map((c) => {
     const a = state.assessment[c.crew_id], t = state.telemetry[c.crew_id];
     const age = ageS(state.lastPacket[c.crew_id]);
     const hr = t?.vitals?.heart_rate_bpm;
     return `<button class="crew" data-crew="${c.crew_id}" data-level="${lv(a?.overall_level)}" aria-pressed="${c.crew_id === state.crewId}">
       <b>${esc(c.name)}</b><span class="chip">${name(a?.overall_level)}</span>
-      <span class="sub">${esc(c.role)} · ${c.crew_id}</span>
+      <span class="sub">${c.role ? `${esc(c.role)} · ` : ""}${c.crew_id}</span>
       <span class="meta mono ${age != null && age > STALE_S ? "stale" : ""}">${typeof hr === "number" ? `${hr} bpm · ` : ""}${ago(age)}</span>
     </button>`;
   }).join("");
@@ -137,7 +183,7 @@ function selectCrew(id) {
 // ─── Aviso: nivel 2 o 3 que nadie ha reconocido ─────────────────────────────
 function currentAlert() {
   let worst = null;
-  for (const c of CREW) {
+  for (const c of crewList()) {
     const a = state.assessment[c.crew_id];
     if (!a || (a.overall_level ?? 0) < 2) continue;
     const [key, label] = SYSTEMS.find(([k]) => a.systems?.[k]?.level === a.overall_level) ?? SYSTEMS[0];
@@ -174,7 +220,18 @@ function renderAssessment() {
   const a = state.assessment[state.crewId];
   const c = crewOf(state.crewId);
   $("scanCrew").textContent = `${c.name} · ${c.crew_id}`;
-  if (!a) return;
+  if (!a) {
+    // Sin evaluación todavía: todo en gris ("No data"), nunca en verde
+    $("overall").dataset.level = ""; $("overall").textContent = name(null);
+    $("overallTs").textContent = "WAITING FOR ASSESSMENT";
+    holo.setLevels(Object.fromEntries(SYSTEMS.map(([k]) => [k, null])));
+    renderSystems();
+    $("trends").innerHTML = `<p class="empty">No assessment received yet.</p>`;
+    $("recs").innerHTML = `<li class="empty" style="display:block">No assessment received yet.</li>`;
+    $("downlink").hidden = true;
+    lastRecs = lastEarth = null;
+    return;
+  }
 
   $("overall").dataset.level = lv(a.overall_level);
   $("overall").textContent = name(a.overall_level);
@@ -184,15 +241,12 @@ function renderAssessment() {
   renderSystems();
 
   $("trends").innerHTML = a.trends?.length
-    ? a.trends.map((t) => {
-        const days = t.crosses_threshold_in_days;
-        const pct = days == null ? 15 : Math.max(8, 100 - (days / 7) * 100);
-        return `<div class="trend"><b>${esc(TREND_NAME[t.indicator] ?? t.indicator)}</b>
-          ${t.slope_per_day > 0 ? "+" : ""}${t.slope_per_day}/day · ${t.projected_7d} projected in 7 d
-          ${days == null ? "" : `· crosses ${t.threshold} in <b>${days} d</b>`}
-          <div class="bar"><i style="width:${pct}%"></i></div></div>`;
-      }).join("")
-    : `<p class="empty">No indicator is drifting toward a threshold.</p>`;
+    // Una gráfica de 7 días por indicador; primero las que cruzan antes un umbral.
+    ? [...a.trends]
+        .sort((x, y) => (x.crosses_threshold_in_days ?? Infinity) - (y.crosses_threshold_in_days ?? Infinity))
+        .map((t) => trendChart(t, { names: TREND_NAME, levelName: name }))
+        .join("")
+    : `<p class="empty">Not enough readings yet to draw a 7-day trend.</p>`;
 
   const recs = JSON.stringify(a.recommendations ?? []);
   if (recs !== lastRecs) {
@@ -251,6 +305,9 @@ function renderVitals() {
   const hist = state.hrHistory[state.crewId] ?? [];
   const lo = Math.min(...hist, 50), hi = Math.max(...hist, 110);
   const line = hist.map((v, i) => `${(i / 47) * 100},${40 - ((v - lo) / (hi - lo || 1)) * 36}`).join(" ");
+  const temps = state.tempHistory[state.crewId] ?? [];
+  const tLo = Math.min(...temps, 36), tHi = Math.max(...temps, 37.5);
+  const tempLine = temps.map((v, i) => `${(i / 47) * 100},${40 - ((v - tLo) / (tHi - tLo || 1)) * 36}`).join(" ");
   const motion = t?.motion?.activity === "still" ? `Still ${num(t.motion.still_for_s)} s` : (t?.motion?.activity ?? "—");
 
   holo.setBpm(t?.vitals?.heart_rate_bpm);
@@ -258,8 +315,10 @@ function renderVitals() {
     <div class="vital wide"><p class="label">Heart rate</p>
       <p class="val">${num(t?.vitals?.heart_rate_bpm)}<small>bpm</small></p>
       <svg viewBox="0 0 100 44" preserveAspectRatio="none"><polyline points="${line}" vector-effect="non-scaling-stroke"/></svg></div>
-    <div class="vital"><p class="label">Body temp</p><p class="val">${num(t?.vitals?.body_temp_c, 1)}<small>°C</small></p></div>
-    <div class="vital"><p class="label">Motion</p><p class="val txt">${esc(motion)}</p></div>
+    <div class="vital wide"><p class="label">Body temp</p>
+      <p class="val">${num(t?.vitals?.body_temp_c, 1)}<small>°C</small></p>
+      <svg viewBox="0 0 100 44" preserveAspectRatio="none"><polyline points="${tempLine}" vector-effect="non-scaling-stroke"/></svg></div>
+    <div class="vital wide"><p class="label">Motion</p><p class="val txt">${esc(motion)}</p></div>
     <div class="vital"><p class="label">Cabin temp</p><p class="val">${num(t?.cabin?.temp_c, 1)}<small>°C</small></p></div>
     <div class="vital"><p class="label">Humidity</p><p class="val">${num(t?.cabin?.humidity_pct)}<small>%</small></p></div>`;
   renderAge();
@@ -273,15 +332,17 @@ function renderAge() {
   $("vitalsAge").style.color = stale ? "var(--lv1)" : "";
   $("vitals").classList.toggle("stale", stale);
 }
-// Pastilla de arriba: si llegan datos del sensor. Con datos de ejemplo dice DEMO,
-// para que nadie confunda la demo con datos reales.
+// Pastilla de arriba: conexión con la base y si llegan datos del sensor.
 function renderSource() {
   const age = ageS(state.lastPacket[state.crewId]);
-  const ok = state.source !== "lost" && age != null && age <= STALE_S;
+  const ok = state.source === "live" && age != null && age <= STALE_S;
   const pill = $("linkPill");
   pill.classList.toggle("live", ok);
-  pill.classList.toggle("lost", !ok);
-  $("linkText").textContent = (ok ? "SENSOR OK" : "NO SENSOR DATA") + (state.source === "mock" ? " · DEMO" : "");
+  pill.classList.toggle("lost", state.source !== "connecting" && !ok);
+  $("linkText").textContent =
+    state.source === "connecting" ? "CONNECTING…" :
+    state.source === "lost" ? "NO LINK TO BASE" :
+    ok ? "SENSOR OK" : "NO SENSOR DATA";
 }
 function renderLink() {
   const t = state.telemetry[state.crewId];
@@ -317,7 +378,10 @@ document.querySelector(".views").addEventListener("click", (e) => {
 
 // ─── Chequeo diario (contrato ②) ────────────────────────────────────────────
 let mood = null;
-$("checkCrew").innerHTML = CREW.map((c) => `<option value="${c.crew_id}">${esc(c.name)} · ${c.crew_id}</option>`).join("");
+function renderCrewOptions() {
+  $("checkCrew").innerHTML = crewList().map((c) => `<option value="${c.crew_id}">${esc(c.name)} · ${c.crew_id}</option>`).join("");
+  $("checkCrew").value = state.crewId;
+}
 $("checkCrew").addEventListener("change", (e) => selectCrew(e.target.value));
 $("mood").innerHTML = [1, 2, 3, 4, 5].map((n) => `<button type="button" role="radio" aria-checked="false" data-mood="${n}">${n}</button>`).join("");
 $("mood").addEventListener("click", (e) => {
@@ -342,30 +406,70 @@ function buildCheck() {
 function renderPayload() {}
 $("checkForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (!API_URL) { $("checkMsg").textContent = "Check saved. Thank you."; console.info("Demo: check not sent", buildCheck()); return; }
+  const btn = e.currentTarget.querySelector("[type=submit]");
+  btn.disabled = true;
+  $("checkMsg").textContent = "Sending…";
   try {
     const r = await fetch(API_URL + "/api/v1/checks", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-API-Key": API_KEY },
       body: JSON.stringify(buildCheck()),
     });
-    $("checkMsg").textContent = r.ok ? "Check saved. Thank you." : "Could not save the check. Try again in a minute.";
-  } catch { $("checkMsg").textContent = "Could not save the check. Try again in a minute."; }
+    // 409 = ya estaba guardado (mismo crew_id y ts)
+    $("checkMsg").textContent = r.ok || r.status === 409 ? "Check saved. Thank you."
+      : r.status === 422 ? "Some values are not valid. Check them and try again."
+      : "Could not save the check. Try again in a minute.";
+  } catch {
+    $("checkMsg").textContent = "No link to base. Try again in a minute.";
+  } finally { btn.disabled = false; }
 });
 
+// ─── Conexión con la API ────────────────────────────────────────────────────
+const headers = () => ({ "X-API-Key": API_KEY });
+
+async function getJSON(path) {
+  const r = await fetch(API_URL + path, { headers: headers() });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`GET ${path}: HTTP ${r.status}`);
+  return r.json();
+}
+
+// Último estado de un tripulante, y su histórico de telemetría para las líneas.
+async function loadCrew(id) {
+  const [latest, history] = await Promise.all([
+    getJSON(`/api/v1/crew/${encodeURIComponent(id)}/latest`).catch((e) => { console.warn(e); return null; }),
+    state.hrHistory[id]?.length ? null
+      : getJSON(`/api/v1/crew/${encodeURIComponent(id)}/telemetry`).catch((e) => { console.warn(e); return null; }),
+  ]);
+  if (latest) addCrew(id, latest.crew_name, latest.crew_role);
+  if (Array.isArray(history)) {
+    for (const t of history.slice(-HISTORY)) onMessage({ type: "telemetry", data: { ...t, crew_id: t.crew_id ?? id } }, { fromHistory: true });
+  }
+  if (latest?.telemetry) onMessage({ type: "telemetry", data: latest.telemetry }, { fromHistory: true });
+  if (latest?.assessment) onMessage({ type: "assessment", data: latest.assessment });
+}
+const loadAll = () => Promise.all([...new Set([...KNOWN_CREW, ...state.crew.keys()])].map(loadCrew));
+
+// WebSocket con reconexión: espera 1, 2, 4… s, hasta 30 s. Al volver, se pide el estado.
+let retry = 0;
+function connect() {
+  const ws = new WebSocket(API_URL.replace(/^http/, "ws") + WS_PATH);
+  ws.onopen = () => { retry = 0; state.source = "live"; renderSource(); loadAll(); };
+  ws.onmessage = (e) => {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+    if (msg && typeof msg.type === "string") onMessage(msg);
+  };
+  ws.onclose = () => {
+    state.source = "lost"; renderSource();
+    setTimeout(connect, Math.min(30000, 1000 * 2 ** retry++));
+  };
+}
+
 // ─── Arranque ───────────────────────────────────────────────────────────────
-// Todo lo de arriba ya está definido: ahora sí se conectan los datos.
+for (const id of new Set([...KNOWN_CREW, state.crewId])) state.crew.set(id, { crew_id: id, name: id, role: "" });
+renderCrewOptions();
 renderSource(); renderClock(); renderRoster(); renderAssessment(); renderVitals();
 renderLog(); renderLink(); renderPayload();
 setInterval(() => { renderClock(); renderRoster(); renderLink(); renderAge(); renderSource(); }, 1000);
-
-if (API_URL) {
-  // API real. TODO (Roberto + Jesus): confirmar la ruta, y pedir el último
-  // estado con GET /api/v1/crew/{crew_id}/latest al cargar la página.
-  const ws = new WebSocket(API_URL.replace(/^http/, "ws") + WS_PATH);
-  ws.onmessage = (e) => onMessage(JSON.parse(e.data));
-  ws.onopen = () => { state.source = "live"; renderSource(); };
-  ws.onclose = () => { state.source = "lost"; renderSource(); };
-} else {
-  subscribeMock(onMessage);
-}
+connect();
