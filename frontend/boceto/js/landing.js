@@ -1,20 +1,10 @@
-// Portada: planeta de fondo, reloj de misión, cinta de señales y aparición al hacer scroll.
+// Portada: planeta de fondo, cinta de señales y aparición al hacer scroll.
 
 import { createPlanet } from "./planet.js";
 
 const $ = (id) => document.getElementById(id);
 
 createPlanet($("planet"));
-
-// Reloj de misión de ejemplo. En la consola sale del met_s de la placa.
-const MET_START_S = 18245;          // el mismo valor que contracts/telemetry.example.json
-const t0 = Date.now();
-const p = (n, l = 2) => String(Math.floor(n)).padStart(l, "0");
-const tick = () => {
-  const s = MET_START_S + (Date.now() - t0) / 1000;
-  $("met").textContent = `${p(s / 86400, 3)}:${p((s % 86400) / 3600)}:${p((s % 3600) / 60)}:${p(s % 60)}`;
-};
-tick(); setInterval(tick, 1000);
 
 // Barra de navegación con fondo al bajar
 const onScroll = () => $("nav").classList.toggle("scrolled", window.scrollY > 30);
