@@ -1,0 +1,8 @@
+{
+  "device_id": "esp32-01",
+  "ts": "2026-11-14T10:40:00Z",
+  "crew_id": "F3786E09",
+  "type": "inactivity",
+  "severity": "medium",
+  "data": { "still_for_s": 30, "threshold_s": 30 }
+}

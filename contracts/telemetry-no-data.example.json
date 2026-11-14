@@ -1,0 +1,10 @@
+{
+  "device_id": "esp32-01",
+  "ts": "2026-11-14T10:30:10Z",
+  "met_s": 18250,
+  "crew_id": null,
+  "vitals": { "heart_rate_bpm": null, "hr_quality": 0.0, "resp_rate_bpm": null, "body_temp_c": null },
+  "motion": { "activity": "moving", "still_for_s": 0 },
+  "cabin": { "temp_c": null, "humidity_pct": null, "dew_point_c": null, "heat_index_c": null, "condensation_risk": null },
+  "alerts": []
+}
