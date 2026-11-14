@@ -104,9 +104,10 @@ Además de los umbrales de `thresholds.json`, el motor aplica estas reglas. No c
 
 | Regla | Qué hace | Por qué | Ajuste |
 |---|---|---|---|
-| **Pulso y temperatura sostenidos** | Naranja o rojo solo si las **3 últimas lecturas** (15 s) están en ese nivel o peor. Mientras no, cualquier lectura alta da **ámbar, nunca verde**: `(not sustained yet: 1 of 3 readings)`. Lecturas altas y bajas mezcladas dan ámbar con `(inconsistent readings; check the sensor)` | La fotorresistencia es ruidosa y el termistor se puede soltar: un pico suelto no debe llamar a Tierra, pero un fallo del sensor tampoco debe esconder un problema real | `sustain_readings` en `heart_rate_bpm` y `body_temp_c` |
+| **Pulso y temperatura sostenidos** | Naranja o rojo solo si las **3 últimas lecturas** (15 s) están en ese nivel o peor. Mientras no, cualquier lectura alta da **ámbar, nunca verde**: `(not sustained yet: 1 of 3 readings)`. Lecturas altas y bajas mezcladas dan ámbar con `(inconsistent readings; check the sensor)` | La fotorresistencia es ruidosa y el termistor se puede soltar. Son 3 y no 2 porque el firmware calcula cada pulso con 10 s de señal y manda cada 5 s, así que un fallo puede salir en dos lecturas seguidas: un pico suelto no debe llamar a Tierra, pero un fallo del sensor tampoco debe esconder un problema real | `sustain_readings` en `heart_rate_bpm` y `body_temp_c` |
 | **Pulso tras ejercicio** | Si el último mensaje dice `activity: "moving"`, o hubo una serie de flexiones en los últimos 5 min, el pulso alto en **naranja** baja a ámbar: `(after exercise; recheck at rest)`. El rojo (más de 150 lpm) y el pulso bajo no se rebajan | Subir el pulso con el esfuerzo es normal, pero más de 150 ya no se explica por unas flexiones | `heart_rate_bpm.exercise_recovery_s` |
 | **Temperatura de muñeca** | La temperatura **baja** da como mucho ámbar: `(wrist reading; confirm with a thermometer)`. La alta (fiebre) mantiene naranja y rojo | El termistor va en la muñeca, y la piel se enfría varios grados con el ambiente aunque el tripulante esté bien (white paper de Polar, citado en `thresholds.json`). Una muñeca fría pide un termómetro, no llamar a Tierra | `body_temp_c.low_max_level` |
+| **Serie del tripulante anterior** | Se ignora una serie de flexiones que llega hasta 3 s después de un `crew_checkin` `in` | Si se pasa una tarjeta con una serie a medias, la placa manda el resumen con el `crew_id` del que entra, pero las flexiones son del anterior y le bajarían la basal | Fijo, 3 s |
 | **Tensión entre días** | El naranja necesita dos medidas seguidas en naranja o peor. La última tiene que ser de las últimas 24 h; la anterior puede ser de cualquiera de los 7 días | La guía dice "140/90 en dos medidas", y en la misión se mide una vez al día. Antes, la medida de ayer (a 25 h) no contaba | Ventana de 7 días |
 | **Ánimo frente a su media** | Ámbar si el ánimo de hoy está **1,5 puntos o más** por debajo de la media del propio tripulante en los 7 días anteriores, con al menos 3 chequeos previos. Se suma al corte fijo (menos de 3) | Un 3/5 es normal para alguien que suele estar en 3, pero es una bajada clara para alguien que siempre está en 5 | `mood.personal_drop`, `mood.personal_min_checks` |
 
@@ -114,7 +115,9 @@ Consecuencia para la demo: el segundo tripulante sale en ámbar a los 100 s y en
 
 ## 4. Modo demo
 
-Arranca la API con la variable de entorno `SPACEHEALTH_DEMO=1`. Así el ámbar por inactividad salta a los 30 s en vez de a los 600 s, igual que el evento `inactivity` de la placa en la demo.
+Arranca la API con la variable de entorno `SPACEHEALTH_DEMO=1`. Así el ámbar por inactividad salta a los 30 s en vez de a los 600 s, igual que el evento `inactivity` de la placa.
+
+**Ojo:** el firmware está ahora en modo demo (`INACTIVITY_THRESHOLD_S 30` en `firmware/uno_sensores/config.h`). Con la placa real, arranca la API con `SPACEHEALTH_DEMO=1`; si no, la placa avisará de inactividad a los 30 s y el motor no la pintará en ámbar hasta los 600 s. Para uso real, los dos a 600 s.
 
 ```bash
 SPACEHEALTH_DEMO=1 uvicorn api.main:app --reload
