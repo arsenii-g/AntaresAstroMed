@@ -5,11 +5,11 @@
 	(uuid "7f9001bb-485f-5720-bc0b-35ffa45addc3")
 	(paper "A3")
 	(title_block
-		(title "SpaceHealth - shield UNO + ESP32")
+		(title "SpaceHealth - UNO + ESP32 shield")
 		(date "2026-11-14")
 		(rev "A")
 		(company "NASA Space Apps - SpaceHealth")
-		(comment 1 "Arduino UNO R3 (sensores) -> serie 115200 -> ESP32 DevKit V1 (WiFi)")
+		(comment 1 "Arduino UNO R3 (sensors) -> UART 115200 -> ESP32 DevKit V1 (WiFi)")
 	)
 	(lib_symbols
 		(symbol "Connector_Generic:Conn_01x02"
@@ -4269,7 +4269,7 @@
 		)
 		(uuid "237a1d2c-04ee-5395-be6a-7fe47c06f74f")
 	)
-	(text "SpaceHealth - shield Arduino UNO R3 + ESP32 DevKit V1 (30 pines)"
+	(text "SpaceHealth - Arduino UNO R3 shield + ESP32 DevKit V1 (30-pin)"
 		(exclude_from_sim no)
 		(at 15 14.005 0)
 		(effects
@@ -4336,7 +4336,7 @@
 		)
 		(uuid "3171faf9-33bd-516d-ae87-49b662165826")
 	)
-	(text "D8 -> 220R -> LED -> GND ;  5V -> LDR -> A1 -> 10k -> GND.\nD1 y R6 van en la pinza del dedo, por cable a J7."
+	(text "D8 -> 220R -> LED -> GND ;  5V -> LDR -> A1 -> 10k -> GND.\nD1 and R6 are in the finger clip, wired to J7."
 		(exclude_from_sim no)
 		(at 277.72 75.59 0)
 		(effects
@@ -4347,7 +4347,7 @@
 		)
 		(uuid "3ae5aa64-277b-5e23-a449-3417b8f6ce83")
 	)
-	(text "Pines 31/32 (SDA/SCL junto a AREF) = A4/A5 dentro del UNO:\nse dejan sin conectar. D0/RX libre (USB para programar)."
+	(text "Pins 31/32 (SDA/SCL next to AREF) are A4/A5 inside the UNO:\nleft unconnected. D0/RX unused (USB programming)."
 		(exclude_from_sim no)
 		(at 18 135.48 0)
 		(effects
@@ -4358,7 +4358,7 @@
 		)
 		(uuid "3b38bdbc-0bfc-5574-b3c3-ef00a061e567")
 	)
-	(text "DHT11 (modulo de 3 pines)"
+	(text "DHT11 (3-pin module)"
 		(exclude_from_sim no)
 		(at 148.5 99.32 0)
 		(effects
@@ -4381,7 +4381,7 @@
 		)
 		(uuid "3e1e62d7-a819-5c67-8801-6b27fa3500a4")
 	)
-	(text "Pines libres (D2, A2, A3)"
+	(text "Spare pins (D2, A2, A3)"
 		(exclude_from_sim no)
 		(at 18 221.36 0)
 		(effects
@@ -4415,7 +4415,7 @@
 		)
 		(uuid "44c93064-a254-573c-a001-615049c5ee5b")
 	)
-	(text "Serie UNO -> ESP32 (divisor 1k/2k: 5 V -> 3,3 V)"
+	(text "UART UNO -> ESP32 (1k/2k divider: 5 V -> 3.3 V)"
 		(exclude_from_sim no)
 		(at 277.72 153.56 0)
 		(effects
@@ -4449,7 +4449,7 @@
 		)
 		(uuid "49099d0e-8bd4-5052-9cbf-86e3570522b1")
 	)
-	(text "Pin 1 de cada zocalo = extremo de la antena. Separacion entre filas: medir la placa real\n(normalmente 25,4 mm en la DevKit V1 de 30 pines).  3V3 del ESP32 y TX2 (GPIO17) sin conectar."
+	(text "Pin 1 of each header is at the antenna end. Row spacing: measure the actual board\n(usually 25.4 mm on the 30-pin DevKit V1).  ESP32 3V3 and TX2 (GPIO17) are not connected."
 		(exclude_from_sim no)
 		(at 148.5 211.19 0)
 		(effects
@@ -4471,7 +4471,7 @@
 		)
 		(uuid "4c26ba8e-1ca9-530f-b2c5-5e5d75413a09")
 	)
-	(text "Pulsador opcional (reinicio de mision)"
+	(text "Optional push button (mission reset)"
 		(exclude_from_sim no)
 		(at 18 181.81 0)
 		(effects
@@ -4505,7 +4505,7 @@
 		)
 		(uuid "4eab1bc1-1fd8-533c-95a5-fce2109b7d17")
 	)
-	(text "Inclinacion SW-520D (lo lleva el tripulante)"
+	(text "SW-520D tilt switch (worn by crew member)"
 		(exclude_from_sim no)
 		(at 148.5 156.95 0)
 		(effects
@@ -4627,7 +4627,7 @@
 		)
 		(uuid "7204cc5e-1383-5bc0-be46-aa22925705f4")
 	)
-	(text "D3 -> SW-520D -> GND. Pull-up interno, sin resistencia.\nSW2 va fuera de placa, por cable a J3."
+	(text "D3 -> SW-520D -> GND. Internal pull-up, no resistor.\nSW2 is off board, wired to J3."
 		(exclude_from_sim no)
 		(at 148.5 162.6 0)
 		(effects
@@ -4649,7 +4649,7 @@
 		)
 		(uuid "738b0343-dc26-5619-825b-b82bad75d66b")
 	)
-	(text "Pulso: LED rojo + LDR enfrentados, dedo en medio"
+	(text "Pulse: red LED and LDR facing each other across the finger"
 		(exclude_from_sim no)
 		(at 277.72 69.94 0)
 		(effects
@@ -4672,7 +4672,7 @@
 		)
 		(uuid "7d590bdc-9eb1-5de2-b14a-220b3c3efd4f")
 	)
-	(text "Alimentacion opcional del ESP32 desde el UNO"
+	(text "Optional ESP32 power from the UNO"
 		(exclude_from_sim no)
 		(at 277.72 189.72 0)
 		(effects
@@ -4684,7 +4684,7 @@
 		)
 		(uuid "82ae9d05-7a3f-5207-b7f1-e4691effb405")
 	)
-	(text "Puente puesto: 5V del UNO -> VIN del ESP32.  Sin puente: el ESP32\nva por su propio USB.  GND siempre comun."
+	(text "Jumper fitted: UNO 5V -> ESP32 VIN.  Jumper removed: the ESP32\nruns from its own USB.  GND is always shared."
 		(exclude_from_sim no)
 		(at 277.72 195.37 0)
 		(effects
@@ -4706,7 +4706,7 @@
 		)
 		(uuid "8761c84f-47f7-56f8-9091-cc617b83c040")
 	)
-	(text "IRQ (sin conectar)"
+	(text "IRQ (NC)"
 		(exclude_from_sim no)
 		(at 193.5 45.72 0)
 		(effects
@@ -4728,7 +4728,7 @@
 		)
 		(uuid "8c1f6899-c7f6-5747-a939-3d35d8a72bcb")
 	)
-	(text "HC-SR04 ultrasonidos (en el suelo, por cable)"
+	(text "HC-SR04 ultrasonic (floor-mounted, wired)"
 		(exclude_from_sim no)
 		(at 148.5 69.94 0)
 		(effects
@@ -4839,7 +4839,7 @@
 		)
 		(uuid "ac6c2731-6f9a-58a6-9da6-e9dee9826aa8")
 	)
-	(text "D7 -> pulsador -> GND. Pull-up interno, sin resistencia."
+	(text "D7 -> push button -> GND. Internal pull-up, no resistor."
 		(exclude_from_sim no)
 		(at 18 187.46 0)
 		(effects
@@ -4883,7 +4883,7 @@
 		)
 		(uuid "b3b63ea1-89b4-57b0-9727-ffdb774a073a")
 	)
-	(text "ARDUINO UNO R3 (la PCB es el shield)"
+	(text "ARDUINO UNO R3 (host board, PCB is the shield)"
 		(exclude_from_sim no)
 		(at 18 27 0)
 		(effects
@@ -4950,7 +4950,7 @@
 		)
 		(uuid "cd313cde-5610-5be5-818f-55fbdd980142")
 	)
-	(text "Fuente de verdad de pines: firmware/uno_sensores/config.h y firmware/esp32_gateway/config.h.   Modulos en tiras macho de 2,54 mm (Dupont hembra-hembra); ESP32 en zocalos hembra.\nTH1, D1, R6 y SW2 (campo Montaje = Fuera de placa) no tienen huella: salen en el BOM pero van por cable a su conector."
+	(text "Pin assignments: firmware/uno_sensores/config.h and firmware/esp32_gateway/config.h.   Modules on 2.54 mm male headers (female-female jumper wires); ESP32 on female headers.\nTH1, D1, R6 and SW2 (Mounting = Off board) have no footprint: they are listed in the BOM and wired to their connectors."
 		(exclude_from_sim no)
 		(at 15 20.22 0)
 		(effects
@@ -5017,7 +5017,7 @@
 		)
 		(uuid "e51071a7-8eb8-53ad-96b5-ffad207a818d")
 	)
-	(text "RC522 RFID (modulo a 3,3 V, NUNCA a 5 V)"
+	(text "RC522 RFID (3.3 V module, NEVER 5 V)"
 		(exclude_from_sim no)
 		(at 148.5 27 0)
 		(effects
@@ -5062,7 +5062,7 @@
 		)
 		(uuid "eab8fb94-fb46-5d0e-bf78-571768ca1693")
 	)
-	(text "PWR_FLAG en GND: solo para el ERC\n(+5V y 3V3 ya los entrega el UNO)."
+	(text "PWR_FLAG on GND for ERC only\n(+5V and 3V3 are driven by the UNO)."
 		(exclude_from_sim no)
 		(at 33 153.56 0)
 		(effects
@@ -5073,7 +5073,7 @@
 		)
 		(uuid "ed228245-9d1b-5c4f-9eaa-57585e8d849d")
 	)
-	(text "ESP32 DevKit V1 (30 pines, CP2102) en zocalos hembra 1x15"
+	(text "ESP32 DevKit V1 (30-pin, CP2102) on 1x15 female headers"
 		(exclude_from_sim no)
 		(at 148.5 205.54 0)
 		(effects
@@ -5118,7 +5118,7 @@
 		)
 		(uuid "f62d82e3-06d1-5557-9424-942f281a04ce")
 	)
-	(text "Termistor NTC 10k (temperatura corporal)"
+	(text "10k NTC thermistor (body temperature)"
 		(exclude_from_sim no)
 		(at 277.72 27 0)
 		(effects
@@ -5130,7 +5130,7 @@
 		)
 		(uuid "f746f134-9cb8-5561-9878-1c54cf6eca46")
 	)
-	(text "5V -> NTC -> A0 -> 10k -> GND.  TH1 va sobre la piel, por cable a J6."
+	(text "5V -> NTC -> A0 -> 10k -> GND.  TH1 sits on the skin, wired to J6."
 		(exclude_from_sim no)
 		(at 277.72 32.65 0)
 		(effects
@@ -7439,7 +7439,7 @@
 				)
 			)
 		)
-		(property "Pines" "1 5V, 2 A0 (NTC entre ambos)"
+		(property "Pins" "1 5V, 2 A0 (NTC between them)"
 			(at 299.72 43.18 0)
 			(hide yes)
 			(show_name no)
@@ -7714,7 +7714,7 @@
 				)
 			)
 		)
-		(property "Value" "LED rojo 5 mm"
+		(property "Value" "Red LED 5 mm"
 			(at 358.14 123.615 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7756,7 +7756,7 @@
 				)
 			)
 		)
-		(property "Montaje" "Fuera de placa (va por cable al conector)"
+		(property "Mounting" "Off board (wired to its connector)"
 			(at 358.14 119.38 0)
 			(hide yes)
 			(show_name no)
@@ -7845,7 +7845,7 @@
 				)
 			)
 		)
-		(property "Montaje" "Fuera de placa (va por cable al conector)"
+		(property "Mounting" "Off board (wired to its connector)"
 			(at 358.14 132.08 0)
 			(hide yes)
 			(show_name no)
@@ -8044,7 +8044,7 @@
 				)
 			)
 		)
-		(property "Value" "LIBRES"
+		(property "Value" "SPARE"
 			(at 63.5 248.92 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8086,7 +8086,7 @@
 				)
 			)
 		)
-		(property "Pines" "1 D2, 2 A2, 3 A3, 4 5V, 5 GND"
+		(property "Pins" "1 D2, 2 A2, 3 A3, 4 5V, 5 GND"
 			(at 63.5 241.3 0)
 			(hide yes)
 			(show_name no)
@@ -8260,7 +8260,7 @@
 				)
 			)
 		)
-		(property "Montaje" "Fuera de placa (va por cable al conector)"
+		(property "Mounting" "Off board (wired to its connector)"
 			(at 228.6 177.8 0)
 			(hide yes)
 			(show_name no)
@@ -9531,7 +9531,7 @@
 				)
 			)
 		)
-		(property "Value" "PULSO"
+		(property "Value" "PULSE"
 			(at 299.72 104.14 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9573,7 +9573,7 @@
 				)
 			)
 		)
-		(property "Pines" "1 LED anodo, 2 LED catodo/GND, 3 LDR a 5V, 4 LDR a A1"
+		(property "Pins" "1 LED anode, 2 LED cathode/GND, 3 LDR to 5V, 4 LDR to A1"
 			(at 299.72 96.52 0)
 			(hide yes)
 			(show_name no)
@@ -9668,7 +9668,7 @@
 				)
 			)
 		)
-		(property "Pines" "1 SDA, 2 SCK, 3 MOSI, 4 MISO, 5 IRQ, 6 GND, 7 RST, 8 3.3V"
+		(property "Pins" "1 SDA, 2 SCK, 3 MOSI, 4 MISO, 5 IRQ, 6 GND, 7 RST, 8 3.3V"
 			(at 190.5 43.18 0)
 			(hide yes)
 			(show_name no)
@@ -9809,8 +9809,8 @@
 				)
 			)
 		)
-		(property "Value" "Pulsador 6 mm"
-			(at 63.5 204.724 0)
+		(property "Value" "Push button 6 mm"
+			(at 63.5 206.105 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -9929,7 +9929,7 @@
 				)
 			)
 		)
-		(property "Pines" "1 VCC, 2 TRIG, 3 ECHO, 4 GND"
+		(property "Pins" "1 VCC, 2 TRIG, 3 ECHO, 4 GND"
 			(at 190.5 81.28 0)
 			(hide yes)
 			(show_name no)
@@ -10286,7 +10286,7 @@
 				)
 			)
 		)
-		(property "Value" "ESP32_DER"
+		(property "Value" "ESP32_RIGHT"
 			(at 241.3 269.24 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10328,7 +10328,7 @@
 				)
 			)
 		)
-		(property "Pines" "1 D23, 2 D22, 3 TX0, 4 RX0, 5 D21, 6 D19, 7 D18, 8 D5, 9 TX2 (GPIO17), 10 RX2 (GPIO16), 11 D4, 12 D2, 13 D15, 14 GND, 15 3V3"
+		(property "Pins" "1 D23, 2 D22, 3 TX0, 4 RX0, 5 D21, 6 D19, 7 D18, 8 D5, 9 TX2 (GPIO17), 10 RX2 (GPIO16), 11 D4, 12 D2, 13 D15, 14 GND, 15 3V3"
 			(at 241.3 248.92 0)
 			(hide yes)
 			(show_name no)
@@ -10456,7 +10456,7 @@
 				)
 			)
 		)
-		(property "Pines" "1 D3, 2 GND"
+		(property "Pins" "1 D3, 2 GND"
 			(at 190.5 177.8 0)
 			(hide yes)
 			(show_name no)
@@ -10697,7 +10697,7 @@
 				)
 			)
 		)
-		(property "Pines" "1 S, 2 +, 3 -"
+		(property "Pins" "1 S, 2 +, 3 -"
 			(at 190.5 109.22 0)
 			(hide yes)
 			(show_name no)
@@ -10991,7 +10991,7 @@
 				)
 			)
 		)
-		(property "Value" "ESP32_IZQ"
+		(property "Value" "ESP32_LEFT"
 			(at 175.26 269.24 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11033,7 +11033,7 @@
 				)
 			)
 		)
-		(property "Pines" "1 EN, 2 VP (GPIO36), 3 VN (GPIO39), 4 D34, 5 D35, 6 D32, 7 D33, 8 D25, 9 D26, 10 D27, 11 D14, 12 D12, 13 D13, 14 GND, 15 VIN"
+		(property "Pins" "1 EN, 2 VP (GPIO36), 3 VN (GPIO39), 4 D34, 5 D35, 6 D32, 7 D33, 8 D25, 9 D26, 10 D27, 11 D14, 12 D12, 13 D13, 14 GND, 15 VIN"
 			(at 175.26 248.92 0)
 			(hide yes)
 			(show_name no)
@@ -11391,7 +11391,7 @@
 				)
 			)
 		)
-		(property "Montaje" "Fuera de placa (va por cable al conector)"
+		(property "Mounting" "Off board (wired to its connector)"
 			(at 358.14 40.64 0)
 			(hide yes)
 			(show_name no)
@@ -11558,7 +11558,7 @@
 				)
 			)
 		)
-		(property "Pines" "1 VCC, 2 GND, 3 SDA, 4 SCL"
+		(property "Pins" "1 VCC, 2 GND, 3 SDA, 4 SCL"
 			(at 190.5 139.7 0)
 			(hide yes)
 			(show_name no)
