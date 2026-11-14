@@ -1,0 +1,15 @@
+{
+  "crew_id": "04A1B2C3",
+  "ts": "2026-11-14T10:30:05Z",
+  "overall_level": 1,
+  "systems": {
+    "cardiovascular": { "level": 1, "reasons": ["Pulso 118 lat/min, cerca de 120"] },
+    "neuro": { "level": 0, "reasons": [] },
+    "musculoskeletal": { "level": 0, "reasons": [] },
+    "sleep_environment": { "level": 2, "reasons": ["Menos de 5 h de sueño 3 días seguidos"] }
+  },
+  "trends": [
+    { "indicator": "sleep_hours", "projected_7d": 4.6, "crosses_threshold_in_days": 2 }
+  ],
+  "recommendations": ["Reducir la luz antes de dormir"]
+}
