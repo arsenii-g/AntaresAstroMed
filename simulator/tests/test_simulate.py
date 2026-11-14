@@ -20,20 +20,20 @@ def keys(d):
 
 def test_telemetria_con_la_forma_del_contrato():
     example = json.loads((CONTRACTS / "telemetry.example.json").read_text(encoding="utf-8"))
-    for scenario in ("sano", "empeora", "sin-datos"):
+    for scenario in ("healthy", "worsening", "no-data"):
         msg = make_telemetry(scenario, 3, TS, random.Random(1))
         assert keys(msg) == keys(example)
         assert msg["vitals"]["resp_rate_bpm"] is None
 
 
 def test_humedad_entera_y_hr_quality_numero():
-    msg = make_telemetry("sano", 0, TS, random.Random(1))
+    msg = make_telemetry("healthy", 0, TS, random.Random(1))
     assert isinstance(msg["cabin"]["humidity_pct"], int)
     assert isinstance(msg["vitals"]["hr_quality"], float)
 
 
 def test_sin_datos_llega_todo_null():
-    msg = make_telemetry("sin-datos", 0, TS, random.Random(1))
+    msg = make_telemetry("no-data", 0, TS, random.Random(1))
     assert msg["crew_id"] is None
     assert msg["vitals"]["hr_quality"] == 0
     assert all(v is None for v in msg["cabin"].values())
@@ -41,7 +41,7 @@ def test_sin_datos_llega_todo_null():
 
 def test_solo_los_tres_tipos_de_evento():
     rng = random.Random(1)
-    types = {e["type"] for t in range(100) for e in make_events("empeora", t, TS, rng)}
+    types = {e["type"] for t in range(100) for e in make_events("worsening", t, TS, rng)}
     assert types <= {"crew_checkin", "inactivity", "exercise_summary"}
 
 
@@ -58,8 +58,8 @@ def test_sano_sale_verde_y_empeora_llega_a_rojo():
             tel.append(make_telemetry(scenario, t, TS, rng))
         return evaluate(tel[-12:], [], [], TS)["overall_level"]
     # Las horas no avanzan en este test: todos los mensajes valen como recientes.
-    assert last_level("sano") == 0
-    assert last_level("empeora") == 3
+    assert last_level("healthy") == 0
+    assert last_level("worsening") == 3
 
 
 # --- reintentos como el ESP32 -------------------------------------------------------
@@ -72,8 +72,13 @@ def serve(statuses):
         def do_POST(self):
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             seen.append((self.path, self.headers.get("X-API-Key"), body))
-            self.send_response(statuses.pop(0) if statuses else 200)
+            reply = statuses.pop(0) if statuses else 200
+            status, body = reply if isinstance(reply, tuple) else (reply, b"")
+            self.send_response(status)
+            if 300 <= status < 400:
+                self.send_header("Location", "/otra")
             self.end_headers()
+            self.wfile.write(body)
 
         def log_message(self, *args):
             pass
@@ -145,7 +150,7 @@ def run_demo(monkeypatch):
 
 def test_guion_de_la_demo(monkeypatch):
     out, events = run_demo(monkeypatch)
-    still_amber = [t for t, r in out.items() if "Hacer una serie de flexiones o moverse unos minutos" in r["recommendations"]]
+    still_amber = [t for t, r in out.items() if "Do a set of push-ups or move for a few minutes" in r["recommendations"]]
     assert still_amber and max(still_amber) < DEMO_PUSHUP_TICK          # ámbar antes de las flexiones
     assert out[DEMO_PUSHUP_TICK]["overall_level"] == 0                     # y verde justo después
     assert out[DEMO_SWITCH_TICK]["crew_id"] == DEMO_CREW_B
@@ -157,7 +162,7 @@ def test_guion_de_la_demo(monkeypatch):
 
 
 def test_historia_de_una_semana_da_tendencias():
-    checks, events = make_history("empeora", 7, TS, random.Random(1))
+    checks, events = make_history("worsening", 7, TS, random.Random(1))
     assert len(checks) == 7 and len(events) == 7
     assert all(m["ts"] < "2026-11-14T10:30:05Z" for m in checks + events)    # todo es anterior a TS
     result = evaluate([], events, checks, TS)
@@ -166,6 +171,34 @@ def test_historia_de_una_semana_da_tendencias():
 
 
 def test_historia_sana_no_cruza_nada():
-    checks, events = make_history("sano", 7, TS, random.Random(1))
+    checks, events = make_history("healthy", 7, TS, random.Random(1))
     result = evaluate([], events, checks, TS)
     assert result["trends"] and all(t["crosses_threshold_in_days"] is None for t in result["trends"])
+
+
+def test_408_429_3xx_y_ok_false_se_reintentan_como_en_el_esp32():
+    server, seen = serve([429, 408, 301, (200, b'{"ok": false}'), (200, b'{"ok": true}')])
+    try:
+        sender = Sender(f"http://127.0.0.1:{server.server_port}", None, sleep=lambda s: None)
+        sender.push("/api/v1/telemetry", {"n": 1})
+        sender.flush()
+    finally:
+        server.shutdown()
+    assert len(seen) == 5
+    assert all(path == "/api/v1/telemetry" for path, _, _ in seen)   # no siguió el 301
+    assert sender.stats == {"sent": 1, "duplicate": 0, "dropped": 0, "retries": 4}
+
+
+def test_quieto_siempre_con_3_s_o_mas():
+    rng = random.Random(1)
+    for scenario in ("healthy", "worsening", "no-data", "demo"):
+        for t in range(40):
+            m = make_telemetry(scenario, t, TS, rng)["motion"]
+            if m["activity"] == "moving":
+                assert m["still_for_s"] == 0
+            else:
+                assert m["still_for_s"] >= 3
+
+
+def test_segundo_tripulante_es_la_tarjeta_del_kit():
+    assert DEMO_CREW_B == "336F8312"

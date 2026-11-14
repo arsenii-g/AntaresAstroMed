@@ -71,13 +71,13 @@ def test_motivo_y_codigo():
     r = level_for("heart_rate_bpm", 118)
     assert r.system == "cardiovascular"
     assert r.code == "HR_HIGH"
-    assert r.reason == "Pulso 118 lat/min, por encima de 100 lat/min"
+    assert r.reason == "Heart rate 118 bpm, above 100 bpm"
 
 
 def test_motivo_por_abajo_con_coma_decimal():
     r = level_for("body_temp_c", 35.2)
     assert r.code == "BODY_TEMP_LOW"
-    assert r.reason == "Temperatura corporal 35,2 °C, por debajo de 35,5 °C"
+    assert r.reason == "Body temperature 35.2 °C, below 35.5 °C"
 
 
 def test_en_rango_no_tiene_motivo():
@@ -88,7 +88,7 @@ def test_en_rango_no_tiene_motivo():
 def test_sin_dato_no_es_verde():
     r = level_for("heart_rate_bpm", None)
     assert r.level is None
-    assert r.reason == "Pulso: sin dato"
+    assert r.reason == "Heart rate: no data"
 
 
 def test_indicadores_con_limite_de_nasa():
