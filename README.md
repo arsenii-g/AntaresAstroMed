@@ -1,8 +1,62 @@
-# SpaceHealth · NASA Space Apps 2026
+# ArgosMed · NASA Space Apps 2026
 
 Web que guía al astronauta en su chequeo diario, evalúa su riesgo con reglas explicables y verifica con sensores reales lo que hace.
 
 Reto: *Create Health Monitoring Software for Astronauts on Space Missions*.
+
+## Arrancar API y web juntas
+
+Python 3.11 o posterior. Desde la raíz del repositorio:
+
+```bash
+python -m venv .venv
+```
+
+Activar el entorno en macOS/Linux: `source .venv/bin/activate`.
+En PowerShell de Windows: `.\.venv\Scripts\Activate.ps1`.
+
+```bash
+python -m pip install -r requirements.txt
+python -m uvicorn api.main:app --env-file .env.example --host 0.0.0.0 --port 8000
+```
+
+Abrir <http://localhost:8000> (portada) o <http://localhost:8000/console.html>
+(consola de Roberto, commit `06d933e`, conectada al backend real). La API sirve también
+los archivos de la web: no hace falta un segundo servidor ni compilar el frontend.
+Desde otro equipo de la misma red, sustituir `localhost` por la IP del portátil.
+
+`.env.example` activa `SPACEHEALTH_DEMO=1`: inactividad a 30 s, igual que la placa.
+Se pueden copiar sus valores a `.env` y arrancar con `--env-file .env` para personalizarlos.
+El ESP32 usa la misma API key y la dirección del portátil en `API_BASE`; los GET y el
+chequeo manual de la web no necesitan clave.
+
+En otra terminal, con el entorno activado, se puede sustituir la placa por el simulador:
+
+```bash
+python -m simulator.simulate --scenario demo --history-days 7 --count 24 --url http://localhost:8000 --api-key spacehealth-dev-key-2026
+```
+
+La consola sigue la tarjeta activa, permite seleccionar otro tripulante, muestra los
+datos en vivo, los motivos y las acciones del motor, las medidas históricas y su
+proyección, y un chequeo guiado en tres pasos. El resumen para Tierra se prepara y
+se copia; no se envía automáticamente a ningún servicio externo.
+
+La API acepta la telemetría actual cada 2 s y el simulador cada 5 s. Guarda el `ts`
+original en UTC, deduplica los reintentos y llama al motor dentro del mismo proceso.
+Los detalles y los endpoints están en [`api/README.md`](api/README.md).
+
+## Comprobar el proyecto
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
+Las pruebas del frontend usan Node 20 o posterior, sin instalar paquetes:
+
+```bash
+node --test frontend/boceto/tests/data.test.js
+```
 
 ## Cómo funciona
 
@@ -25,7 +79,7 @@ El motor de riesgos es un paquete de Python que la API importa y llama en el mis
 | `risk/` | Motor de riesgos y `thresholds.json` | Arsenii |
 | `simulator/` | Emite telemetría ① con escenarios | Arsenii |
 | `api/` | FastAPI: endpoints, base de datos, WebSocket | Jesus |
-| `frontend/` | Cuerpo clicable, chequeo guiado, gráficas | Roberto |
+| `frontend/boceto/` | Consola ArgosMed conectada, cuerpo clicable, chequeo guiado y gráficas | Roberto |
 
 ## Contratos
 
@@ -53,7 +107,7 @@ Las listas llevan mensajes ① y ② de un solo `crew_id`, y `now` va en UTC. De
 
 ## Ramas
 
-- `main` está protegida: siempre arranca y solo se entra por PR revisado por otra persona.
+- Los cambios se proponen por PR para que otra persona los revise antes de entrar en `main`.
 - El primer PR es `contracts/init`. Cualquier cambio en `contracts/` lo aprueban el productor y el consumidor.
 - Ramas cortas por tarea (uno o dos días como mucho), con prefijo por persona:
 

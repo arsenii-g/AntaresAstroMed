@@ -141,7 +141,15 @@ def _sustained(telemetry: list[dict], indicator: str) -> IndicatorResult:
       sensor, porque la señal no es fiable.
     """
     need = load_thresholds()[indicator].get("sustain_readings", 1)
-    window = [level_for(indicator, v) for m in telemetry if (v := _vital(m, indicator)) is not None][-need:]
+    samples = [(m, level_for(indicator, v)) for m in telemetry if (v := _vital(m, indicator)) is not None]
+    seconds = load_thresholds()[indicator].get("sustain_seconds", 0)
+    first = max(0, len(samples) - need)
+    # Firmware now sends every 2 s, while pulse windows still cover 10 s.
+    # Count alone would confirm overlapping observations too early.
+    while first > 0 and (_parse_ts(samples[-1][0]["ts"]) - _parse_ts(samples[first][0]["ts"])).total_seconds() < seconds:
+        first -= 1
+    samples = samples[first:]
+    window = [r for _, r in samples]
     if not window:
         return level_for(indicator, None)
     latest = window[-1]
@@ -151,12 +159,16 @@ def _sustained(telemetry: list[dict], indicator: str) -> IndicatorResult:
     worst = max(reversed(window), key=lambda r: r.level)      # si empatan, la más reciente
     if worst.level < 2:
         return latest
-    floor = min(r.level for r in window) if len(window) == need else 0
+    elapsed = (_parse_ts(samples[-1][0]["ts"]) - _parse_ts(samples[0][0]["ts"])).total_seconds()
+    floor = min(r.level for r in window) if len(window) >= need and elapsed >= seconds else 0
     if floor >= 2:
         held = next(r for r in reversed(window) if r.level == floor)
-        return restate(held, floor, f"sustained over {need} readings")
+        return restate(held, floor, f"sustained over {len(window)} readings")
     high = sum(1 for r in window if r.level >= 2)
-    return restate(worst, 1, f"not sustained yet: {high} of {need} readings")
+    note = f"not sustained yet: {high} of {need} readings"
+    if seconds and elapsed < seconds:
+        note += f"; {elapsed:g} of {seconds:g} s"
+    return restate(worst, 1, note)
 
 
 def _body_temp(telemetry: list[dict]) -> IndicatorResult:

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ArgosMed · Crew Health Console</title>
+  <meta name="description" content="Crew health monitoring console: body sensor telemetry, daily checks and explainable risk rules.">
+  <!-- Fuentes: si no hay internet se usan las del sistema (ver styles.css). -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+
+  <!-- ───────── BARRA SUPERIOR ───────── -->
+  <header class="topbar">
+    <a class="brand" href="index.html" aria-label="ArgosMed home">
+      <svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true">
+        <circle cx="16" cy="16" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <ellipse cx="16" cy="16" rx="14" ry="5.2" fill="none" stroke="currentColor" stroke-width="1.2" transform="rotate(-24 16 16)" opacity=".7"/>
+        <circle cx="27.6" cy="10.6" r="1.8" fill="var(--accent)"/>
+      </svg>
+      <span>Argos<b>Med</b></span>
+    </a>
+
+    <dl class="mission mono">
+      <div><dt>Mission</dt><dd id="mission">ARGOS-1</dd></div>
+      <div><dt>MET</dt><dd id="met">—</dd></div>
+      <div><dt>UTC</dt><dd id="utc">—</dd></div>
+    </dl>
+
+    <nav class="views" role="tablist" aria-label="View">
+      <button role="tab" data-view="monitor" aria-selected="true">Monitor</button>
+      <button role="tab" data-view="check" aria-selected="false">Daily check</button>
+    </nav>
+
+    <div class="link-pill" id="linkPill" title="Body sensor link"><i></i><span id="linkText">SENSOR</span></div>
+  </header>
+
+  <!-- Aviso de nivel 2 o 3 sin reconocer -->
+  <div class="alert" id="alert" hidden></div>
+
+  <!-- ───────── VISTA: MONITOR ───────── -->
+  <main class="monitor" id="view-monitor">
+
+    <div class="stack a-left">
+    <section class="panel">
+      <header class="ph"><h2>Crew</h2><button class="btn small" id="followStation" type="button" aria-pressed="true">Follow sensor</button><span class="mono dim" id="crewCount"></span></header>
+      <div id="roster"></div>
+    </section>
+
+    <section class="panel">
+      <header class="ph"><h2>Systems</h2><span class="mono dim" id="sysFocus">ALL</span></header>
+      <div id="systems"></div>
+    </section>
+    </div>
+
+    <section class="panel a-scan scan">
+      <header class="ph">
+        <h2><span id="scanCrew">—</span></h2>
+        <div class="scan-status">
+          <span class="mono dim" id="overallTs"></span>
+          <span class="chip big" id="overall" data-level="">No data</span>
+        </div>
+      </header>
+      <div class="holo">
+        <span class="hud tl"></span><span class="hud tr"></span><span class="hud bl"></span><span class="hud br"></span>
+        <canvas id="body" role="img" aria-label="Body scan coloured by system level. Click a region to filter its system."></canvas>
+        <p class="holo-hint mono">CLICK A REGION TO FILTER · DRAG TO ROTATE</p>
+      </div>
+    </section>
+
+    <div class="stack a-right">
+    <section class="panel">
+      <header class="ph"><h2>Vitals</h2><span class="mono dim" id="vitalsAge">—</span></header>
+      <div class="pb vitals" id="vitals"></div>
+    </section>
+
+    <section class="panel">
+      <header class="ph">
+        <h2>7-day trend</h2>
+        <span class="mono dim trend-key" aria-hidden="true">● measured <i></i>fit<i class="dash"></i>projection<i class="th"></i>threshold</span>
+      </header>
+      <div class="pb" id="trends"></div>
+    </section>
+
+    <section class="panel">
+      <header class="ph"><h2>Actions</h2></header>
+      <div class="pb"><ol class="recs" id="recs"></ol></div>
+    </section>
+    </div>
+
+    <section class="panel a-down downlink" id="downlink" hidden>
+      <header class="ph">
+        <h2><i class="blink"></i>Earth summary · ready for flight surgeon</h2>
+        <button class="btn small" id="copyEarth" type="button">Copy</button>
+      </header>
+      <pre class="pb mono" id="earth"></pre>
+    </section>
+
+    <section class="panel a-log">
+      <header class="ph">
+        <h2>Event log</h2>
+        <button class="toggle mono" id="logFilter" type="button" aria-pressed="false">Selected crew only</button>
+      </header>
+      <ol class="log" id="log"></ol>
+    </section>
+
+    <section class="panel a-link">
+      <header class="ph"><h2>Body sensor</h2><span class="mono dim" id="linkState">—</span></header>
+      <canvas id="planet" aria-hidden="true"></canvas>
+      <dl class="pb kv mono" id="link"></dl>
+    </section>
+  </main>
+
+  <!-- ───────── VISTA: CHEQUEO DIARIO ───────── -->
+  <main class="checkview" id="view-check" hidden>
+    <form class="panel" id="checkForm" novalidate>
+      <header class="ph"><h2>Daily check</h2><span class="mono dim">About two minutes</span></header>
+      <div class="pb check">
+        <label class="row">Crew member
+          <select id="checkCrew"></select>
+        </label>
+        <p class="mono dim" id="checkStep" aria-live="polite">STEP 1 OF 3 · MOOD</p>
+        <fieldset data-check-step="0">
+          <legend>Mood <small class="dim">1 = very low · 5 = very good</small></legend>
+          <div class="mood" id="mood" role="radiogroup" aria-label="Mood, 1 to 5"></div>
+        </fieldset>
+        <fieldset data-check-step="1" hidden>
+          <legend>Blood pressure <small class="dim">Optional</small></legend>
+          <div class="fields">
+          <label>Systolic <small>mmHg</small><input type="number" id="sys" inputmode="numeric" placeholder="—"></label>
+          <label>Diastolic <small>mmHg</small><input type="number" id="dia" inputmode="numeric" placeholder="—"></label>
+          </div>
+        </fieldset>
+        <fieldset data-check-step="2" hidden>
+          <legend>Fasting glucose <small class="dim">Optional</small></legend>
+          <label>Glucose <small>mg/dL</small><input type="number" id="glu" inputmode="numeric" placeholder="—"></label>
+        </fieldset>
+        <div class="submit">
+          <button class="btn" type="button" id="checkBack" hidden>Back</button>
+          <button class="btn primary" type="button" id="checkNext">Next / skip</button>
+          <button class="btn primary" type="submit" id="checkSubmit" hidden>Submit check</button>
+          <p class="dim" id="checkMsg" role="status">Leave a field empty if you did not measure it today.</p>
+        </div>
+      </div>
+    </form>
+  </main>
+
+  <footer class="statusbar mono">
+    <span>ArgosMed · Team Argos · NASA Space Apps 2026</span>
+    <span>Prototype · Not a medical device</span>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
