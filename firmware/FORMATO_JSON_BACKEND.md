@@ -38,19 +38,19 @@ Si ya empezaste con la versión anterior, esto es lo que cambia. Lo demás sigue
 
 ## Qué se mide
 
-Son 9 variables: las vitales, el movimiento y la cabina salen cada 5 s; los fichajes, la inactividad y las flexiones van como eventos.
+Son 9 variables: las vitales, el movimiento y la cabina salen cada 2 s; los fichajes, la inactividad y las flexiones van como eventos.
 
 | Variable | Sensor | Unidad | Cuándo se manda | Fiabilidad |
 | --- | --- | --- | --- | --- |
 | Identificación del tripulante | RFID RC522 + tarjeta o llavero | UID en hexadecimal | evento al pasar la tarjeta, y como `crew_id` en cada mensaje | alta |
-| Temperatura corporal | Termistor NTC 10k | °C | cada 5 s | alta, si se calibra |
-| Pulso | LED rojo + fotorresistencia | lat/min | cada 5 s (ventana de 10 s) | media |
-| Tripulante inmóvil | Interruptor de inclinación (lo lleva el tripulante) | s sin movimiento | cada 5 s, y evento al pasar el umbral | media |
+| Temperatura corporal | Termistor NTC 10k | °C | cada 2 s | alta, si se calibra |
+| Pulso | LED rojo + fotorresistencia | lat/min | cada 2 s (ventana de 10 s) | media |
+| Tripulante inmóvil | Interruptor de inclinación (lo lleva el tripulante) | s sin movimiento | cada 2 s, y evento al pasar el umbral | media |
 | Flexiones | HC-SR04 en el suelo bajo el pecho | repeticiones y rep/min | resumen al terminar la serie | alta |
-| Temperatura de cabina | DHT11 | °C | cada 5 s | media (±2 °C) |
-| Humedad de cabina | DHT11 | % | cada 5 s | media (±5 %) |
-| Índice de calor | Calculado | °C | cada 5 s | la del DHT11 |
-| Riesgo de condensación | Calculado (punto de rocío) | bajo, medio, alto | cada 5 s | la del DHT11 |
+| Temperatura de cabina | DHT11 | °C | cada 2 s | media (±2 °C) |
+| Humedad de cabina | DHT11 | % | cada 2 s | media (±5 %) |
+| Índice de calor | Calculado | °C | cada 2 s | la del DHT11 |
+| Riesgo de condensación | Calculado (punto de rocío) | bajo, medio, alto | cada 2 s | la del DHT11 |
 
 La respiración no se mide. `resp_rate_bpm` se queda en el JSON a `null` para no cambiar el formato.
 
@@ -71,11 +71,11 @@ El UID va en hexadecimal en mayúsculas, sin separadores: 8 caracteres (UID de 4
 
 ## Cómo se envía
 
-El ESP32 manda dos tipos de mensaje, ambos como POST con JSON: telemetría cada 5 s y eventos al instante.
+El ESP32 manda dos tipos de mensaje, ambos como POST con JSON: telemetría cada 2 s y eventos al instante.
 
 | Endpoint | Cuándo | Qué lleva |
 | --- | --- | --- |
-| `POST /api/v1/telemetry` | cada 5 s | vitales, movimiento, cabina y alertas activas |
+| `POST /api/v1/telemetry` | cada 2 s | vitales, movimiento, cabina y alertas activas |
 | `POST /api/v1/events` | al ocurrir | fichajes RFID, inactividad y resúmenes de flexiones |
 | `GET /` | solo si no hay NTP | nada; el ESP32 solo lee la cabecera `Date` de la respuesta |
 
@@ -102,7 +102,7 @@ Qué hace el ESP32 con cada respuesta del backend:
 
 ## JSON de telemetría
 
-Cada 5 s el ESP32 manda un solo objeto con el estado del tripulante y de la cabina. Siempre van todas las claves; lo que no se pudo medir va como `null`.
+Cada 2 s el ESP32 manda un solo objeto con el estado del tripulante y de la cabina. Siempre van todas las claves; lo que no se pudo medir va como `null`.
 
 ```json
 {

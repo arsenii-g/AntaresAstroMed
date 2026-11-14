@@ -234,9 +234,44 @@ void processQueue() {
   } else {
     sendFail++;
     Serial.printf("[envio] %s fallo (%d), reintento en %u ms\n", path, code, retryDelay);
+    if (code < 0) probeBackend();
+    if (code >= 500 && retryDelay == RETRY_MIN_MS) {   // solo en el primer fallo de cada mensaje
+      Serial.printf("  respuesta: %.300s\n  cuerpo: %s\n", resp.c_str(), body.c_str());
+    }
     nextTryMs = millis() + retryDelay;
     retryDelay = min<uint32_t>(retryDelay * 2, RETRY_MAX_MS);
   }
+}
+
+// Diagnostico cuando no hay conexion: abre una conexion TCP pelada al backend y mide
+// cuanto tarda en fallar. Como mucho una vez por minuto.
+void probeBackend() {
+  static uint32_t lastProbe = 0;
+  if (lastProbe && millis() - lastProbe < 60000) return;
+  lastProbe = millis();
+  String base = API_BASE;
+  int s = base.indexOf("://");
+  String hostPort = base.substring(s < 0 ? 0 : s + 3);
+  int slash = hostPort.indexOf('/');
+  if (slash >= 0) hostPort = hostPort.substring(0, slash);
+  int colon = hostPort.indexOf(':');
+  String host = colon >= 0 ? hostPort.substring(0, colon) : hostPort;
+  uint16_t port = colon >= 0 ? hostPort.substring(colon + 1).toInt() : (base.startsWith("https") ? 443 : 80);
+
+  WiFiClient c;
+  uint32_t t0 = millis();
+  bool ok = c.connect(host.c_str(), port, HTTP_TIMEOUT_MS);
+  uint32_t dt = millis() - t0;
+  c.stop();
+  Serial.printf("[diag] mi IP %s, puerta de enlace %s. TCP a %s:%u: %s en %lu ms\n",
+                WiFi.localIP().toString().c_str(), WiFi.gatewayIP().toString().c_str(),
+                host.c_str(), port, ok ? "CONECTA" : "falla", (unsigned long)dt);
+  if (ok)
+    Serial.println(F("[diag] El puerto esta abierto: el fallo es del protocolo (http/https) o del servidor."));
+  else if (dt < HTTP_TIMEOUT_MS - 500)
+    Serial.println(F("[diag] Falla al instante: el ordenador contesta pero no hay servidor en ese puerto (no arrancado o escuchando solo en 127.0.0.1)."));
+  else
+    Serial.println(F("[diag] Se agota el tiempo: no llegan los paquetes (cortafuegos, IP equivocada o el hotspot aisla a los clientes)."));
 }
 
 // ============================================================================
