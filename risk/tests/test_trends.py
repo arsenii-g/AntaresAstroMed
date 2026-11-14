@@ -84,7 +84,7 @@ def test_resumen_a_tierra_solo_en_rojo_y_en_ingles():
     assert red["overall_level"] == 3
     assert text.startswith("SPACEHEALTH MEDICAL SUMMARY")
     assert "Crew member: F3786E09" in text
-    assert "[red] Systolic blood pressure: 185 mmHg, above 181 mmHg" in text
+    assert "[red] Systolic blood pressure 185 mmHg, above 181 mmHg" in text
     assert "Rest for 5 minutes and repeat the blood pressure" in text
 
 
@@ -93,3 +93,25 @@ def test_modo_demo_baja_la_inactividad_a_30_s(monkeypatch):
     monkeypatch.setenv("SPACEHEALTH_DEMO", "1")
     assert level_for("still_for_s", 45).level == 1
     assert level_for("still_for_s", 90).level == 2
+
+
+def test_tension_se_confirma_con_la_medida_de_ayer():
+    cardio = lambda checks: evaluate([], [], checks, NOW)["systems"]["cardiovascular"]
+    first = cardio([day_check(0, systolic=145)])
+    assert first["level"] == 1 and "first reading" in first["reasons"][0]
+    confirmed = cardio([day_check(1, systolic=145), day_check(0, systolic=146)])   # ayer, a 25 h
+    assert confirmed["level"] == 2
+    only_yesterday = cardio([day_check(1, systolic=145)])                          # hoy no hay medida
+    assert "Systolic blood pressure: no data" in only_yesterday["reasons"]
+
+
+def test_animo_frente_a_su_propia_media():
+    neuro = lambda checks: evaluate([], [], checks, NOW)["systems"]["neuro"]
+    assert neuro([day_check(0, mood=3)])["level"] == 0                             # sin historia: corte fijo
+    usual_5 = [day_check(d, mood=5) for d in (4, 3, 2, 1)] + [day_check(0, mood=3)]
+    drop = neuro(usual_5)
+    assert drop["level"] == 1 and "2 points below own average 5/5" in drop["reasons"][0]
+    usual_4 = [day_check(d, mood=4) for d in (4, 3, 2, 1)] + [day_check(0, mood=3)]
+    assert neuro(usual_4)["level"] == 0                                            # 1 punto: normal
+    two_before = [day_check(d, mood=5) for d in (2, 1)] + [day_check(0, mood=3)]
+    assert neuro(two_before)["level"] == 0                                         # pocos chequeos previos

@@ -154,8 +154,9 @@ def test_guion_de_la_demo(monkeypatch):
     assert still_amber and max(still_amber) < DEMO_PUSHUP_TICK          # ámbar antes de las flexiones
     assert out[DEMO_PUSHUP_TICK]["overall_level"] == 0                     # y verde justo después
     assert out[DEMO_SWITCH_TICK]["crew_id"] == DEMO_CREW_B
-    assert out[DEMO_SWITCH_TICK]["overall_level"] == 3
-    assert out[DEMO_SWITCH_TICK]["earth_summary"].startswith("SPACEHEALTH MEDICAL SUMMARY")
+    assert out[DEMO_SWITCH_TICK]["overall_level"] == 1                     # pulso aún no sostenido
+    assert out[DEMO_SWITCH_TICK + 2]["overall_level"] == 3                 # 3 lecturas: rojo
+    assert out[DEMO_SWITCH_TICK + 2]["earth_summary"].startswith("SPACEHEALTH MEDICAL SUMMARY")
     kinds = [(e["type"], e["data"].get("action")) for e in events]
     assert ("inactivity", None) in kinds
     assert kinds.count(("crew_checkin", "in")) == 2 and ("crew_checkin", "out") in kinds

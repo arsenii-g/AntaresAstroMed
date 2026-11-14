@@ -74,6 +74,21 @@ def level_for(indicator: str, value: float | None, thresholds: dict | None = Non
     return IndicatorResult(indicator, system, value, level, f"{spec['code']}_{direction}", reason, cut)
 
 
+def restate(result: IndicatorResult, level: int, note: str, thresholds: dict | None = None) -> IndicatorResult:
+    """El mismo resultado con otro nivel (más bajo) y una nota al final del
+    motivo. El corte y el motivo se recalculan para ese nivel."""
+    spec = (thresholds or load_thresholds())[result.indicator]
+    if not level:
+        return IndicatorResult(result.indicator, result.system, result.value, 0, None, None)
+    direction = "HIGH" if (result.code or "").endswith("_HIGH") else "LOW"
+    cuts = spec.get("high" if direction == "HIGH" else "low", [])
+    cut = cuts[level - 1] if level - 1 < len(cuts) and cuts[level - 1] is not None else result.cut
+    relation = "above" if direction == "HIGH" else "below"
+    unit = spec["unit"]
+    reason = f"{spec['label']} {with_unit(result.value, unit)}, {relation} {with_unit(cut, unit)} ({note})"
+    return IndicatorResult(result.indicator, result.system, result.value, level, result.code, reason, cut)
+
+
 def _band(value: float, cuts: list, *, above: bool, inclusive: bool) -> int:
     """Nivel más alto cuyo corte se supera. Los cortes null no cuentan."""
     level = 0
