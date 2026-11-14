@@ -264,26 +264,102 @@ button, select, input { font: inherit; color: inherit; }
 .kv .warn { color: var(--lv1); }
 
 /* ───────── CHEQUEO DIARIO ───────── */
-.checkview { max-width: 720px; }
-.check { display: grid; gap: 22px; padding: 20px; }
-.row { display: grid; gap: 8px; color: var(--label); font-size: 13.5px; }
+/* Mismo estilo que el monitor. Solo azul de acento y gris: los colores de nivel
+   (verde, ámbar, naranja, rojo) quedan para la evaluación del motor. */
+.checkview { max-width: 1120px; }
+.check-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; align-items: start; }
+.crew-pick { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.crew-pick select { width: auto; min-width: 210px; padding: 5px 10px; font: 400 13px var(--body); }
+
+.stepper { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--line); }
+.stepper button {
+  position: relative; display: flex; align-items: center; gap: 10px; padding: 14px 16px; border: 0; background: none;
+  color: var(--dim); text-align: left; cursor: pointer; transition: color .2s, background .2s;
+}
+.stepper button + button { border-left: 1px solid var(--line-2); }
+.stepper button:hover { background: rgba(255, 255, 255, .03); color: var(--ink); }
+.stepper i { font: 500 12px var(--mono); font-style: normal; letter-spacing: .1em; display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 50%; transition: all .3s var(--ease); }
+.stepper span { font-size: 13.5px; }
+.stepper button::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--accent); transform: scaleX(0); transform-origin: left; transition: transform .4s var(--ease); }
+.stepper [aria-current="step"] { color: var(--ink); }
+.stepper [aria-current="step"] i { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 14px rgba(143, 216, 255, .35); }
+.stepper [aria-current="step"]::after { transform: scaleX(1); }
+.stepper .done i { background: rgba(143, 216, 255, .14); border-color: transparent; color: var(--accent); }
+
+.check { position: relative; display: grid; gap: 18px; padding: 26px 30px 24px; background: radial-gradient(ellipse at 50% 0%, rgba(143, 216, 255, .06), transparent 60%); }
+.step-label { font-size: 12px; letter-spacing: .14em; }
+.check fieldset { min-width: 0; animation: stepIn .45s var(--ease) both; }
+@keyframes stepIn { from { opacity: 0; transform: translateX(14px); } }
+legend { font: 600 clamp(20px, 2.2vw, 26px)/1.2 var(--display); letter-spacing: -.01em; margin-bottom: 6px; }
+.hint { color: var(--label); margin-bottom: 18px; }
+kbd { padding: 1px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; font: 500 12px var(--mono); color: var(--ink); }
+
 select, input {
   width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: rgba(0, 0, 0, .35);
   outline: none; transition: border-color .2s, box-shadow .2s;
 }
 select:focus, input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(143, 216, 255, .12); }
-input { font: 400 18px var(--display); }
 input::placeholder { color: #7b8599; }
-legend { font-weight: 600; margin-bottom: 10px; }
-legend small { font: 400 12.5px var(--mono); margin-left: 8px; }
-.mood { display: flex; gap: 8px; }
-.mood button { flex: 1; height: 48px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255, 255, 255, .03); color: var(--dim); font: 300 20px var(--display); cursor: pointer; transition: all .2s; }
-.mood button:hover { color: var(--ink); border-color: rgba(255, 255, 255, .2); }
-.mood button[aria-checked="true"] { background: var(--ink); color: #06070b; border-color: transparent; }
-.fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.fields label { display: grid; gap: 6px; font-size: 13.5px; color: var(--label); }
-.fields small { font: 400 12px var(--mono); }
-.submit { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+
+/* Ánimo: cinco caras grandes */
+.mood { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.mood button {
+  display: grid; justify-items: center; gap: 8px; padding: 18px 6px 14px; border-radius: 12px;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, .025); color: var(--dim); cursor: pointer;
+  transition: transform .25s var(--ease), border-color .2s, background .2s, color .2s;
+}
+.mood button:hover { transform: translateY(-3px); color: var(--ink); border-color: rgba(255, 255, 255, .2); }
+.mood svg { width: 46px; height: 46px; overflow: visible; }
+.mood svg circle { fill: none; stroke: currentColor; stroke-width: 1.4; }
+.mood svg path, .mood svg .eye { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.mood b { font: 300 22px var(--display); }
+.mood span { font: 500 11.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+/* La cara elegida toma el color de su nivel: 1 rojo, 2 naranja, 3 ámbar, 4 y 5 verde */
+.mood button:hover { color: color-mix(in srgb, var(--lv) 70%, var(--ink)); }
+.mood button[aria-checked="true"] { color: var(--lv); border-color: var(--lv); background: color-mix(in srgb, var(--lv) 12%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--lv) 14%, transparent), 0 12px 30px -12px color-mix(in srgb, var(--lv) 60%, transparent); }
+.summary .mood-v { color: var(--lv); }
+.mood button[aria-checked="true"] svg { animation: pop .4s var(--ease); }
+@keyframes pop { 40% { transform: scale(1.18); } }
+
+/* Medidas: número grande + deslizador */
+.meters { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.meters.one { grid-template-columns: minmax(0, 1fr); max-width: 420px; }
+.meter { display: grid; gap: 10px; padding: 16px 18px 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(0, 0, 0, .22); transition: border-color .3s, background .3s; }
+.meter > label { color: var(--label); font-size: 13.5px; }
+.meter > label small { font: 400 12px var(--mono); color: var(--dim); margin-left: 6px; }
+.readout { display: flex; align-items: baseline; gap: 8px; }
+.readout input { width: 3.6ch; padding: 0; border: 0; background: none; box-shadow: none; font: 300 46px/1 var(--display); letter-spacing: -.02em; color: var(--ink); -moz-appearance: textfield; }
+.readout input::-webkit-inner-spin-button, .readout input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.readout input:focus { box-shadow: none; }
+.readout small { font: 400 13px var(--mono); color: var(--dim); }
+.meter.set { border-color: rgba(143, 216, 255, .4); background: rgba(143, 216, 255, .05); }
+input[type="range"] { -webkit-appearance: none; appearance: none; height: 22px; padding: 0; border: 0; background: none; box-shadow: none; cursor: pointer; --p: 50%; }
+input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--accent) var(--p), rgba(255, 255, 255, .1) var(--p)); }
+input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--accent) var(--p), rgba(255, 255, 255, .1) var(--p)); }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; margin-top: -7px; border-radius: 50%; background: var(--ink); border: 3px solid var(--accent); box-shadow: 0 0 12px rgba(143, 216, 255, .5); }
+input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--ink); border: 3px solid var(--accent); }
+.meter:not(.set) input[type="range"] { --p: 0%; opacity: .55; }
+.meter:not(.set) input[type="range"]::-webkit-slider-thumb { background: #3a4152; border-color: #6b7488; box-shadow: none; }
+.scale { display: flex; justify-content: space-between; color: var(--dim); font-size: 11px; }
+.skip { justify-self: start; margin-top: 14px; }
+
+.submit { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 6px; border-top: 1px solid var(--line-2); }
+#checkMsg { flex: 1; min-width: 200px; }
+
+/* Resumen lateral */
+.check-side { position: sticky; top: 64px; }
+.summary { list-style: none; margin: 0; padding: 6px 0; }
+.summary li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 12px 16px; border-bottom: 1px solid var(--line-2); cursor: pointer; transition: background .2s; }
+.summary li:hover { background: rgba(255, 255, 255, .03); }
+.summary li.current { box-shadow: inset 2px 0 0 var(--accent); }
+.summary .k { color: var(--label); font-size: 13px; }
+.summary .v { grid-column: 1 / -1; font: 300 22px var(--display); }
+.summary .v small { font: 400 12px var(--mono); color: var(--dim); margin-left: 4px; }
+.summary .st { font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; color: var(--dim); background: rgba(255, 255, 255, .05); }
+.summary .st.ok { color: var(--accent); background: rgba(143, 216, 255, .1); }
+.progress { height: 3px; margin: 14px 16px 0; border-radius: 2px; background: rgba(255, 255, 255, .06); overflow: hidden; }
+.progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .5s var(--ease); }
+.side-note { font-size: 13px; }
 
 .statusbar { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 10px 20px; border-top: 1px solid var(--line); color: var(--label); }
 
@@ -308,7 +384,12 @@ legend small { font: 400 12.5px var(--mono); margin-left: 8px; }
   .monitor { grid-template-columns: minmax(0, 1fr); grid-template-areas: "left" "center" "right"; }
   .a-right { grid-template-columns: minmax(0, 1fr); }
   .a-scan { height: 520px; }
-  .fields { grid-template-columns: 1fr; }
+  .check-grid { grid-template-columns: minmax(0, 1fr); }
+  .check-side { position: static; }
+  .meters { grid-template-columns: minmax(0, 1fr); }
+  .mood { gap: 6px; } .mood span { display: none; } .mood button { padding: 12px 2px 10px; } .mood svg { width: 34px; height: 34px; }
+  .stepper span { display: none; }
+  .check { padding: 20px 18px; }
   .log li { grid-template-columns: 82px 1fr; }
   .log .chip { grid-column: 2; } .log .msg { grid-column: 1 / -1; }
   .alert { margin: 12px 16px 0; flex-wrap: wrap; }

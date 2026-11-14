@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AstroMed · Crew health telemetry</title>
   <meta name="description" content="Crew health telemetry with explainable risk rules. NASA Space Apps 2026, Team Antares.">
-  <link rel="icon" type="image/png" href="assets/astromed-mark.png">
+  <link rel="icon" type="image/svg+xml" href="assets/antares-mark.svg">
   <!-- Fuentes: si no hay internet se usan las del sistema (ver landing.css). -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,7 +18,7 @@
   <!-- ───────── NAV ───────── -->
   <header class="nav" id="nav">
     <a class="brand" href="#top" aria-label="AstroMed home">
-      <img src="assets/astromed-mark.png" width="40" height="40" alt="">
+      <img src="assets/antares-mark.svg" width="40" height="40" alt="">
       <span>Astro<b>Med</b></span>
     </a>
     <nav class="nav-links" aria-label="Sections">
@@ -47,24 +47,26 @@
         <div><dt>Body systems</dt><dd>4</dd></div>
         <div><dt>Indicators</dt><dd>12</dd></div>
         <div><dt>New reading every</dt><dd>2<small> s</small></dd></div>
-        <div><dt>Trend line after</dt><dd>7<small> readings</small></dd></div>
       </dl>
     </div>
 
-    <div class="marquee" aria-hidden="true">
-      <div class="marquee-track" id="marquee"></div>
-    </div>
+    <!-- Qué mide, agrupado por origen. Estático: sin cinta en movimiento. -->
+    <dl class="signals" aria-label="What AstroMed tracks">
+      <div><dt>Body sensor</dt><dd>Heart rate · Body temperature · Motion · Push-ups</dd></div>
+      <div><dt>Daily check</dt><dd>Mood · Blood pressure · Glucose</dd></div>
+      <div><dt>Cabin</dt><dd>Temperature · Humidity · Heat index · Dew point</dd></div>
+    </dl>
   </section>
 
   <!-- ───────── HOW IT WORKS ───────── -->
   <section class="section" id="how">
     <p class="kicker reveal">HOW IT HELPS YOU</p>
-    <h2 class="reveal">Your health, made simple.</h2>
+    <h2 class="reveal">Out of range. Never out of sight.</h2>
     <div class="steps">
       <article class="card step reveal">
         <span class="num">01</span>
         <h3>Scan your card</h3>
-        <p>Tap your card and wear the small sensor. It keeps an eye on your pulse, temperature and movement, and on the air around you, so you don't have to.</p>
+        <p>Tap your card and interact with the small sensor. It keeps an eye on your pulse, temperature and movement, and on the air around you, so you don't have to.</p>
       </article>
       <article class="card step reveal">
         <span class="num">02</span>
