@@ -1,4 +1,4 @@
-// SpaceHealth - firmware del ESP32 (pasarela WiFi)
+// AstroMed - firmware del ESP32 (pasarela WiFi)
 //
 // Lee del UNO (UART2, GPIO16, 115200) una linea JSON por mensaje:
 //   {"t":"tel", ...}  -> POST {API_BASE}/api/v1/telemetry
@@ -374,7 +374,7 @@ void setup() {
   UnoSerial.begin(UNO_BAUD, SERIAL_8N1, UNO_RX_PIN, UNO_TX_PIN);
   lineBuf.reserve(MAX_LINE);
 
-  Serial.println(F("\nSpaceHealth ESP32 arrancando"));
+  Serial.println(F("\nAstroMed ESP32 arrancando"));
   WiFi.mode(WIFI_STA);
   WiFi.onEvent([](WiFiEvent_t, WiFiEventInfo_t info) {
     uint8_t r = info.wifi_sta_disconnected.reason;

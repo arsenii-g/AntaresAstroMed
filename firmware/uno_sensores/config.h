@@ -1,4 +1,4 @@
-// SpaceHealth - configuracion del Arduino UNO
+// AstroMed - configuracion del Arduino UNO
 // Todo lo que se calibra o se ajusta para la demo esta aqui.
 #pragma once
 

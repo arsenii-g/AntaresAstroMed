@@ -1,4 +1,4 @@
-# SpaceHealth: formato JSON para el backend
+# AstroMed: formato JSON para el backend
 
 Nov 14, 2026 · @therin · versión definitiva, sacada del firmware
 
@@ -334,8 +334,8 @@ Telemetría (`POST /api/v1/telemetry`):
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "spacehealth/telemetry.schema.json",
-  "title": "SpaceHealth telemetría",
+  "$id": "astromed/telemetry.schema.json",
+  "title": "AstroMed telemetría",
   "type": "object",
   "required": ["device_id", "ts", "met_s", "crew_id", "vitals", "motion", "cabin", "alerts"],
   "additionalProperties": false,
@@ -429,8 +429,8 @@ Eventos (`POST /api/v1/events`):
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "spacehealth/event.schema.json",
-  "title": "SpaceHealth evento",
+  "$id": "astromed/event.schema.json",
+  "title": "AstroMed evento",
   "type": "object",
   "required": ["device_id", "ts", "crew_id", "type", "severity", "data"],
   "additionalProperties": false,

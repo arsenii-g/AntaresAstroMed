@@ -1,4 +1,4 @@
-// SpaceHealth - configuracion del ESP32
+// AstroMed - configuracion del ESP32
 // Copia este archivo como config.h y rellenalo. config.h no se sube a git (tiene claves).
 #pragma once
 
