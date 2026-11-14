@@ -8,16 +8,17 @@
 import { createPlanet } from "./planet.js";
 import { createHologram } from "./hologram.js";
 import { trendChart, attachTrendHover } from "./trendchart.js";
+import { mergeReadings, sparkPath } from "./data.js";
 
 // ─── Configuración ──────────────────────────────────────────────────────────
 const params = new URLSearchParams(location.search);
 // Por defecto, la API en el mismo ordenador que sirve la web, puerto 8000 (uvicorn)
-const API_URL = (params.get("api") ?? `${location.protocol}//${location.hostname || "localhost"}:8000`).replace(/\/$/, "");
+const API_URL = (params.get("api") ?? (location.port === "5173" ? `${location.protocol}//${location.hostname}:8000` : location.origin)).replace(/\/$/, "");
 const WS_PATH = "/ws";
-const API_KEY = params.get("key") ?? "spacehealth-dev-key-2026";   // API_KEY_SECRET de api/main.py
+const API_KEY = params.get("key"); // GET and manual checks do not require a key.
 // Tripulantes que la API conoce (crew_names en api/main.py). Los que lleguen por el
 // WebSocket con otro crew_id se añaden solos.
-const KNOWN_CREW = ["F3786E09", "04D4E5F6"];
+const KNOWN_CREW = ["F3786E09", "336F8312"];
 const STALE_S = 15;            // criterio propio: varios mensajes seguidos perdidos (la placa manda cada 2 s)
 const HISTORY = 48;            // puntos de las líneas de pulso y temperatura
 
@@ -35,7 +36,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 const lv = (level) => (level == null ? "" : String(level));      // valor de data-level
 const name = (level) => LEVEL_NAME[level ?? null];
 const hms = (ts) => new Date(ts).toISOString().slice(11, 19);
-const crewOf = (id) => state.crew.get(id) ?? { crew_id: id, name: id, role: "" };
+const crewOf = (id) => state.crew.get(id) ?? { crew_id: id ?? "", name: id ?? "Select a crew member or scan a card", role: "" };
 const crewList = () => [...state.crew.values()];
 const tsMs = (ts) => { const t = Date.parse(ts ?? ""); return Number.isNaN(t) ? null : t; };
 const ageS = (ms) => (ms == null ? null : Math.max(0, Math.round((Date.now() - ms) / 1000)));
@@ -45,11 +46,18 @@ const ago = (s) => (s == null ? "—" : s < 60 ? `${s} s ago` : `${Math.floor(s 
 const state = {
   crew: new Map(),             // crew_id -> { crew_id, name, role }
   crewId: params.get("crew") ?? KNOWN_CREW[0],
+  followStation: !params.has("crew"),
+  stationTs: 0,
   focus: null,                 // sistema filtrado, o null
   assessment: {},              // crew_id -> última evaluación ③
   telemetry: {},               // crew_id -> última telemetría ①
   hrHistory: {},               // crew_id -> últimos pulsos, para la gráfica
   tempHistory: {},             // crew_id -> últimas temperaturas corporales, para la gráfica
+  samples: {},
+  checks: {},
+  exercises: {},
+  lastExercise: {},
+  seenEvents: new Set(),
   lastPacket: {},              // crew_id -> hora local de llegada (ms)
   packets: 0,
   met: null,                   // { s, at }: último met_s recibido y cuándo
@@ -58,7 +66,7 @@ const state = {
   acked: new Set(),            // avisos reconocidos en esta consola
   source: "connecting",        // connecting | live | lost (estado del WebSocket)
 };
-let lastRecs = null, lastEarth = null, typing = 0;       // para no repintar lo que no cambia
+let lastRecs = null, lastEarth = null;       // para no repintar lo que no cambia
 
 // ─── 3D ─────────────────────────────────────────────────────────────────────
 createPlanet($("planet"), { horizon: 0.58, radius: (w) => w * 0.9, parallax: false });
@@ -76,13 +84,18 @@ function addCrew(id, name, role) {
   const known = state.crew.get(id);
   if (known && !name) return;
   state.crew.set(id, { crew_id: id, name: name ?? known?.name ?? id, role: role ?? known?.role ?? "" });
-  if (!state.crew.has(state.crewId)) state.crewId = id;
+  if (!state.followStation && state.crewId && !state.crew.has(state.crewId)) state.crewId = id;
   renderCrewOptions(); renderRoster();
   if (id === state.crewId) $("scanCrew").textContent = `${crewOf(id).name} · ${id}`;
 }
 
 // `fromHistory`: datos pedidos por HTTP (no en directo); la antigüedad sale de su ts.
 function onMessage({ type, data }, { fromHistory = false } = {}) {
+  if (!data) return;
+  if (!fromHistory && type === "telemetry") applyStation({ crew_id: data.crew_id, ts: data.ts });
+  if (!fromHistory && type === "event" && data.type === "crew_checkin") {
+    applyStation({ crew_id: data.data?.action === "in" ? data.crew_id : null, ts: data.ts });
+  }
   if (!data || !data.crew_id) return;            // sin tripulante (nadie ha fichado con la tarjeta)
   const id = data.crew_id;
   if (!state.crew.has(id)) addCrew(id);
@@ -95,21 +108,28 @@ function onMessage({ type, data }, { fromHistory = false } = {}) {
     if (id === state.crewId) renderAssessment();
   } else if (type === "telemetry") {
     const prev = state.telemetry[id];
-    if (fromHistory && prev && (tsMs(prev.ts) ?? 0) >= (tsMs(data.ts) ?? 0)) return;
+    const samples = state.samples[id] = mergeReadings(state.samples[id] ?? [], [data], HISTORY);
+    state.hrHistory[id] = samples.map((m) => m.vitals?.heart_rate_bpm ?? null);
+    state.tempHistory[id] = samples.map((m) => m.vitals?.body_temp_c ?? null);
+    if (prev && (tsMs(prev.ts) ?? 0) >= (tsMs(data.ts) ?? 0)) {
+      if (id === state.crewId) renderVitals();
+      return;
+    }
     state.telemetry[id] = data;
-    state.lastPacket[id] = fromHistory ? Math.min(Date.now(), tsMs(data.ts) ?? 0) || null : Date.now();
+    state.lastPacket[id] = Math.min(Date.now(), tsMs(data.ts) ?? 0) || null;
     state.packets++;
-    const hr = data.vitals?.heart_rate_bpm;
-    const hist = (state.hrHistory[id] ??= []);
-    if (typeof hr === "number") { hist.push(hr); if (hist.length > HISTORY) hist.shift(); }
-    const temp = data.vitals?.body_temp_c;
-    const tempHist = (state.tempHistory[id] ??= []);
-    if (typeof temp === "number") { tempHist.push(temp); if (tempHist.length > HISTORY) tempHist.shift(); }
     if (typeof data.met_s === "number" && !fromHistory) state.met = { s: data.met_s, at: Date.now() };
     if (id === state.crewId) renderVitals();
     renderRoster();
   } else if (type === "event") {
+    const key = `${data.device_id}|${data.ts}|${data.type}`;
+    if (state.seenEvents.has(key)) return;
+    state.seenEvents.add(key);
     const d = data.data ?? {};
+    if (data.type === "exercise_summary") {
+      state.lastExercise[id] = data;
+      if (id === state.crewId) renderVitals();
+    }
     const msg = {
       exercise_summary: `Exercise: ${d.reps ?? "?"} ${d.exercise ?? ""} reps in ${d.duration_s ?? "?"} s`,
       inactivity: `No movement for ${d.still_for_s ?? "?"} s`,
@@ -162,9 +182,9 @@ function renderRoster() {
     const a = state.assessment[c.crew_id], t = state.telemetry[c.crew_id];
     const age = ageS(state.lastPacket[c.crew_id]);
     const hr = t?.vitals?.heart_rate_bpm;
-    return `<button class="crew" data-crew="${c.crew_id}" data-level="${lv(a?.overall_level)}" aria-pressed="${c.crew_id === state.crewId}">
+    return `<button class="crew" data-crew="${esc(c.crew_id)}" data-level="${lv(a?.overall_level)}" aria-pressed="${c.crew_id === state.crewId}">
       <b>${esc(c.name)}</b><span class="chip">${name(a?.overall_level)}</span>
-      <span class="sub">${c.role ? `${esc(c.role)} · ` : ""}${c.crew_id}</span>
+      <span class="sub">${c.role ? `${esc(c.role)} · ` : ""}${esc(c.crew_id)}</span>
       <span class="meta mono ${age != null && age > STALE_S ? "stale" : ""}">${typeof hr === "number" ? `${hr} bpm · ` : ""}${ago(age)}</span>
     </button>`;
   }).join("");
@@ -173,12 +193,33 @@ $("roster").addEventListener("click", (e) => {
   const b = e.target.closest("[data-crew]");
   if (b) selectCrew(b.dataset.crew);
 });
-function selectCrew(id) {
+function selectCrew(id, { station = false } = {}) {
+  if (!station) state.followStation = false;
+  $("followStation").setAttribute("aria-pressed", String(state.followStation));
+  if (id !== state.crewId) resetCheck();
   state.crewId = id;
-  lastRecs = lastEarth = null;
+  state.focus = null;
+  holo.setFocus(null);
+  lastRecs = null;
+  lastEarth = undefined;
   $("checkCrew").value = id;
   renderRoster(); renderAssessment(); renderVitals(); renderLog(); renderPayload();
+  if (id) loadCrew(id);
 }
+
+function applyStation(data) {
+  if (!state.followStation || (tsMs(data.ts) ?? 0) < state.stationTs) return;
+  state.stationTs = tsMs(data.ts) ?? state.stationTs;
+  const id = data.crew_id ?? null;
+  if (id && !state.crew.has(id)) addCrew(id);
+  if (id !== state.crewId) selectCrew(id, { station: true });
+}
+$("followStation").addEventListener("click", async () => {
+  state.followStation = true;
+  $("followStation").setAttribute("aria-pressed", "true");
+  const active = await getJSON("/api/v1/crew/active").catch(() => null);
+  if (active) applyStation(active);
+});
 
 // ─── Aviso: nivel 2 o 3 que nadie ha reconocido ─────────────────────────────
 function currentAlert() {
@@ -202,7 +243,7 @@ function renderAlert() {
   box.dataset.ack = al.ack;
   box.dataset.crew = al.crew.crew_id;
   box.innerHTML = `<span class="lvl"><i class="blink"></i>${name(al.level)}</span>
-    <span class="msg"><b>${esc(al.crew.name)}</b> <span class="mono dim">${al.crew.crew_id} · ${hms(al.ts)} UTC</span><br>${esc(al.label)}: ${esc(al.reason)}</span>
+    <span class="msg"><b>${esc(al.crew.name)}</b> <span class="mono dim">${esc(al.crew.crew_id)} · ${hms(al.ts)} UTC</span><br>${esc(al.label)}: ${esc(al.reason)}</span>
     <span class="actions"><button class="btn small" data-act="view">View</button><button class="btn small" data-act="ack">Acknowledge</button></span>`;
 }
 $("alert").addEventListener("click", (e) => {
@@ -244,7 +285,7 @@ function renderAssessment() {
     // Una gráfica de 7 días por indicador; primero las que cruzan antes un umbral.
     ? [...a.trends]
         .sort((x, y) => (x.crosses_threshold_in_days ?? Infinity) - (y.crosses_threshold_in_days ?? Infinity))
-        .map((t) => trendChart(t, { names: TREND_NAME, levelName: name }))
+        .map((t) => trendChart(t, { names: TREND_NAME, levelName: name, points: observed(t.indicator, a) }))
         .join("")
     : `<p class="empty">Not enough readings yet to draw a 7-day trend.</p>`;
 
@@ -253,25 +294,17 @@ function renderAssessment() {
     lastRecs = recs;
     $("recs").innerHTML = a.recommendations?.length
       ? a.recommendations.map((r, i) => `<li style="animation-delay:${i * 0.06}s"><span>${esc(r)}</span></li>`).join("")
-      : `<li class="empty" style="display:block">No action required.</li>`;
+      : `<li class="empty" style="display:block">${a.overall_level == null ? "Complete your daily check or connect the sensors to receive guidance." : "No action required."}</li>`;
   }
 
-  // Resumen para Tierra: solo en nivel 3; se escribe letra a letra
+  // Full text immediately: a live update must not restart an unfinished animation.
   const earth = a.earth_summary ?? null;
+  $("downlink").hidden = !earth;
+  if (!earth) $("earth").textContent = "";
   if (earth !== lastEarth) {
     lastEarth = earth;
     $("downlink").hidden = !earth;
-    const run = ++typing;
-    if (earth) {
-      const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-      let i = still ? earth.length : 0;
-      const step = () => {
-        if (run !== typing) return;
-        $("earth").textContent = earth.slice(0, i) + (i < earth.length ? "▌" : "");
-        if (i++ < earth.length) setTimeout(step, 10);
-      };
-      step();
-    }
+    if (earth) $("earth").textContent = earth;
   }
 }
 $("copyEarth").addEventListener("click", async (e) => {
@@ -303,22 +336,25 @@ function renderVitals() {
   const t = state.telemetry[state.crewId];
   const num = (v, digits = 0) => (typeof v === "number" ? v.toFixed(digits) : "—");   // null = sin dato
   const hist = state.hrHistory[state.crewId] ?? [];
-  const lo = Math.min(...hist, 50), hi = Math.max(...hist, 110);
-  const line = hist.map((v, i) => `${(i / 47) * 100},${40 - ((v - lo) / (hi - lo || 1)) * 36}`).join(" ");
+  const validHr = hist.filter((v) => typeof v === "number");
+  const lo = Math.min(...validHr, 50), hi = Math.max(...validHr, 110);
+  const line = sparkPath(hist, lo, hi);
   const temps = state.tempHistory[state.crewId] ?? [];
-  const tLo = Math.min(...temps, 36), tHi = Math.max(...temps, 37.5);
-  const tempLine = temps.map((v, i) => `${(i / 47) * 100},${40 - ((v - tLo) / (tHi - tLo || 1)) * 36}`).join(" ");
+  const validTemp = temps.filter((v) => typeof v === "number");
+  const tLo = Math.min(...validTemp, 36), tHi = Math.max(...validTemp, 37.5);
+  const tempLine = sparkPath(temps, tLo, tHi);
   const motion = t?.motion?.activity === "still" ? `Still ${num(t.motion.still_for_s)} s` : (t?.motion?.activity ?? "—");
 
   holo.setBpm(t?.vitals?.heart_rate_bpm);
   $("vitals").innerHTML = `
     <div class="vital wide"><p class="label">Heart rate</p>
       <p class="val">${num(t?.vitals?.heart_rate_bpm)}<small>bpm</small></p>
-      <svg viewBox="0 0 100 44" preserveAspectRatio="none"><polyline points="${line}" vector-effect="non-scaling-stroke"/></svg></div>
+      <svg viewBox="0 0 100 44" preserveAspectRatio="none"><path d="${line}" fill="none" stroke="currentColor" vector-effect="non-scaling-stroke"/></svg></div>
     <div class="vital wide"><p class="label">Body temp</p>
       <p class="val">${num(t?.vitals?.body_temp_c, 1)}<small>°C</small></p>
-      <svg viewBox="0 0 100 44" preserveAspectRatio="none"><polyline points="${tempLine}" vector-effect="non-scaling-stroke"/></svg></div>
+      <svg viewBox="0 0 100 44" preserveAspectRatio="none"><path d="${tempLine}" fill="none" stroke="currentColor" vector-effect="non-scaling-stroke"/></svg></div>
     <div class="vital wide"><p class="label">Motion</p><p class="val txt">${esc(motion)}</p></div>
+    <div class="vital wide"><p class="label">Last exercise</p><p class="val txt">${state.lastExercise[state.crewId] ? `${num(state.lastExercise[state.crewId].data?.reps)} reps` : "—"}</p></div>
     <div class="vital"><p class="label">Cabin temp</p><p class="val">${num(t?.cabin?.temp_c, 1)}<small>°C</small></p></div>
     <div class="vital"><p class="label">Humidity</p><p class="val">${num(t?.cabin?.humidity_pct)}<small>%</small></p></div>`;
   renderAge();
@@ -378,8 +414,47 @@ document.querySelector(".views").addEventListener("click", (e) => {
 
 // ─── Chequeo diario (contrato ②) ────────────────────────────────────────────
 let mood = null;
+let checkStep = 0;
+function showCheckStep(step) {
+  checkStep = Math.max(0, Math.min(2, step));
+  for (const panel of document.querySelectorAll("[data-check-step]")) panel.hidden = +panel.dataset.checkStep !== checkStep;
+  $("checkStep").textContent = `STEP ${checkStep + 1} OF 3 · ${["MOOD", "BLOOD PRESSURE", "GLUCOSE"][checkStep]}`;
+  $("checkBack").hidden = checkStep === 0;
+  $("checkNext").hidden = checkStep === 2;
+  $("checkSubmit").hidden = checkStep !== 2;
+}
+function resetCheck() {
+  mood = null;
+  for (const id of ["sys", "dia", "glu"]) $(id).value = "";
+  for (const button of $("mood").children) button.setAttribute("aria-checked", "false");
+  $("checkMsg").textContent = "Leave a field empty if you did not measure it today.";
+  showCheckStep(0);
+}
+function validatePressure() {
+  const sys = field("sys"), dia = field("dia");
+  if ((sys == null) !== (dia == null)) return "Enter both blood pressure values, or leave both blank.";
+  if (sys != null && (!Number.isInteger(sys) || !Number.isInteger(dia) || sys < 60 || sys > 260 || dia < 30 || dia > 160 || dia >= sys))
+    return "Please check your blood pressure values. Systolic must be higher than diastolic.";
+  return null;
+}
+function validateCheck() {
+  if (!state.crewId) return "Select a crew member or scan a card first.";
+  const bpError = validatePressure();
+  if (bpError) { showCheckStep(1); return bpError; }
+  const glucose = field("glu");
+  if (glucose != null && (glucose < 20 || glucose > 600)) return "Please check your glucose value (20–600 mg/dL).";
+  if (mood == null && field("sys") == null && glucose == null) return "Answer at least one question before sending your check.";
+  return null;
+}
+$("checkBack").addEventListener("click", () => showCheckStep(checkStep - 1));
+$("checkNext").addEventListener("click", () => {
+  const error = checkStep === 1 ? validatePressure() : null;
+  if (error) { $("checkMsg").textContent = error; return; }
+  $("checkMsg").textContent = "Leave a field empty if you did not measure it today.";
+  showCheckStep(checkStep + 1);
+});
 function renderCrewOptions() {
-  $("checkCrew").innerHTML = crewList().map((c) => `<option value="${c.crew_id}">${esc(c.name)} · ${c.crew_id}</option>`).join("");
+  $("checkCrew").innerHTML = `<option value="">Select crew member</option>` + crewList().map((c) => `<option value="${esc(c.crew_id)}">${esc(c.name)} · ${esc(c.crew_id)}</option>`).join("");
   $("checkCrew").value = state.crewId;
 }
 $("checkCrew").addEventListener("change", (e) => selectCrew(e.target.value));
@@ -396,8 +471,8 @@ const field = (id) => { const v = $(id).value.trim(); return v === "" || isNaN(+
 function buildCheck() {
   return {
     crew_id: state.crewId,
-    ts: new Date().toISOString().slice(0, 19) + "Z",
-    blood_pressure: { systolic: field("sys"), diastolic: field("dia") },
+    ts: new Date().toISOString(),
+    blood_pressure: field("sys") == null && field("dia") == null ? null : { systolic: field("sys"), diastolic: field("dia") },
     glucose_mg_dl: field("glu"),
     mood,
   };
@@ -406,26 +481,35 @@ function buildCheck() {
 function renderPayload() {}
 $("checkForm").addEventListener("submit", async (e) => {
   e.preventDefault();
+  if (checkStep < 2) { $("checkNext").click(); return; }
+  const error = validateCheck();
+  if (error) { $("checkMsg").textContent = error; return; }
+  const check = buildCheck();
   const btn = e.currentTarget.querySelector("[type=submit]");
   btn.disabled = true;
   $("checkMsg").textContent = "Sending…";
   try {
     const r = await fetch(API_URL + "/api/v1/checks", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-API-Key": API_KEY },
-      body: JSON.stringify(buildCheck()),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(check),
     });
     // 409 = ya estaba guardado (mismo crew_id y ts)
     $("checkMsg").textContent = r.ok || r.status === 409 ? "Check saved. Thank you."
       : r.status === 422 ? "Some values are not valid. Check them and try again."
       : "Could not save the check. Try again in a minute.";
+    if (r.ok || r.status === 409) {
+      addLog(check, undefined, "Daily check received");
+      await loadCrew(check.crew_id);
+      if (state.crewId === check.crew_id) { resetCheck(); showView("monitor"); }
+    }
   } catch {
     $("checkMsg").textContent = "No link to base. Try again in a minute.";
   } finally { btn.disabled = false; }
 });
 
 // ─── Conexión con la API ────────────────────────────────────────────────────
-const headers = () => ({ "X-API-Key": API_KEY });
+const headers = () => API_KEY ? { "X-API-Key": API_KEY } : {};
 
 async function getJSON(path) {
   const r = await fetch(API_URL + path, { headers: headers() });
@@ -436,19 +520,46 @@ async function getJSON(path) {
 
 // Último estado de un tripulante, y su histórico de telemetría para las líneas.
 async function loadCrew(id) {
-  const [latest, history] = await Promise.all([
+  const from = encodeURIComponent(new Date(Date.now() - 7 * 86400000).toISOString());
+  const [latest, history, checks, events] = await Promise.all([
     getJSON(`/api/v1/crew/${encodeURIComponent(id)}/latest`).catch((e) => { console.warn(e); return null; }),
-    state.hrHistory[id]?.length ? null
-      : getJSON(`/api/v1/crew/${encodeURIComponent(id)}/telemetry`).catch((e) => { console.warn(e); return null; }),
+    getJSON(`/api/v1/crew/${encodeURIComponent(id)}/telemetry?limit=${HISTORY}`).catch(() => null),
+    getJSON(`/api/v1/crew/${encodeURIComponent(id)}/checks?from=${from}`).catch(() => null),
+    getJSON(`/api/v1/events?crew_id=${encodeURIComponent(id)}&from=${from}`).catch(() => null),
   ]);
   if (latest) addCrew(id, latest.crew_name, latest.crew_role);
+  if (checks) state.checks[id] = checks;
+  if (events) {
+    state.exercises[id] = events.filter((m) => m.type === "exercise_summary");
+    for (const event of events) onMessage({ type: "event", data: event }, { fromHistory: true });
+  }
+  if (latest?.last_exercise) state.lastExercise[id] = latest.last_exercise;
   if (Array.isArray(history)) {
     for (const t of history.slice(-HISTORY)) onMessage({ type: "telemetry", data: { ...t, crew_id: t.crew_id ?? id } }, { fromHistory: true });
   }
   if (latest?.telemetry) onMessage({ type: "telemetry", data: latest.telemetry }, { fromHistory: true });
   if (latest?.assessment) onMessage({ type: "assessment", data: latest.assessment });
+  else if (latest?.assessment_error) {
+    delete state.assessment[id];
+    if (id === state.crewId) renderAssessment();
+  }
 }
-const loadAll = () => Promise.all([...new Set([...KNOWN_CREW, ...state.crew.keys()])].map(loadCrew));
+async function loadAll() {
+  const crew = await getJSON("/api/v1/crew").catch(() => null);
+  if (Array.isArray(crew)) for (const c of crew) addCrew(c.crew_id, c.name, c.role);
+  const active = await getJSON("/api/v1/crew/active").catch(() => null);
+  if (active) applyStation(active);
+  await Promise.all([...new Set([...KNOWN_CREW, ...state.crew.keys()])].map(loadCrew));
+}
+
+function observed(indicator, assessment) {
+  const records = indicator === "pushup_reps" ? state.exercises[assessment.crew_id] ?? [] : state.checks[assessment.crew_id] ?? [];
+  return records.map((m) => ({
+    day: (tsMs(m.ts) - tsMs(assessment.ts)) / 86400000,
+    value: indicator === "pushup_reps" ? m.data?.reps : indicator === "systolic_mmhg" ? m.blood_pressure?.systolic
+      : indicator === "diastolic_mmhg" ? m.blood_pressure?.diastolic : m[indicator === "mood" ? "mood" : "glucose_mg_dl"],
+  })).filter((p) => p.day >= -7 && p.day <= 0 && typeof p.value === "number");
+}
 
 // WebSocket con reconexión: espera 1, 2, 4… s, hasta 30 s. Al volver, se pide el estado.
 let retry = 0;
@@ -472,4 +583,6 @@ renderCrewOptions();
 renderSource(); renderClock(); renderRoster(); renderAssessment(); renderVitals();
 renderLog(); renderLink(); renderPayload();
 setInterval(() => { renderClock(); renderRoster(); renderLink(); renderAge(); renderSource(); }, 1000);
+// Refresh assessments even if the station stops sending; old data must expire.
+setInterval(() => { if (state.source === "live") loadAll(); }, 15000);
 connect();

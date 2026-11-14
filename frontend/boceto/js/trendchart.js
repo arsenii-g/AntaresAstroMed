@@ -57,7 +57,7 @@ function niceStep(raw) {
 }
 
 /** HTML de una tendencia: título, resumen y gráfica. `names` y `levelName` los pone app.js. */
-export function trendChart(t, { names = {}, levelName = (l) => l } = {}) {
+export function trendChart(t, { names = {}, levelName = (l) => l, points = [] } = {}) {
   const ind = info(t.indicator);
   const slope = Number(t.slope_per_day) || 0;
   const b = Number(t.projected_7d) - DAYS * slope;
@@ -72,6 +72,7 @@ export function trendChart(t, { names = {}, levelName = (l) => l } = {}) {
 
   // Eje Y: la recta en −7, 0 y +7 y el umbral, con algo de aire.
   const vals = [value(-DAYS), value(0), value(DAYS)];
+  for (const point of points) if (Number.isFinite(point.value)) vals.push(point.value);
   if (threshold != null) vals.push(threshold);
   let lo = Math.min(...vals), hi = Math.max(...vals);
   const pad = Math.max((hi - lo) * 0.18, Math.abs(hi) * 0.02, 0.5);
@@ -140,6 +141,7 @@ export function trendChart(t, { names = {}, levelName = (l) => l } = {}) {
         <path class="tarea" d="M${xN},${yN} L${x7},${y7} L${x7},${base} L${xN},${base}Z" fill="url(#${id}-proj)"/>
         <path class="tfit" d="M${x0},${y0} L${xN},${yN}"/>
         <path class="tproj" d="M${xN},${yN} L${x7},${y7}"/>
+        ${points.map((p) => `<circle class="tobserved" cx="${xOf(p.day)}" cy="${yOf(p.value)}" r="3" fill="var(--fg)" stroke="var(--bg)"><title>Measured ${fmt(p.value)} ${esc(ind.unit)} · ${p.day.toFixed(1)} d</title></circle>`).join("")}
         <circle class="tpulse" cx="${xN}" cy="${yN}" r="4"/>
         <circle class="tnow" cx="${xN}" cy="${yN}" r="3.5"/>
         ${crosses ? `<circle class="tpulse lv" cx="${xOf(days)}" cy="${thY}" r="5"/><circle class="tcross" cx="${xOf(days)}" cy="${thY}" r="4"/>` : ""}

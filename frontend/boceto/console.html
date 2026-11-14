@@ -47,7 +47,7 @@
 
     <div class="stack a-left">
     <section class="panel">
-      <header class="ph"><h2>Crew</h2><span class="mono dim" id="crewCount"></span></header>
+      <header class="ph"><h2>Crew</h2><button class="btn small" id="followStation" type="button" aria-pressed="true">Follow sensor</button><span class="mono dim" id="crewCount"></span></header>
       <div id="roster"></div>
     </section>
 
@@ -81,7 +81,7 @@
     <section class="panel">
       <header class="ph">
         <h2>7-day trend</h2>
-        <span class="mono dim trend-key" aria-hidden="true"><i></i>fit<i class="dash"></i>projection<i class="th"></i>threshold</span>
+        <span class="mono dim trend-key" aria-hidden="true">● measured <i></i>fit<i class="dash"></i>projection<i class="th"></i>threshold</span>
       </header>
       <div class="pb" id="trends"></div>
     </section>
@@ -123,18 +123,27 @@
         <label class="row">Crew member
           <select id="checkCrew"></select>
         </label>
-        <fieldset>
+        <p class="mono dim" id="checkStep" aria-live="polite">STEP 1 OF 3 · MOOD</p>
+        <fieldset data-check-step="0">
           <legend>Mood <small class="dim">1 = very low · 5 = very good</small></legend>
           <div class="mood" id="mood" role="radiogroup" aria-label="Mood, 1 to 5"></div>
         </fieldset>
-        <div class="fields">
+        <fieldset data-check-step="1" hidden>
+          <legend>Blood pressure <small class="dim">Optional</small></legend>
+          <div class="fields">
           <label>Systolic <small>mmHg</small><input type="number" id="sys" inputmode="numeric" placeholder="—"></label>
           <label>Diastolic <small>mmHg</small><input type="number" id="dia" inputmode="numeric" placeholder="—"></label>
+          </div>
+        </fieldset>
+        <fieldset data-check-step="2" hidden>
+          <legend>Fasting glucose <small class="dim">Optional</small></legend>
           <label>Glucose <small>mg/dL</small><input type="number" id="glu" inputmode="numeric" placeholder="—"></label>
-        </div>
+        </fieldset>
         <div class="submit">
-          <button class="btn primary" type="submit">Submit check</button>
-          <p class="dim" id="checkMsg">Leave a field empty if you did not measure it today.</p>
+          <button class="btn" type="button" id="checkBack" hidden>Back</button>
+          <button class="btn primary" type="button" id="checkNext">Next / skip</button>
+          <button class="btn primary" type="submit" id="checkSubmit" hidden>Submit check</button>
+          <p class="dim" id="checkMsg" role="status">Leave a field empty if you did not measure it today.</p>
         </div>
       </div>
     </form>
