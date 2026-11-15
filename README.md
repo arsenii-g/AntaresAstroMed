@@ -99,21 +99,21 @@ The console follows RFID check-ins, allows manual crew selection, and shows the 
 | Directory | Contents | Owner |
 |---|---|---|
 | `contracts/` | JSON examples and shared Pydantic models | Team Antares |
-| `firmware/` | Arduino UNO sensor acquisition and ESP32 Wi-Fi gateway | Electronics lead |
+| `firmware/` | Arduino UNO sensor acquisition and ESP32 Wi-Fi gateway | [0xtherin](https://github.com/0xtherin) |
 | `hardware/` | KiCad schematic, PCB layout, fabrication files, and BOM | Team Antares |
-| `risk/` | Risk engine and `thresholds.json` | Arsenii |
-| `simulator/` | Two simulated ESP32 devices with configurable levels | Arsenii |
-| `api/` | FastAPI endpoints, SQLite persistence, and WebSocket | Jesus |
-| `frontend/web/` | AstroMed console, clickable body, daily checks, and charts | Roberto |
+| `risk/` | Risk engine and `thresholds.json` | [arsenii-g](https://github.com/arsenii-g) |
+| `simulator/` | Two simulated ESP32 devices with configurable levels | [arsenii-g](https://github.com/arsenii-g) |
+| `api/` | FastAPI endpoints, SQLite persistence, and WebSocket | [arsenii-g](https://github.com/arsenii-g), [Pought79](https://github.com/Pought79) |
+| `frontend/web/` | AstroMed console, clickable body, daily checks, and charts | [Pought79](https://github.com/Pought79) |
 
 ## Data contracts
 
 | Contract | Flow | Interface | Owner |
 |---|---|---|---|
-| ① | Telemetry and events: ESP32 → API | `POST /api/v1/telemetry`, `POST /api/v1/events` | Electronics lead |
-| ② | Manual check: frontend → API | `POST /api/v1/checks` | Roberto |
-| ③ | Risk assessment: engine → API | `evaluate(...)` | Arsenii |
-| ④ | Latest state and live updates: API → frontend | `GET /api/v1/crew/{crew_id}/latest`, WebSocket | Jesus |
+| ① | Telemetry and events: ESP32 → API | `POST /api/v1/telemetry`, `POST /api/v1/events` | 0xtherin |
+| ② | Manual check: frontend → API | `POST /api/v1/checks` | Pought79 |
+| ③ | Risk assessment: engine → API | `evaluate(...)` | arsenii-g |
+| ④ | Latest state and live updates: API → frontend | `GET /api/v1/crew/{crew_id}/latest`, WebSocket | arsenii-g, Pought79 |
 
 All dates use UTC in ISO 8601 format. The API imports the engine directly:
 
