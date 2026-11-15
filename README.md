@@ -2,6 +2,10 @@
 
 An astronaut health monitoring prototype that brings sensor readings, guided daily checks, and explainable risk assessments together in one dashboard.
 
+**Live demo:** [arsenii-g.github.io/AntaresAstroMed](https://arsenii-g.github.io/AntaresAstroMed/). Open the console from the landing page. The online version has no API behind it, so it replays a session recorded from the AstroMed API and the two-board simulator; daily checks are not saved there.
+
+![AstroMed console: a crew member at critical level, with the clickable body view, explained system alerts, vitals and the summary prepared for Earth](docs/images/console.jpg)
+
 ## About
 
 AstroMed is developed by **Team Antares** for the NASA Space Apps 2026 challenge, *Create Health Monitoring Software for Astronauts on Space Missions*.
@@ -93,6 +97,12 @@ The physical station and simulator send telemetry every **2 seconds**. The API p
 The engine uses configurable, explainable rules in [`risk/thresholds.json`](risk/thresholds.json). It assigns levels from **0 (green)** to **3 (red)**, with a reason for each alert. Missing readings remain `null`: they mean **no data**, never a normal measurement.
 
 The console follows RFID check-ins, allows manual crew selection, and shows the readings, system status, actions, and trendlines returned by the engine. The Earth summary is prepared for review and copying; it is not automatically sent to an external service.
+
+### Hardware
+
+An Arduino UNO reads the sensors and an ESP32 forwards the data over Wi-Fi. The custom PCB that combines them is designed in KiCad; see the [hardware guide](hardware/README.md).
+
+![AstroMed schematic: Arduino UNO and ESP32 shield with the RC522 RFID reader, DHT11, DS1307 RTC, HC-SR04, thermistor and pulse sensor connectors](hardware/schematic.png)
 
 ## Repository structure
 
