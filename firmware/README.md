@@ -1,6 +1,6 @@
-# AstroMed: firmware y conexiones
+# AstroMed · Team Antares: firmware y conexiones
 
-Sigue el documento «SpaceHealth qué se mide y qué se manda por JSON final.md», sin el sueño, la respiración ni el PIR. El HC-SR04 solo cuenta flexiones, y `resp_rate_bpm` va siempre a `null` para no cambiar el formato del JSON.
+Sigue [AstroMed: formato JSON para el backend](FORMATO_JSON_BACKEND.md), sin el sueño, la respiración ni el PIR. El HC-SR04 solo cuenta flexiones, y `resp_rate_bpm` va siempre a `null` para no cambiar el formato del JSON.
 
 | Carpeta | Placa | Qué hace |
 | --- | --- | --- |

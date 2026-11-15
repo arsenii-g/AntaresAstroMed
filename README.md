@@ -1,12 +1,14 @@
-# AstroMed · Antares · NASA Space Apps 2026
+# AstroMed · Team Antares · NASA Space Apps 2026
 
 An astronaut health monitoring prototype that brings sensor readings, guided daily checks, and explainable risk assessments together in one dashboard.
 
 ## About
 
-AstroMed is developed by **Antares** for the NASA Space Apps 2026 challenge, *Create Health Monitoring Software for Astronauts on Space Missions*.
+AstroMed is developed by **Team Antares** for the NASA Space Apps 2026 challenge, *Create Health Monitoring Software for Astronauts on Space Missions*.
 
 When medical support from Earth is delayed or unavailable, astronauts need a clear view of their condition and practical next steps. AstroMed connects an Arduino UNO and ESP32 sensor station to a web application that guides daily checks, explains risk alerts, and records exercise with physical sensors. Its goal is to support crew autonomy through understandable information and guidance.
+
+This is the final hackathon version. The `main` branch contains the integrated application, firmware, simulator, and hardware design.
 
 ## What it does
 
@@ -46,7 +48,9 @@ python -m uvicorn api.main:app --env-file .env.example --host 0.0.0.0 --port 800
 
 Open the [landing page](http://localhost:8000) or the [crew console](http://localhost:8000/console.html). The API also serves the frontend files, so no separate web server or frontend build is required. To connect from another device on the same network, replace `localhost` with the computer's local IP address.
 
-The supplied [`.env.example`](.env.example) enables `SPACEHEALTH_DEMO=1`, which triggers the inactivity alert after 30 seconds, matching the current firmware. Copy its settings to `.env` and start with `--env-file .env` to customize them. The `SPACEHEALTH_*` variable names are retained for compatibility.
+The supplied [`.env.example`](.env.example) enables `ASTROMED_DEMO=1`, which triggers the inactivity alert after 30 seconds, matching the current firmware. Copy its settings to `.env` and start with `--env-file .env` to customize them.
+
+Configuration uses `ASTROMED_API_KEY`, `ASTROMED_CORS_ORIGINS`, and the optional `ASTROMED_DATABASE_URL`. Existing `SPACEHEALTH_*` variables remain supported; an `ASTROMED_*` value takes precedence when both are set. The existing device API key is unchanged. New installations create `astromed.db`; if `spacehealth.db` already exists in the working directory, AstroMed reuses it to preserve recorded data. An explicit database URL overrides this automatic choice.
 
 The ESP32 must use the same API key as the backend and the computer's address in `API_BASE`. GET requests and the dashboard's manual check endpoint do not require an API key. See the [firmware setup and wiring guide](firmware/README.md) for the physical device.
 
@@ -92,9 +96,9 @@ The console follows RFID check-ins, allows manual crew selection, and shows the 
 
 | Directory | Contents | Owner |
 |---|---|---|
-| `contracts/` | JSON examples and shared Pydantic models | Team |
+| `contracts/` | JSON examples and shared Pydantic models | Team Antares |
 | `firmware/` | Arduino UNO sensor acquisition and ESP32 Wi-Fi gateway | Electronics lead |
-| `hardware/` | KiCad schematic, PCB layout, fabrication files, and BOM | To be confirmed |
+| `hardware/` | KiCad schematic, PCB layout, fabrication files, and BOM | Team Antares |
 | `risk/` | Risk engine and `thresholds.json` | Arsenii |
 | `simulator/` | Two simulated ESP32 devices with configurable levels | Arsenii |
 | `api/` | FastAPI endpoints, SQLite persistence, and WebSocket | Jesus |
@@ -142,25 +146,11 @@ Frontend tests require **Node.js 20 or later**, with no additional packages:
 node --test frontend/boceto/tests/*.test.js
 ```
 
-## Development workflow
+## Final version and contributions
 
-- Propose changes through pull requests for another team member to review before merging into `main`.
-- Agree on contracts before implementing a feature. Contract changes require review from both the producer and consumer of the data.
-- Keep task branches short-lived, ideally merging within one or two days.
+Use [`main`](https://github.com/arsenii-g/AntaresAstroMed/tree/main) for the final Team Antares submission. Historical feature branches are retained as development history; the integrated console served by the API is in `frontend/boceto/`.
 
-| Owner | Branch prefix | Example branch |
-|---|---|---|
-| Electronics lead | `hw/` | `hw/telemetry-wifi` |
-| Arsenii | `risk/` | `risk/indicator-levels`, `risk/simulator` |
-| Jesus | `api/` | `api/post-endpoints` |
-| Roberto | `web/` | `web/astromed-antares` |
-
-Rebase your branch onto `main` regularly and tell the team if you have been blocked for more than 30 minutes:
-
-```bash
-git fetch origin
-git rebase origin/main
-```
+For future changes, open a pull request against `main`. Changes to a data contract should be reviewed by both the producer and consumer of that data.
 
 ## Limitations
 

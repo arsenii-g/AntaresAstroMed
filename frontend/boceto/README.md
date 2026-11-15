@@ -1,7 +1,7 @@
-# Consola AstroMed: frontend conectado a la API
+# Consola AstroMed · Team Antares
 
-Parte de la consola que Roberto conectó en el commit `06d933e`, conservando su
-portada, cuerpo, gráficos y estilo. Esta es la interfaz de esta integración.
+Interfaz final de AstroMed, desarrollada por Team Antares e integrada con la API.
+Incluye la portada, el cuerpo interactivo, los gráficos y el chequeo diario.
 Tiene dos páginas: portada (`index.html`) y consola (`console.html`), a la que se
 entra con *Open the console*. Es HTML, CSS y JavaScript sin dependencias ni compilación.
 Las fuentes usan alternativas del sistema si no hay Internet.

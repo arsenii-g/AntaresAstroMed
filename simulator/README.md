@@ -1,4 +1,4 @@
-# Simulador: dos ESP32 para el vídeo
+# AstroMed · Team Antares: simulador de dos ESP32
 
 Simula **dos placas ESP32, una por tripulante**, que mandan a la API lo mismo que la placa real: mismo JSON, cada 2 s, con la misma cola y los mismos reintentos. La API guarda los mensajes, llama al motor de riesgos y avisa a la web por WebSocket. Nada se calcula en el simulador ni en la web: los niveles, los motivos y las rectas salen del motor.
 
@@ -20,7 +20,7 @@ El **chequeo manual** (tensión, glucosa y ánimo) no se simula. Se mete a mano 
 
 3. Abre <http://localhost:8000/console.html>.
 
-Para grabar desde cero, para la API y borra `spacehealth.db` antes de arrancarla. Si no, la web enseña también los chequeos y las series de pruebas anteriores (el motor usa los últimos 7 días).
+Para grabar desde cero sin perder datos anteriores, configura en `.env` una ruta nueva, por ejemplo `ASTROMED_DATABASE_URL=sqlite:///./astromed-recording.db`, y arranca la API con `--env-file .env`. Sin una URL explícita, la API reutiliza `spacehealth.db` si ya existe y crea `astromed.db` en instalaciones nuevas. Los chequeos y las series de los últimos 7 días se conservan entre ejecuciones.
 
 `Ctrl+C` para el simulador y manda el `crew_checkin` de salida de los dos tripulantes.
 
@@ -42,7 +42,7 @@ Para grabar desde cero, para la API y borra `spacehealth.db` antes de arrancarla
 
 | Campo | Qué hace |
 |---|---|
-| `api_url`, `api_key` | Dónde manda y con qué `X-API-Key`. La clave tiene que ser la de la API (`SPACEHEALTH_API_KEY`) |
+| `api_url`, `api_key` | Dónde manda y con qué `X-API-Key`. La clave tiene que ser la de la API (`ASTROMED_API_KEY`) |
 | `mode` | `"fixed"`: cada tripulante se queda en su nivel. `"normal"`: el nivel de cada sistema va cambiando solo |
 | `interval_s` | Cada cuánto se manda telemetría (la placa real: 2 s) |
 | `pushup_every_s` | Cada cuánto hace una serie de flexiones |

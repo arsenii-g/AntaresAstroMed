@@ -7,6 +7,7 @@ nivel global es 3. Textos: criterio propio.
 
 from __future__ import annotations
 
+from astromed_config import TEAM_NAME
 from .indicators import IndicatorResult, _fmt, load_thresholds, with_unit
 from .recommendations import COUNTERMEASURES
 from .trends import Trend
@@ -25,6 +26,7 @@ def earth_summary(crew_id, ts, overall_level, systems, results: list[IndicatorRe
     thresholds = load_thresholds()
     lines = [
         "ASTROMED MEDICAL SUMMARY",
+        f"Prepared by AstroMed · {TEAM_NAME}",
         f"Crew member: {crew_id or 'unknown'}",
         f"Time (UTC): {ts}",
         "Overall level: 3 (red). Notify the onboard medical officer and request Earth consultation.",

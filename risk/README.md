@@ -1,8 +1,8 @@
-# Motor de riesgos: cómo usarlo desde la API
+# AstroMed · Team Antares: motor de riesgos
 
 Dueño: Arsenii. Lo usa: Jesus (`api/`).
 
-El motor es una función de Python puro, sin red, sin base de datos y sin dependencias. La API la importa y la llama dentro de su propio proceso. Python 3.11 o más.
+El motor es una función de Python puro, sin red, sin base de datos y sin dependencias externas. La configuración compartida está en `astromed_config.py`. La API la importa y la llama dentro de su propio proceso. Python 3.11 o más.
 
 ```python
 from risk import evaluate
@@ -118,12 +118,12 @@ Consecuencia para la demo: el segundo tripulante sale en ámbar a los 100 s y en
 
 ## 4. Modo demo
 
-Arranca la API con la variable de entorno `SPACEHEALTH_DEMO=1`. Así el ámbar por inactividad salta a los 30 s en vez de a los 600 s, igual que el evento `inactivity` de la placa.
+Arranca la API con la variable de entorno `ASTROMED_DEMO=1`. Así el ámbar por inactividad salta a los 30 s en vez de a los 600 s, igual que el evento `inactivity` de la placa.
 
-**Ojo:** el firmware está ahora en modo demo (`INACTIVITY_THRESHOLD_S 30` en `firmware/uno_sensores/config.h`). Con la placa real, arranca la API con `SPACEHEALTH_DEMO=1`; si no, la placa avisará de inactividad a los 30 s y el motor no la pintará en ámbar hasta los 600 s. Para uso real, los dos a 600 s.
+**Ojo:** el firmware está ahora en modo demo (`INACTIVITY_THRESHOLD_S 30` en `firmware/uno_sensores/config.h`). Con la placa real, arranca la API con `ASTROMED_DEMO=1`; si no, la placa avisará de inactividad a los 30 s y el motor no la pintará en ámbar hasta los 600 s. Para uso real, los dos a 600 s.
 
 ```bash
-SPACEHEALTH_DEMO=1 uvicorn api.main:app --reload
+ASTROMED_DEMO=1 uvicorn api.main:app --reload
 ```
 
 (El comando de `uvicorn` es un ejemplo; usa el tuyo.)

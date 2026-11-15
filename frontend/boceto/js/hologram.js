@@ -6,8 +6,8 @@
 //   holo.setFocus("cardiovascular");   // o null para ver todo
 //   holo.setBpm(72);                   // ritmo del latido
 //
-// Es un boceto: se puede cambiar por el SVG clicable o por un modelo real
-// sin tocar app.js, mientras se mantengan esas cuatro funciones.
+// Visualización corporal de AstroMed. La interfaz pública permite cambiar
+// el renderizado sin modificar app.js, manteniendo estas funciones.
 
 import { stage } from "./stage.js";
 

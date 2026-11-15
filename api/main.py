@@ -1,6 +1,5 @@
 """AstroMed: firmware -> SQLite -> local rules engine -> browser."""
 import logging
-import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from email.utils import format_datetime
@@ -16,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
+from astromed_config import PRODUCT_NAME, TEAM_NAME, database_url as configured_database_url, demo_mode, setting
 from contracts.schemas import CrewProfile, EventPayload, LatestCrewResponse, ManualCheckPayload, RiskAssessment, TelemetryPayload
 from .crew import CREW, profile
 from .database import Base, get_db, make_engine
@@ -54,7 +54,7 @@ def filtered(db, model, crew_id, start, end, limit, event_type=None):
 
 
 def create_app(database_url=None, api_key=None):
-    engine = make_engine(database_url or os.getenv("SPACEHEALTH_DATABASE_URL", "sqlite:///./spacehealth.db"))
+    engine = make_engine(database_url or configured_database_url())
 
     @asynccontextmanager
     async def lifespan(app):
@@ -64,11 +64,12 @@ def create_app(database_url=None, api_key=None):
         finally:
             engine.dispose()
 
-    app = FastAPI(title="AstroMed API", version="2026.2", lifespan=lifespan)
+    app = FastAPI(title=f"{PRODUCT_NAME} API", description=f"Astronaut health monitoring by {TEAM_NAME}.",
+                  version="2026.2", lifespan=lifespan)
     app.state.session_factory = sessionmaker(engine, expire_on_commit=False)
-    app.state.api_key = api_key if api_key is not None else os.getenv("SPACEHEALTH_API_KEY", DEFAULT_API_KEY)
+    app.state.api_key = api_key if api_key is not None else setting("API_KEY", DEFAULT_API_KEY)
     app.state.manager = ConnectionManager()
-    origins = [x.strip() for x in os.getenv("SPACEHEALTH_CORS_ORIGINS", "*").split(",") if x.strip()]
+    origins = [x.strip() for x in setting("CORS_ORIGINS", "*").split(",") if x.strip()]
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=False,
                        allow_methods=["*"], allow_headers=["*"], expose_headers=["Date"])
 
@@ -200,8 +201,8 @@ def create_app(database_url=None, api_key=None):
 
     @app.get("/api/v1/status")
     def status():
-        return {"ok": True, "system": "AstroMed", "server_time": now_utc(),
-                "demo_mode": os.getenv("SPACEHEALTH_DEMO") == "1"}
+        return {"ok": True, "system": PRODUCT_NAME, "team": TEAM_NAME, "server_time": now_utc(),
+                "demo_mode": demo_mode()}
 
     frontend = ROOT / "frontend" / "boceto"
     if frontend.is_dir():
