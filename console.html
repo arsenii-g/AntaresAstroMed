@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="astromed-demo" content="1">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AstroMed · Team Antares · Crew Health Console</title>
+  <meta name="description" content="AstroMed by Team Antares: crew health monitoring, body sensor telemetry, daily checks and explainable risk rules.">
+  <link rel="icon" type="image/svg+xml" href="assets/antares-mark.svg">
+  <!-- Fonts: system fonts are used if there is no internet (see styles.css). -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+
+  <!-- ───────── TOP BAR ───────── -->
+  <header class="topbar">
+    <a class="brand" href="index.html" aria-label="AstroMed home">
+      <img src="assets/antares-mark.svg" width="32" height="32" alt="">
+      <span>Astro<b>Med</b></span>
+    </a>
+
+    <dl class="mission mono">
+      <div><dt>Device</dt><dd id="device">—</dd></div>
+      <div><dt>MET</dt><dd id="met">—</dd></div>
+      <div><dt>UTC</dt><dd id="utc">—</dd></div>
+    </dl>
+
+    <nav class="views" role="tablist" aria-label="View">
+      <button role="tab" data-view="monitor" aria-selected="true">Monitor</button>
+      <button role="tab" data-view="check" aria-selected="false">Daily check</button>
+    </nav>
+
+    <div class="link-pill" id="linkPill" title="Body sensor link"><i></i><span id="linkText">SENSOR</span></div>
+  </header>
+
+  <!-- Unacknowledged level 2 or 3 alert -->
+  <div class="alert" id="alert" hidden></div>
+
+  <!-- ───────── VIEW: MONITOR ───────── -->
+  <main class="monitor" id="view-monitor">
+
+    <div class="stack a-left">
+    <section class="panel">
+      <header class="ph"><h2>Crew</h2><button class="btn small" id="followStation" type="button" aria-pressed="true">Follow sensor</button><span class="mono dim" id="crewCount"></span></header>
+      <div id="roster"></div>
+    </section>
+
+    <section class="panel">
+      <header class="ph"><h2>Systems</h2><span class="mono dim" id="sysFocus">ALL</span></header>
+      <div id="systems"></div>
+    </section>
+
+    <section class="panel">
+      <header class="ph"><h2>Actions</h2></header>
+      <div class="pb"><ol class="recs" id="recs"></ol></div>
+    </section>
+
+    <section class="panel a-link">
+      <header class="ph"><h2>Body sensor</h2><span class="mono dim" id="linkState">—</span></header>
+      <canvas id="planet" aria-hidden="true"></canvas>
+      <dl class="pb kv mono" id="link"></dl>
+    </section>
+    </div>
+
+    <div class="stack a-center">
+    <section class="panel a-scan scan">
+      <header class="ph">
+        <h2><span id="scanCrew">—</span></h2>
+        <div class="scan-status">
+          <span class="mono dim" id="overallTs"></span>
+          <span class="chip big" id="overall" data-level="">No data</span>
+        </div>
+      </header>
+      <div class="holo">
+        <span class="hud tl"></span><span class="hud tr"></span><span class="hud bl"></span><span class="hud br"></span>
+        <canvas id="body" role="img" aria-label="Body scan coloured by system level. Click a region to filter its system."></canvas>
+        <p class="holo-hint mono">CLICK A REGION TO FILTER · DRAG TO ROTATE</p>
+      </div>
+    </section>
+
+    <section class="panel a-down downlink" id="downlink" hidden>
+      <header class="ph">
+        <h2><i class="blink"></i>Earth summary · ready for flight surgeon</h2>
+        <button class="btn small" id="copyEarth" type="button">Copy</button>
+      </header>
+      <pre class="pb mono" id="earth"></pre>
+    </section>
+
+    <section class="panel a-log">
+      <header class="ph">
+        <h2>Event log</h2>
+        <button class="toggle mono" id="logFilter" type="button" aria-pressed="false">Selected crew only</button>
+      </header>
+      <ol class="log" id="log"></ol>
+    </section>
+    </div>
+
+    <div class="stack a-right">
+    <section class="panel">
+      <header class="ph"><h2>Vitals</h2><span class="mono dim" id="vitalsAge">—</span></header>
+      <div class="pb vitals" id="vitals"></div>
+    </section>
+
+    <section class="panel">
+      <header class="ph">
+        <h2>Trends</h2><span class="mono dim" id="trendCount"></span>
+        <span class="mono dim trend-key" aria-hidden="true">● measured <i></i>fit<i class="dash"></i>projection<i class="th"></i>threshold</span>
+      </header>
+      <div class="pb" id="trends"></div>
+    </section>
+    </div>
+
+
+
+  </main>
+
+  <!-- ───────── VIEW: DAILY CHECK ───────── -->
+  <!-- Same visual language as the monitor: panels, HUD corners, and mono labels.
+       Colors are neutral (accent blue): nothing is assessed here, only recorded. -->
+  <main class="checkview" id="view-check" hidden>
+    <form class="check-grid" id="checkForm" novalidate>
+      <section class="panel check-main">
+        <header class="ph">
+          <h2>Daily check</h2>
+          <label class="crew-pick mono"><span class="dim">For</span><select id="checkCrew"></select></label>
+        </header>
+
+        <nav class="stepper" aria-label="Check steps">
+          <button type="button" data-goto="0"><i>01</i><span>Mood</span></button>
+          <button type="button" data-goto="1"><i>02</i><span>Blood pressure</span></button>
+          <button type="button" data-goto="2"><i>03</i><span>Glucose</span></button>
+        </nav>
+
+        <div class="check">
+          <span class="hud tl"></span><span class="hud tr"></span><span class="hud bl"></span><span class="hud br"></span>
+          <p class="mono dim step-label" id="checkStep" aria-live="polite">STEP 1 OF 3 · MOOD</p>
+
+          <fieldset data-check-step="0">
+            <legend>How are you feeling today?</legend>
+            <p class="hint">Tap a face, or press <kbd>1</kbd>–<kbd>5</kbd>. Tap it again to clear it.</p>
+            <div class="mood" id="mood" role="radiogroup" aria-label="Mood, 1 to 5"></div>
+          </fieldset>
+
+          <fieldset data-check-step="1" hidden>
+            <legend>Blood pressure</legend>
+            <p class="hint">Drag the sliders or type the numbers from the cuff. Skip it if you did not measure today.</p>
+            <div class="meters">
+              <div class="meter" data-for="sys">
+                <label for="sys">Systolic <small>upper number</small></label>
+                <div class="readout"><input type="number" id="sys" inputmode="numeric" placeholder="—"><small>mmHg</small></div>
+                <input type="range" id="sysRange" min="80" max="200" step="1" value="120" aria-label="Systolic slider">
+                <div class="scale mono"><span>80</span><span>120</span><span>160</span><span>200</span></div>
+              </div>
+              <div class="meter" data-for="dia">
+                <label for="dia">Diastolic <small>lower number</small></label>
+                <div class="readout"><input type="number" id="dia" inputmode="numeric" placeholder="—"><small>mmHg</small></div>
+                <input type="range" id="diaRange" min="40" max="130" step="1" value="80" aria-label="Diastolic slider">
+                <div class="scale mono"><span>40</span><span>70</span><span>100</span><span>130</span></div>
+              </div>
+            </div>
+            <button class="btn small skip" type="button" data-clear="sys dia">Not measured today</button>
+          </fieldset>
+
+          <fieldset data-check-step="2" hidden>
+            <legend>Fasting glucose</legend>
+            <p class="hint">Before breakfast, from the glucose meter. Skip it if you did not measure today.</p>
+            <div class="meters one">
+              <div class="meter" data-for="glu">
+                <label for="glu">Glucose <small>fasting</small></label>
+                <div class="readout"><input type="number" id="glu" inputmode="numeric" placeholder="—"><small>mg/dL</small></div>
+                <input type="range" id="gluRange" min="40" max="300" step="1" value="95" aria-label="Glucose slider">
+                <div class="scale mono"><span>40</span><span>125</span><span>210</span><span>300</span></div>
+              </div>
+            </div>
+            <button class="btn small skip" type="button" data-clear="glu">Not measured today</button>
+          </fieldset>
+
+          <div class="submit">
+            <button class="btn" type="button" id="checkBack" hidden>← Back</button>
+            <button class="btn primary" type="button" id="checkNext">Next →</button>
+            <button class="btn primary" type="submit" id="checkSubmit" hidden>Send check</button>
+            <p class="dim" id="checkMsg" role="status">Leave anything empty if you did not measure it today.</p>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel check-side">
+        <header class="ph"><h2>Your check</h2><span class="mono dim" id="checkWho">—</span></header>
+        <ul class="summary" id="checkSummary"></ul>
+        <div class="progress" aria-hidden="true"><i id="checkProgress"></i></div>
+        <p class="pb dim side-note">Your answers go to the monitor as soon as you send them. Nothing is evaluated on this screen.</p>
+      </aside>
+    </form>
+  </main>
+
+  <footer class="statusbar mono">
+    <span>AstroMed · Team Antares · NASA Space Apps 2026</span>
+    <span>Prototype · Not a medical device</span>
+  </footer>
+
+  <script type="module" src="js/demo.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
