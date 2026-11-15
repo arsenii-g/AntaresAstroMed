@@ -1,15 +1,15 @@
-// AstroMed - prueba de que todos los sensores estan conectados y funcionan
+// AstroMed - test that all the sensors are connected and working
 //
-// Subelo al UNO y abre el Monitor serie a 115200.
-//   1. Primero hace las pruebas automaticas: RTC, RC522, DHT11, termistor, LED + fotorresistencia
-//      y HC-SR04. Cada una sale como [ OK ], [AVISO] o [FALLO], con lo que hay que revisar.
-//   2. Despues pide que hagas cosas (pasar tarjeta, inclinar, pulsar...) y las va tachando.
-//   Envia "r" en el Monitor serie para repetir las pruebas automaticas.
+// Upload it to the UNO and open the Serial Monitor at 115200.
+//   1. First it runs the automatic tests: RTC, RC522, DHT11, thermistor, LED + photoresistor
+//      and HC-SR04. Each one shows as [ OK ], [WARN] or [FAIL], with what to check.
+//   2. Then it asks you to do things (scan a card, tilt, press...) and checks them off.
+//   Send "r" in the Serial Monitor to repeat the automatic tests.
 //
-// Enlace con el ESP32: si el ESP32 tiene subido esp32_gateway, en SU Monitor serie
-// deben salir estas mismas lineas con "[uno]" delante. Si salen, el cableado UNO -> ESP32 va bien.
+// ESP32 link: if the ESP32 has esp32_gateway uploaded, ITS Serial Monitor
+// should show these same lines prefixed with "[uno]". If they appear, the UNO -> ESP32 wiring is fine.
 //
-// Libreria: MFRC522 (GithubCommunity). Mismos pines que firmware/uno_sensores/config.h.
+// Library: MFRC522 (GithubCommunity). Same pins as firmware/uno_sensors/config.h.
 
 #include <SPI.h>
 #include <Wire.h>
@@ -20,7 +20,7 @@ const uint8_t PIN_PULSE_LED = 8, PIN_RFID_RST = 9, PIN_RFID_SS = 10;
 const uint8_t PIN_NTC = A0, PIN_PULSE_LDR = A1;
 const uint8_t DS1307_ADDR = 0x68;
 
-// Termistor: mismos coeficientes que termistor_test.ino
+// Thermistor: same coefficients as thermistor_test.ino
 const float NTC_R_FIXED = 10000.0, SH_A = 0.001129148, SH_B = 0.000234125, SH_C = 0.0000000876741;
 
 MFRC522 rfid(PIN_RFID_SS, PIN_RFID_RST);
@@ -29,13 +29,13 @@ uint8_t nOk, nWarn, nFail;
 
 void result(uint8_t kind, const __FlashStringHelper *name) {
   if (kind == 0) { Serial.print(F("[ OK ] ")); nOk++; }
-  else if (kind == 1) { Serial.print(F("[AVISO] ")); nWarn++; }
-  else { Serial.print(F("[FALLO] ")); nFail++; }
+  else if (kind == 1) { Serial.print(F("[WARN] ")); nWarn++; }
+  else { Serial.print(F("[FAIL] ")); nFail++; }
   Serial.print(name);
   Serial.print(F(": "));
 }
 
-// ---------------------------------------------------------------- utilidades
+// ---------------------------------------------------------------- utilities
 
 int readAnalogAvg(uint8_t pin, uint8_t n = 16) {
   long s = 0;
@@ -43,8 +43,8 @@ int readAnalogAvg(uint8_t pin, uint8_t n = 16) {
   return s / n;
 }
 
-// Un pin analogico sin nada conectado "flota": con el pull-up interno se va a 1023.
-// Si hay un divisor de resistencias, el pull-up apenas lo mueve.
+// An analog pin with nothing connected "floats": with the internal pull-up it goes to 1023.
+// If there is a resistor divider, the pull-up barely moves it.
 bool analogFloating(uint8_t pin) {
   pinMode(pin, INPUT_PULLUP);
   delay(5);
@@ -72,7 +72,7 @@ float readDistanceCm(unsigned long timeoutUs = 25000) {
 }
 
 static const uint16_t DHT_TIMEOUT = 0xFFFF;
-// Cuenta ciclos mientras el pin esta en 'level' (0 es valido). DHT_TIMEOUT = se paso del tiempo.
+// Counts cycles while the pin is at 'level' (0 is valid). DHT_TIMEOUT = timed out.
 static uint16_t dhtPulse(uint8_t level) {
   uint16_t c = 0;
   while (digitalRead(PIN_DHT) == level) {
@@ -90,7 +90,7 @@ bool readDHT11(float &t, float &h) {
   delayMicroseconds(40);
   bool ok = true;
   noInterrupts();
-  // espera a que el sensor responda (bajo ~80 us, alto ~80 us)
+  // wait for the sensor to respond (low ~80 us, high ~80 us)
   if (dhtPulse(HIGH) == DHT_TIMEOUT || dhtPulse(LOW) == DHT_TIMEOUT || dhtPulse(HIGH) == DHT_TIMEOUT) ok = false;
   for (uint8_t i = 0; ok && i < 40; i++) {
     uint16_t lo = dhtPulse(LOW), hi = dhtPulse(HIGH);
@@ -114,20 +114,20 @@ bool rtcReadSeconds(uint8_t &raw) {
   return true;
 }
 
-// ---------------------------------------------------------------- pruebas automaticas
+// ---------------------------------------------------------------- automatic tests
 
-int ledOnLevel = -1;     // luz en la LDR con el LED encendido (para la prueba del dedo)
-float ntcStart = -100;   // temperatura inicial (para la prueba de apretar el termistor)
+int ledOnLevel = -1;     // light on the LDR with the LED on (for the finger test)
+float ntcStart = -100;   // starting temperature (for the thermistor squeeze test)
 
 void testRtc() {
   uint8_t s1, s2;
   if (!rtcReadSeconds(s1)) {
     result(2, F("RTC DS1307"));
-    Serial.println(F("no responde. Revisa SDA->A4, SCL->A5, VCC->5V, GND, y que tenga pila."));
+    Serial.println(F("no response. Check SDA->A4, SCL->A5, VCC->5V, GND, and that it has a battery."));
     return;
   }
   bool wasStopped = s1 & 0x80;
-  if (wasStopped) {  // oscilador parado: arrancarlo sin tocar el resto de la hora
+  if (wasStopped) {  // oscillator stopped: start it without touching the rest of the time
     Wire.beginTransmission(DS1307_ADDR);
     Wire.write(0x00);
     Wire.write(s1 & 0x7F);
@@ -136,13 +136,13 @@ void testRtc() {
   delay(1200);
   if (!rtcReadSeconds(s2)) {
     result(2, F("RTC DS1307"));
-    Serial.println(F("responde a ratos. Revisa los cables SDA/SCL."));
+    Serial.println(F("responds intermittently. Check the SDA/SCL wires."));
   } else if ((s2 & 0x7F) == (s1 & 0x7F)) {
     result(2, F("RTC DS1307"));
-    Serial.println(F("responde pero la hora no avanza. Pon una pila CR2032 (sin pila algunos no funcionan)."));
+    Serial.println(F("responds but the time does not advance. Insert a CR2032 battery (some do not work without one)."));
   } else {
     result(0, F("RTC DS1307"));
-    Serial.println(wasStopped ? F("estaba parado, lo he arrancado y ya avanza.") : F("responde y la hora avanza."));
+    Serial.println(wasStopped ? F("was stopped, I started it and it now advances.") : F("responds and the time advances."));
   }
 }
 
@@ -152,33 +152,33 @@ void testRfid() {
   byte v = rfid.PCD_ReadRegister(MFRC522::VersionReg);
   if (v == 0x00 || v == 0xFF) {
     result(2, F("RC522"));
-    Serial.print(F("no responde (version 0x"));
+    Serial.print(F("no response (version 0x"));
     Serial.print(v, HEX);
-    Serial.println(F("). Revisa SDA->D10, SCK->D13, MOSI->D11, MISO->D12, RST->D9, 3.3V, GND."));
+    Serial.println(F(")  Check SDA->D10, SCK->D13, MOSI->D11, MISO->D12, RST->D9, 3.3V, GND."));
     return;
   }
   rfid.PCD_SetAntennaGain(rfid.RxGain_max);
 
-  // ¿Le llegan las escrituras? PCD_Init escribe estos registros del temporizador:
-  // deben valer 80 A9 03 E8 si MOSI y SCK van bien.
+  // Do the writes reach it? PCD_Init writes these timer registers:
+  // they should read 80 A9 03 E8 if MOSI and SCK are fine.
   byte r[4] = {rfid.PCD_ReadRegister(MFRC522::TModeReg), rfid.PCD_ReadRegister(MFRC522::TPrescalerReg),
                rfid.PCD_ReadRegister(MFRC522::TReloadRegH), rfid.PCD_ReadRegister(MFRC522::TReloadRegL)};
   byte tx = rfid.PCD_ReadRegister(MFRC522::TxControlReg);
-  Serial.print(F("        RC522 detalle: registros "));
+  Serial.print(F("        RC522 detail: registers "));
   for (uint8_t i = 0; i < 4; i++) { Serial.print(r[i], HEX); Serial.print(' '); }
-  Serial.print(F("(deben ser 80 A9 3 E8), antena "));
-  Serial.println((tx & 0x03) == 0x03 ? F("encendida") : F("APAGADA"));
+  Serial.print(F("(should be 80 A9 3 E8), antenna "));
+  Serial.println((tx & 0x03) == 0x03 ? F("on") : F("OFF"));
   if (r[0] != 0x80 || r[1] != 0xA9 || r[2] != 0x03 || r[3] != 0xE8) {
     result(2, F("RC522"));
-    Serial.println(F("lee pero las escrituras no llegan bien: revisa MOSI->D11 y SCK->D13 (y sus soldaduras)."));
+    Serial.println(F("reads but writes do not arrive correctly: check MOSI->D11 and SCK->D13 (and their solder joints)."));
     return;
   }
 
   bool known = v == 0x88 || v == 0x90 || v == 0x91 || v == 0x92 || v == 0xB2;
   result(known ? 0 : 1, F("RC522"));
-  Serial.print(F("responde, version 0x"));
+  Serial.print(F("responds, version 0x"));
   Serial.print(v, HEX);
-  Serial.println(known ? F(". Falta pasar una tarjeta (abajo).") : F(" (clon, suele funcionar). Falta pasar una tarjeta (abajo)."));
+  Serial.println(known ? F(". Still need to scan a card (below).") : F(" (clone, usually works). Still need to scan a card (below)."));
 }
 
 void testDht() {
@@ -189,11 +189,11 @@ void testDht() {
     if (!ok) delay(1200);
   }
   if (!ok) {
-    // Diagnostico: nivel en reposo y si el sensor contesta a la senal de inicio
+    // Diagnostics: idle level and whether the sensor answers the start signal
     pinMode(PIN_DHT, INPUT);
     delay(5);
     int idle = digitalRead(PIN_DHT);
-    // ¿Hay algo en D4? Lo bajo un instante y miro si vuelve solo a 5 V (resistencia del modulo)
+    // Is anything on D4? Pull it low briefly and check whether it returns to 5 V by itself (module resistor)
     pinMode(PIN_DHT, OUTPUT);
     digitalWrite(PIN_DHT, LOW);
     delayMicroseconds(50);
@@ -212,15 +212,15 @@ void testDht() {
     }
     result(2, F("DHT11"));
     if (idle == LOW) {
-      Serial.println(F("D4 esta a 0 V en reposo: DATA toca GND, o el sensor esta girado (mira la serigrafia S / + / -)."));
+      Serial.println(F("D4 is at 0 V at idle: DATA touches GND, or the sensor is reversed (check the S / + / - silkscreen)."));
     } else if (!answered && !hasPullup) {
-      Serial.println(F("D4 no llega a ningun modulo: el cable de S/DATA no esta en D4 o no hace contacto."));
-      Serial.println(F("        (Si es el sensor azul suelto de 4 patas, le falta la resistencia de 10k entre DATA y 5V.)"));
+      Serial.println(F("D4 does not reach any module: the S/DATA wire is not on D4 or is not making contact."));
+      Serial.println(F("        (If it is the loose blue 4-pin sensor, it is missing the 10k resistor between DATA and 5V.)"));
     } else if (!answered) {
-      Serial.println(F("D4 si llega al modulo, pero el sensor no contesta: revisa + -> 5V y - -> GND (alimentacion)."));
-      Serial.println(F("        Si estan bien, el sensor puede estar roto o ser otro modelo (el DHT22 es blanco)."));
+      Serial.println(F("D4 does reach the module, but the sensor does not answer: check + -> 5V and - -> GND (power)."));
+      Serial.println(F("        If those are fine, the sensor may be broken or a different model (the DHT22 is white)."));
     } else {
-      Serial.println(F("contesta pero los datos llegan mal: cable flojo o largo. Sensor suelto de 4 patas: 10k entre DATA y 5V."));
+      Serial.println(F("answers but the data arrives corrupted: loose or long wire. Loose 4-pin sensor: 10k between DATA and 5V."));
     }
     return;
   }
@@ -229,37 +229,37 @@ void testDht() {
   Serial.print(t, 1);
   Serial.print(F(" C, "));
   Serial.print(h, 0);
-  Serial.println(plausible ? F(" % de humedad.") : F(" %. Valores raros, revisa el sensor."));
+  Serial.println(plausible ? F(" % humidity.") : F(" %. Odd values, check the sensor."));
 }
 
 void testNtc() {
   if (analogFloating(PIN_NTC)) {
-    result(2, F("Termistor (A0)"));
-    Serial.println(F("A0 no tiene nada conectado. Monta 5V -> termistor -> A0 -> 10k -> GND."));
+    result(2, F("Thermistor (A0)"));
+    Serial.println(F("A0 has nothing connected. Wire 5V -> thermistor -> A0 -> 10k -> GND."));
     return;
   }
   int adc = readAnalogAvg(PIN_NTC);
   if (adc < 5) {
-    result(2, F("Termistor (A0)"));
-    Serial.println(F("A0 casi a 0 V: el termistor no llega a 5V o esta suelto."));
+    result(2, F("Thermistor (A0)"));
+    Serial.println(F("A0 near 0 V: the thermistor is not reaching 5V or is loose."));
   } else if (adc > 1018) {
-    result(2, F("Termistor (A0)"));
-    Serial.println(F("A0 casi a 5 V: la resistencia de 10k no llega a GND."));
+    result(2, F("Thermistor (A0)"));
+    Serial.println(F("A0 near 5 V: the 10k resistor is not reaching GND."));
   } else {
     float t = ntcCelsius(adc);
     ntcStart = t;
     bool plausible = t > 5 && t < 45;
-    result(plausible ? 0 : 1, F("Termistor (A0)"));
+    result(plausible ? 0 : 1, F("Thermistor (A0)"));
     Serial.print(t, 1);
-    Serial.println(plausible ? F(" C. Falta apretarlo con los dedos (abajo).")
-                             : F(" C, valor raro: revisa que la resistencia sea de 10k."));
+    Serial.println(plausible ? F(" C. Still need to squeeze it with your fingers (below).")
+                             : F(" C, odd value: check that the resistor is 10k."));
   }
 }
 
 void testPulseLedLdr() {
   if (analogFloating(PIN_PULSE_LDR)) {
-    result(2, F("Fotorresistencia del pulso (A1)"));
-    Serial.println(F("A1 no tiene nada conectado. Monta 5V -> fotorresistencia -> A1 -> 10k -> GND."));
+    result(2, F("Pulse photoresistor (A1)"));
+    Serial.println(F("A1 has nothing connected. Wire 5V -> photoresistor -> A1 -> 10k -> GND."));
     digitalWrite(PIN_PULSE_LED, HIGH);
     return;
   }
@@ -276,26 +276,26 @@ void testPulseLedLdr() {
   on /= 3;
   ledOnLevel = on;
   if (on < 5 && off < 5) {
-    result(2, F("Fotorresistencia del pulso (A1)"));
-    Serial.println(F("A1 siempre a 0 V: la fotorresistencia no llega a 5V."));
+    result(2, F("Pulse photoresistor (A1)"));
+    Serial.println(F("A1 always at 0 V: the photoresistor is not reaching 5V."));
   } else if (on > 1018 && off > 1018) {
-    result(2, F("Fotorresistencia del pulso (A1)"));
-    Serial.println(F("A1 siempre a 5 V: la resistencia de 10k no llega a GND."));
+    result(2, F("Pulse photoresistor (A1)"));
+    Serial.println(F("A1 always at 5 V: the 10k resistor is not reaching GND."));
   } else if (on - off > 15) {
-    result(0, F("LED + fotorresistencia del pulso"));
-    Serial.print(F("la luz pasa de "));
+    result(0, F("Pulse LED + photoresistor"));
+    Serial.print(F("light goes from "));
     Serial.print(off);
-    Serial.print(F(" (LED apagado) a "));
+    Serial.print(F(" (LED off) to "));
     Serial.print(on);
-    Serial.println(F(" (encendido). Falta poner el dedo (abajo)."));
+    Serial.println(F(" (on). Still need to place a finger (below)."));
   } else {
-    result(1, F("LED + fotorresistencia del pulso"));
-    Serial.print(F("no se nota el LED ("));
+    result(1, F("Pulse LED + photoresistor"));
+    Serial.print(F("LED not noticeable ("));
     Serial.print(off);
     Serial.print(F(" -> "));
     Serial.print(on);
-    Serial.println(F("). Quita el dedo, pon el LED mirando a la fotorresistencia, y revisa:"));
-    Serial.println(F("        D8 -> 220 ohm -> pata LARGA del LED, pata corta -> GND. Mira si el LED se enciende."));
+    Serial.println(F("). Remove your finger, point the LED at the photoresistor, and check:"));
+    Serial.println(F("        D8 -> 220 ohm -> LONG LED leg, short leg -> GND. See if the LED lights up."));
   }
 }
 
@@ -309,18 +309,18 @@ void testUltrasonic() {
   if (best > 0) {
     result(0, F("HC-SR04"));
     Serial.print(best, 1);
-    Serial.println(F(" cm. Falta subir y bajar la mano (abajo)."));
+    Serial.println(F(" cm. Still need to move your hand up and down (below)."));
   } else {
     result(1, F("HC-SR04"));
-    Serial.println(F("sin eco. Pon la mano a 20 cm delante; si sigue igual, revisa TRIG->D5, ECHO->D6, VCC->5V."));
+    Serial.println(F("no echo. Put your hand 20 cm in front; if nothing changes, check TRIG->D5, ECHO->D6, VCC->5V."));
   }
 }
 
 void runAutoTests() {
   nOk = nWarn = nFail = 0;
   Serial.println();
-  Serial.println(F("=========== PRUEBA DE SENSORES AstroMed ==========="));
-  Serial.println(F("Quita el dedo del LED y no toques nada durante 10 s..."));
+  Serial.println(F("=========== AstroMed SENSOR TEST ==========="));
+  Serial.println(F("Take your finger off the LED and do not touch anything for 10 s..."));
   Serial.println();
   testRtc();
   testRfid();
@@ -329,26 +329,26 @@ void runAutoTests() {
   testPulseLedLdr();
   testUltrasonic();
   Serial.println();
-  Serial.print(F("Automaticas: "));
+  Serial.print(F("Automatic: "));
   Serial.print(nOk);
   Serial.print(F(" OK, "));
   Serial.print(nWarn);
-  Serial.print(F(" avisos, "));
+  Serial.print(F(" warnings, "));
   Serial.print(nFail);
-  Serial.println(F(" fallos."));
+  Serial.println(F(" failures."));
   Serial.println();
-  Serial.println(F("--- Ahora haz esto (se van tachando): ---"));
-  Serial.println(F("  1. Pasa una tarjeta por el RC522"));
-  Serial.println(F("  2. Inclina o agita el interruptor de inclinacion"));
-  Serial.println(F("  3. Pulsa el pulsador (si lo has puesto)"));
-  Serial.println(F("  4. Baja la mano a menos de 15 cm del HC-SR04 y subela a mas de 28 cm"));
-  Serial.println(F("  5. Aprieta el termistor con los dedos (debe subir 1 C)"));
-  Serial.println(F("  6. Pon el dedo entre el LED y la fotorresistencia (la luz debe bajar)"));
-  Serial.println(F("Envia 'r' para repetir las pruebas automaticas."));
+  Serial.println(F("--- Now do this (they get checked off): ---"));
+  Serial.println(F("  1. Scan a card on the RC522"));
+  Serial.println(F("  2. Tilt or shake the tilt switch"));
+  Serial.println(F("  3. Press the button (if you installed it)"));
+  Serial.println(F("  4. Lower your hand to under 15 cm from the HC-SR04 and raise it above 28 cm"));
+  Serial.println(F("  5. Squeeze the thermistor with your fingers (it should rise 1 C)"));
+  Serial.println(F("  6. Put your finger between the LED and the photoresistor (the light should drop)"));
+  Serial.println(F("Send 'r' to repeat the automatic tests."));
   Serial.println();
 }
 
-// ---------------------------------------------------------------- pruebas con interaccion
+// ---------------------------------------------------------------- interactive tests
 
 bool doneCard, doneTilt, doneButton, doneUsLow, doneUsHigh, doneNtc, doneFinger, allDoneShown;
 int lastTilt, lastButton;
@@ -380,36 +380,36 @@ void checkCard() {
   uid[2 * n] = '\0';
   rfid.PICC_HaltA();
   rfid.PCD_StopCrypto1();
-  Serial.print(F("[ OK ] Tarjeta leida: "));
+  Serial.print(F("[ OK ] Card read: "));
   Serial.print(uid);
-  if (strcmp(uid, "F3786E09") == 0) Serial.println(F(" (Tripulante 1)"));
-  else if (strcmp(uid, "336F8312") == 0) Serial.println(F(" (Tripulante 2)"));
-  else Serial.println(F(" (no registrada en el documento)"));
+  if (strcmp(uid, "F3786E09") == 0) Serial.println(F(" (Crew member 1)"));
+  else if (strcmp(uid, "336F8312") == 0) Serial.println(F(" (Crew member 2)"));
+  else Serial.println(F(" (not registered in the doc)"));
   doneCard = true;
 }
 
 void printStatus() {
   int ntcAdc = readAnalogAvg(PIN_NTC, 8);
   int light = readAnalogAvg(PIN_PULSE_LDR, 8);
-  Serial.print(F("  ahora: dist="));
-  if (lastDist < 0) Serial.print(F("sin eco"));
+  Serial.print(F("  now: dist="));
+  if (lastDist < 0) Serial.print(F("no echo"));
   else { Serial.print(lastDist, 1); Serial.print(F("cm")); }
-  Serial.print(F(" incl="));
+  Serial.print(F(" tilt="));
   Serial.print(digitalRead(PIN_TILT));
-  Serial.print(F(" pulsador="));
-  Serial.print(digitalRead(PIN_BUTTON) == LOW ? F("pulsado") : F("suelto"));
-  Serial.print(F(" termistor="));
+  Serial.print(F(" button="));
+  Serial.print(digitalRead(PIN_BUTTON) == LOW ? F("pressed") : F("released"));
+  Serial.print(F(" thermistor="));
   if (ntcAdc > 5 && ntcAdc < 1018) { Serial.print(ntcCelsius(ntcAdc), 1); Serial.print(F("C")); }
   else Serial.print(F("?"));
-  Serial.print(F(" luz_pulso="));
+  Serial.print(F(" pulse_light="));
   Serial.print(light);
-  Serial.print(F("  | falta:"));
-  if (!doneCard) Serial.print(F(" tarjeta"));
-  if (!doneTilt) Serial.print(F(" inclinacion"));
-  if (!doneButton) Serial.print(F(" pulsador"));
-  if (!doneUsLow || !doneUsHigh) Serial.print(F(" mano-HC-SR04"));
-  if (!doneNtc) Serial.print(F(" apretar-termistor"));
-  if (!doneFinger) Serial.print(F(" dedo-pulso"));
+  Serial.print(F("  | missing:"));
+  if (!doneCard) Serial.print(F(" card"));
+  if (!doneTilt) Serial.print(F(" tilt"));
+  if (!doneButton) Serial.print(F(" button"));
+  if (!doneUsLow || !doneUsHigh) Serial.print(F(" hand-HC-SR04"));
+  if (!doneNtc) Serial.print(F(" squeeze-thermistor"));
+  if (!doneFinger) Serial.print(F(" pulse-finger"));
   Serial.println();
 }
 
@@ -424,9 +424,9 @@ void setup() {
   pinMode(PIN_PULSE_LED, OUTPUT);
   digitalWrite(PIN_PULSE_LED, HIGH);
   Wire.begin();
-  Wire.setWireTimeout(25000, true);   // que no se cuelgue si SDA/SCL estan mal
+  Wire.setWireTimeout(25000, true);   // so it does not hang if SDA/SCL are wrong
   SPI.begin();
-  delay(1000);                        // el DHT11 necesita 1 s tras encenderse
+  delay(1000);                        // the DHT11 needs 1 s after power-up
   runAutoTests();
   resetInteractive();
 }
@@ -442,38 +442,38 @@ void loop() {
   if ((int32_t)(now - nextCardPoll) >= 0) { nextCardPoll = now + 100; checkCard(); }
 
   int t = digitalRead(PIN_TILT);
-  if (t != lastTilt) { lastTilt = t; mark(doneTilt, F("Interruptor de inclinacion: cambia al moverlo.")); }
+  if (t != lastTilt) { lastTilt = t; mark(doneTilt, F("Tilt switch: changes when moved.")); }
 
   int b = digitalRead(PIN_BUTTON);
   if (b != lastButton) {
     lastButton = b;
-    if (b == LOW) mark(doneButton, F("Pulsador: detectado."));
+    if (b == LOW) mark(doneButton, F("Button: detected."));
   }
 
   if ((int32_t)(now - nextUs) >= 0) {
     nextUs = now + 80;
     lastDist = readDistanceCm(7000);
-    if (lastDist > 0 && lastDist < 15) mark(doneUsLow, F("HC-SR04: mano cerca (< 15 cm)."));
-    if (doneUsLow && (lastDist < 0 || lastDist > 28)) mark(doneUsHigh, F("HC-SR04: mano lejos (> 28 cm). Contara flexiones bien."));
+    if (lastDist > 0 && lastDist < 15) mark(doneUsLow, F("HC-SR04: hand close (< 15 cm)."));
+    if (doneUsLow && (lastDist < 0 || lastDist > 28)) mark(doneUsHigh, F("HC-SR04: hand far (> 28 cm). It will count push-ups correctly."));
   }
 
   if ((int32_t)(now - nextStatus) >= 0) {
     nextStatus = now + 2000;
     int ntcAdc = readAnalogAvg(PIN_NTC, 8);
     if (ntcStart > -100 && ntcAdc > 5 && ntcAdc < 1018 && ntcCelsius(ntcAdc) > ntcStart + 1.0)
-      mark(doneNtc, F("Termistor: sube al apretarlo."));
+      mark(doneNtc, F("Thermistor: rises when squeezed."));
     int light = readAnalogAvg(PIN_PULSE_LDR, 8);
     if (ledOnLevel > 50 && light < ledOnLevel * 0.8)
-      mark(doneFinger, F("Pulso: la luz baja al poner el dedo."));
+      mark(doneFinger, F("Pulse: the light drops when a finger is placed."));
     printStatus();
   }
 
   if (!allDoneShown && doneCard && doneTilt && doneButton && doneUsLow && doneUsHigh && doneNtc && doneFinger) {
     allDoneShown = true;
     Serial.println();
-    if (nFail == 0) Serial.println(F("=========== TODO CONECTADO Y FUNCIONANDO ==========="));
-    else Serial.println(F("=== Las pruebas con la mano van bien, pero arriba hay FALLOS que revisar ==="));
-    Serial.println(F("Ya puedes subir firmware/uno_sensores (con PRUEBA_RFID_US a 0)."));
+    if (nFail == 0) Serial.println(F("=========== EVERYTHING CONNECTED AND WORKING ==========="));
+    else Serial.println(F("=== The hands-on tests pass, but there are FAILURES above to check ==="));
+    Serial.println(F("You can now upload firmware/uno_sensors (with TEST_RFID_US set to 0)."));
     Serial.println();
   }
 }

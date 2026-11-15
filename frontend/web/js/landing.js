@@ -1,4 +1,4 @@
-// Portada: planeta de fondo y aparición al hacer scroll.
+// Landing page: background planet and reveal on scroll.
 
 import { createPlanet, PALETTES } from "./planet.js";
 
@@ -6,12 +6,12 @@ const $ = (id) => document.getElementById(id);
 
 createPlanet($("planet"), { palette: PALETTES.antares });
 
-// Barra de navegación con fondo al bajar
+// Navigation bar gets a background on scroll
 const onScroll = () => $("nav").classList.toggle("scrolled", window.scrollY > 30);
 window.addEventListener("scroll", onScroll, { passive: true }); onScroll();
 
 
-// Aparición al entrar en pantalla, escalonada entre hermanos
+// Reveal on entering the viewport, staggered among siblings
 const io = new IntersectionObserver((entries) => {
   for (const e of entries) if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
 }, { threshold: 0.12 });
@@ -21,7 +21,7 @@ document.querySelectorAll(".reveal").forEach((el) => {
   io.observe(el);
 });
 
-// Brillo de las tarjetas que sigue al ratón
+// Card glow that follows the mouse
 document.addEventListener("pointermove", (e) => {
   const card = e.target.closest?.(".card");
   if (!card) return;

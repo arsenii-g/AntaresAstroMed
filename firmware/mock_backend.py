@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Backend de prueba para el ESP32: imprime lo que llega y responde {"ok": true}.
+"""Test backend for the ESP32: prints what arrives and replies {"ok": true}.
 
-    python3 mock_backend.py            # escucha en 0.0.0.0:8000
+    python3 mock_backend.py            # listens on 0.0.0.0:8000
 
-En firmware/esp32_gateway/config.h pon API_BASE = "http://<IP de este PC>:8000"
-y API_KEY = "cambia-esta-clave" (o cambia la de abajo).
+In firmware/esp32_gateway/config.h set API_BASE = "http://<this PC's IP>:8000"
+and API_KEY = "change-this-key" (or change the one below).
 """
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-API_KEY = "cambia-esta-clave"
+API_KEY = "change-this-key"
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -21,7 +21,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    def do_GET(self):  # el ESP32 lo usa para sacar la hora si no hay NTP
+    def do_GET(self):  # the ESP32 uses this to get the time when there is no NTP
         self._reply(200, {"ok": True})
 
     def do_POST(self):
@@ -40,5 +40,5 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    print("Backend de prueba en http://0.0.0.0:8000")
+    print("Test backend on http://0.0.0.0:8000")
     ThreadingHTTPServer(("0.0.0.0", 8000), Handler).serve_forever()

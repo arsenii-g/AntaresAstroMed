@@ -1,7 +1,7 @@
 (export
 	(version "E")
 	(design
-		(source "/tmp/claude-1000/-home-therin-Documents-nasa-hackathon/3a33381c-106c-427b-adc9-5eeb013a7448/scratchpad/am/astromed/astromed.kicad_sch")
+		(source "astromed.kicad_sch")
 		(date "2026-11-14T21:49:44")
 		(tool "Eeschema 10.0.8")
 		(sheet

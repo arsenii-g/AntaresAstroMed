@@ -1,8 +1,8 @@
-"""Contramedida para cada código de umbral superado, en inglés.
+"""Countermeasure for each exceeded threshold code, in English.
 
-Los textos son criterio propio. Las acciones por nivel (avisar al oficial
-médico en nivel 2, contactar con Tierra en nivel 3) salen de la guía del
-equipo, sección 5.
+The texts are team criterion. The per-level actions (notify the medical
+officer at level 2, contact Earth at level 3) come from the team guide,
+section 5.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ LEVEL_ACTIONS = {
 
 
 def recommendations_for(results: list[IndicatorResult]) -> list[str]:
-    """Una contramedida por cada ámbar o peor, sin repetir, de la más grave a la menos."""
+    """One countermeasure for each amber or worse result, without repeats, from most to least severe."""
     flagged = sorted((r for r in results if r.level), key=lambda r: -r.level)
     out: list[str] = []
     worst = flagged[0].level if flagged else 0
@@ -52,9 +52,9 @@ def recommendations_for(results: list[IndicatorResult]) -> list[str]:
 
 
 def trend_recommendations(trends, results: list[IndicatorResult]) -> list[str]:
-    """Aviso por cada tendencia que cruzará un umbral dentro de su horizonte,
-    salvo que el indicador ya esté hoy en ese nivel o peor (criterio propio).
-    Primero las del sensor (segundos), luego las de chequeos y series."""
+    """A warning for each trend that will cross a threshold within its horizon,
+    unless the indicator is already at that level or worse today (team
+    criterion). Sensor trends (seconds) come first, then checks and sets."""
     today = {r.indicator: r.level or 0 for r in results}
     today["pushup_reps"] = today.get("pushup_drop_pct", 0)
     out = []

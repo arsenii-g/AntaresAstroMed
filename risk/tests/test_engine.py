@@ -17,7 +17,7 @@ def load(name: str) -> dict:
 
 
 def telemetry(**changes) -> dict:
-    """Telemetría de ejemplo con campos cambiados: telemetry(vitals={"heart_rate_bpm": 125})."""
+    """Example telemetry with changed fields: telemetry(vitals={"heart_rate_bpm": 125})."""
     msg = copy.deepcopy(load("telemetry.example.json"))
     for block, values in changes.items():
         if isinstance(values, dict):
@@ -41,9 +41,9 @@ def pushups(reps: int, minutes_ago: int) -> dict:
     return ev
 
 
-# --- forma del contrato ----------------------------------------------------------
+# --- contract shape ----------------------------------------------------------
 
-def test_devuelve_la_forma_del_contrato():
+def test_returns_the_contract_shape():
     result = evaluate([load("telemetry.example.json")], [], [load("check.example.json")], NOW)
 
     assert result["crew_id"] == "F3786E09"
@@ -56,7 +56,7 @@ def test_devuelve_la_forma_del_contrato():
     assert isinstance(result["recommendations"], list)
 
 
-def test_ejemplos_del_contrato_salen_en_verde():
+def test_contract_examples_come_out_green():
     result = evaluate([load("telemetry.example.json")], [], [load("check.example.json")], NOW)
     assert result["overall_level"] == 0
     assert result["recommendations"] == []
@@ -64,7 +64,7 @@ def test_ejemplos_del_contrato_salen_en_verde():
         assert result["systems"][name] == {"level": 0, "reasons": []}
 
 
-def test_sin_datos_no_es_verde():
+def test_no_data_is_not_green():
     result = evaluate([], [], [], NOW)
     assert result["crew_id"] is None
     assert result["overall_level"] is None
@@ -72,7 +72,7 @@ def test_sin_datos_no_es_verde():
     assert "Heart rate: no data" in result["systems"]["cardiovascular"]["reasons"]
 
 
-def test_telemetria_sin_datos_del_contrato():
+def test_contract_telemetry_without_data():
     msg = load("telemetry-no-data.example.json")
     msg["ts"] = "2026-11-14T10:30:00Z"
     result = evaluate([msg], [], [], NOW)
@@ -81,9 +81,9 @@ def test_telemetria_sin_datos_del_contrato():
     assert "Cabin humidity: no data" in env["reasons"]
 
 
-# --- niveles ------------------------------------------------------------------------
+# --- levels ------------------------------------------------------------------------
 
-def test_pulso_alto_es_ambar_y_explica_por_que():
+def test_high_pulse_is_amber_and_explains_why():
     result = evaluate([telemetry(vitals={"heart_rate_bpm": 118})], [], [check()], NOW)
     cardio = result["systems"]["cardiovascular"]
     assert cardio["level"] == 1
@@ -92,7 +92,7 @@ def test_pulso_alto_es_ambar_y_explica_por_que():
     assert result["recommendations"] == ["Seated rest for 10 minutes, then repeat the heart rate reading"]
 
 
-def test_el_sistema_toma_el_peor_indicador():
+def test_system_takes_the_worst_indicator():
     msgs = hr_series(118, 118, 118)
     for m in msgs:
         m["vitals"]["body_temp_c"] = 38.3
@@ -101,14 +101,14 @@ def test_el_sistema_toma_el_peor_indicador():
     assert cardio["reasons"][0].startswith("Body temperature 38.3")
 
 
-def test_nivel_2_avisa_al_oficial_medico():
+def test_level_2_notifies_the_medical_officer():
     result = evaluate([telemetry(cabin={"humidity_pct": 80})], [], [check()], NOW)
     assert result["systems"]["environment"]["level"] == 2
     assert result["recommendations"][0] == "Notify the crew medical officer"
 
 
 def hr_series(*values, start=NOW - timedelta(seconds=5 * 10), activity="still"):
-    """Telemetría cada 5 s con estos pulsos; la última llega en `start + 5·(n-1)`."""
+    """Telemetry every 5 s with these pulses; the last one arrives at `start + 5*(n-1)`."""
     msgs = []
     for i, hr in enumerate(values):
         m = telemetry(vitals={"heart_rate_bpm": hr})
@@ -118,108 +118,108 @@ def hr_series(*values, start=NOW - timedelta(seconds=5 * 10), activity="still"):
     return msgs
 
 
-def test_usa_el_ultimo_dato_valido():
+def test_uses_the_last_valid_reading():
     *older, last = hr_series(130, 130, 130, None)
-    result = evaluate([last] + older[::-1], [], [check()], NOW)   # desordenados a propósito
+    result = evaluate([last] + older[::-1], [], [check()], NOW)   # deliberately out of order
     assert result["systems"]["cardiovascular"]["level"] == 2
 
 
-def test_pulso_alto_suelto_no_escala_hasta_que_se_sostiene():
+def test_isolated_high_pulse_does_not_escalate_until_sustained():
     cardio = lambda msgs: evaluate(msgs, [], [check()], NOW)["systems"]["cardiovascular"]
     one = cardio(hr_series(155))
     assert one["level"] == 1 and "not sustained yet: 1 of 3 readings" in one["reasons"][0]
-    spike = cardio(hr_series(80, 80, 190))                   # un pico: ámbar, nunca verde
+    spike = cardio(hr_series(80, 80, 190))                   # a spike: amber, never green
     assert spike["level"] == 1 and "not sustained yet: 1 of 3 readings" in spike["reasons"][0]
-    noisy = cardio(hr_series(160, 160, 95))                  # un fallo bajo no esconde un 160
+    noisy = cardio(hr_series(160, 160, 95))                  # a low glitch does not hide a 160
     assert noisy["level"] == 1 and "2 of 3" in noisy["reasons"][0]
     assert cardio(hr_series(80, 80, 80))["level"] == 0
-    flipped = cardio(hr_series(190, 40, 190))                # alto y bajo mezclados
+    flipped = cardio(hr_series(190, 40, 190))                # high and low mixed
     assert flipped["level"] == 1 and "check the sensor" in flipped["reasons"][0]
     assert "above" in flipped["reasons"][0]
     sustained = cardio(hr_series(155, 156, 158))
     assert sustained["level"] == 3 and "sustained over 3 readings" in sustained["reasons"][0]
-    mixed = cardio(hr_series(155, 125, 158))                 # la menos grave manda
+    mixed = cardio(hr_series(155, 125, 158))                 # the least severe one wins
     assert mixed["level"] == 2
 
 
-def test_pulso_alto_tras_flexiones_o_en_movimiento_baja_un_nivel():
+def test_high_pulse_after_push_ups_or_while_moving_drops_one_level():
     cardio = lambda msgs, ev=(): evaluate(msgs, list(ev), [check()], NOW)["systems"]["cardiovascular"]
     moving = cardio(hr_series(125, 126, 128, activity="moving"))
     assert moving["level"] == 1 and "after exercise; recheck at rest" in moving["reasons"][0]
-    assert cardio(hr_series(155, 156, 158, activity="moving"))["level"] == 3   # el rojo no se rebaja
+    assert cardio(hr_series(155, 156, 158, activity="moving"))["level"] == 3   # red is not downgraded
     set_now = copy.deepcopy(load("event.example.json"))
     set_now["ts"] = (NOW - timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
     assert cardio(hr_series(125, 126, 128), [set_now])["level"] == 1
     set_old = copy.deepcopy(set_now)
     set_old["ts"] = (NOW - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
     assert cardio(hr_series(125, 126, 128), [set_old])["level"] == 2
-    low = cardio(hr_series(42, 42, 42, activity="moving"))  # el pulso bajo no se perdona
+    low = cardio(hr_series(42, 42, 42, activity="moving"))  # a low pulse is not forgiven
     assert low["level"] == 2
 
 
-def test_telemetria_vieja_es_sin_dato():
+def test_old_telemetry_is_no_data():
     stale = telemetry(vitals={"heart_rate_bpm": 130})
     stale["ts"] = "2026-11-14T10:20:00Z"
     cardio = evaluate([stale], [], [check()], NOW)["systems"]["cardiovascular"]
     assert "Heart rate: no data" in cardio["reasons"]
 
 
-def test_condensacion_por_margen_sobre_rocio():
+def test_condensation_by_margin_above_dew_point():
     msg = telemetry(cabin={"temp_c": 20.0, "dew_point_c": 18.5})
     env = evaluate([msg], [], [check()], NOW)["systems"]["environment"]
     assert env["level"] == 2
     assert any(r.startswith("Margin above dew point 1.5") for r in env["reasons"])
 
 
-# --- chequeo manual -------------------------------------------------------------------
+# --- manual check -------------------------------------------------------------------
 
-def test_tension_alta_una_sola_vez_se_queda_en_ambar():
+def test_high_blood_pressure_once_stays_amber():
     c = check(blood_pressure={"systolic": 145, "diastolic": 85})
     cardio = evaluate([telemetry()], [], [c], NOW)["systems"]["cardiovascular"]
     assert cardio["level"] == 1
     assert "confirm with a second one" in cardio["reasons"][0]
 
 
-def test_tension_alta_dos_veces_es_naranja():
+def test_high_blood_pressure_twice_is_orange():
     first = check("2026-11-14T07:55:00Z", blood_pressure={"systolic": 145, "diastolic": 85})
     second = check(blood_pressure={"systolic": 142, "diastolic": 85})
     cardio = evaluate([telemetry()], [], [first, second], NOW)["systems"]["cardiovascular"]
     assert cardio["level"] == 2
 
 
-def test_tension_muy_alta_es_roja_con_una_medida():
+def test_very_high_blood_pressure_is_red_with_one_reading():
     c = check(blood_pressure={"systolic": 185, "diastolic": 100})
     result = evaluate([telemetry()], [], [c], NOW)
     assert result["systems"]["cardiovascular"]["level"] == 3
     assert result["recommendations"][0] == "Contact the medical team on Earth"
 
 
-def test_animo_bajo_sube_neuro():
+def test_low_mood_raises_neuro():
     neuro = evaluate([telemetry()], [], [check(mood=1)], NOW)["systems"]["neuro"]
     assert neuro["level"] == 2
 
 
-# --- flexiones ------------------------------------------------------------------------
+# --- push-ups ------------------------------------------------------------------------
 
-def test_flexiones_sin_basal_no_se_evaluan():
+def test_push_ups_without_baseline_are_not_evaluated():
     musc = evaluate([telemetry()], [pushups(12, 5)], [check()], NOW)["systems"]["musculoskeletal"]
     assert not any("Push-up" in r for r in musc["reasons"])
 
 
-def test_caida_de_flexiones_bajo_el_80_por_ciento_es_naranja():
-    events = [pushups(20, 60 * 24), pushups(20, 60 * 12), pushups(14, 5)]   # 30 % menos
+def test_push_up_drop_below_80_percent_is_orange():
+    events = [pushups(20, 60 * 24), pushups(20, 60 * 12), pushups(14, 5)]   # 30 % fewer
     musc = evaluate([telemetry()], events, [check()], NOW)["systems"]["musculoskeletal"]
     assert musc["level"] == 2
     assert musc["reasons"][0].startswith("Push-up drop vs. own average 30%")
 
 
-def test_nunca_lanza_excepciones_con_basura():
+def test_never_raises_with_garbage():
     junk = [{}, {"ts": "no es fecha"}, {"ts": "2026-11-14T10:30:00Z", "vitals": None, "cabin": None}]
     result = evaluate(junk, junk, junk, NOW)
     assert set(result["systems"]) == SYSTEMS
 
 
-def test_mismas_claves_que_el_ejemplo_del_contrato():
+def test_same_keys_as_the_contract_example():
     example = load("assessment.example.json")
     result = evaluate([load("telemetry.example.json")], [], [load("check.example.json")], NOW)
     assert set(result) == set(example)
@@ -229,34 +229,34 @@ def test_mismas_claves_que_el_ejemplo_del_contrato():
     }
 
 
-def test_temperatura_baja_suelta_no_da_rojo():
+def test_isolated_low_temperature_is_not_red():
     def temps(*values):
         msgs = hr_series(*[75] * len(values))
         for m, t in zip(msgs, values):
             m["vitals"]["body_temp_c"] = t
         return evaluate(msgs, [], [check()], NOW)
-    loose = temps(36.6, 36.7, 34.8)                     # termistor medio suelto
+    loose = temps(36.6, 36.7, 34.8)                     # half-loose thermistor
     assert loose["systems"]["cardiovascular"]["level"] == 1 and loose["earth_summary"] is None
-    cold = temps(34.8, 34.7, 34.6)                      # muñeca fría: como mucho ámbar
+    cold = temps(34.8, 34.7, 34.6)                      # cold wrist: amber at most
     cardio = cold["systems"]["cardiovascular"]
     assert cardio["level"] == 1 and cold["earth_summary"] is None
     assert cardio["reasons"][0] == "Body temperature 34.6 °C, below 36 °C (wrist reading; confirm with a thermometer)"
-    fever = temps(39.6, 39.7, 39.8)                     # la fiebre sí llega a rojo
+    fever = temps(39.6, 39.7, 39.8)                     # fever does reach red
     assert fever["systems"]["cardiovascular"]["level"] == 3
 
 
-def test_duplicados_cuentan_una_vez():
+def test_duplicates_count_once():
     msg = hr_series(155)[0]
     msg["device_id"] = "esp32-01"
     cardio = evaluate([msg, copy.deepcopy(msg), copy.deepcopy(msg)], [], [check()], NOW)["systems"]["cardiovascular"]
-    assert cardio["level"] == 1                          # un reintento guardado 3 veces no es "sostenido"
+    assert cardio["level"] == 1                          # a retry stored 3 times is not "sustained"
     c = check()
     c["blood_pressure"] = {"systolic": 145, "diastolic": 80}
     cardio = evaluate([], [], [c, copy.deepcopy(c)], NOW)["systems"]["cardiovascular"]
     assert cardio["level"] == 1 and "first reading" in cardio["reasons"][0]
 
 
-def test_basura_no_lanza_excepciones():
+def test_garbage_does_not_raise():
     junk = [
         telemetry(vitals={"heart_rate_bpm": "80", "body_temp_c": True}, cabin={"temp_c": "x"}),
         {**telemetry(), "vitals": [1], "motion": "still", "cabin": None},
@@ -270,12 +270,12 @@ def test_basura_no_lanza_excepciones():
     assert evaluate("basura", None, {"a": 1}, NOW)["overall_level"] is None
 
 
-def test_now_sin_zona_horaria_es_un_error():
+def test_now_without_timezone_is_an_error():
     with pytest.raises(ValueError, match="timezone-aware"):
         evaluate([], [], [], datetime(2026, 11, 14, 10, 30))
 
 
-def test_serie_del_tripulante_anterior_no_cuenta():
+def test_previous_crew_members_set_does_not_count():
     def ev(kind, seconds_ago, data):
         e = copy.deepcopy(load("event.example.json"))
         e["type"], e["data"] = kind, data
@@ -284,6 +284,6 @@ def test_serie_del_tripulante_anterior_no_cuenta():
     usual = [ev("exercise_summary", 86400 * d, {"exercise": "pushup", "reps": 20}) for d in (3, 2, 1)]
     swap = [ev("crew_checkin", 60, {"action": "in"}), ev("exercise_summary", 59, {"exercise": "pushup", "reps": 4})]
     muscle = evaluate([], usual + swap, [check()], NOW)["systems"]["musculoskeletal"]
-    assert muscle["level"] == 0                          # las 4 flexiones eran del anterior
+    assert muscle["level"] == 0                          # the 4 push-ups belonged to the previous person
     later = ev("exercise_summary", 10, {"exercise": "pushup", "reps": 4})
     assert evaluate([], usual + swap + [later], [check()], NOW)["systems"]["musculoskeletal"]["level"] >= 2

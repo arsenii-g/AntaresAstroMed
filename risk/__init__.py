@@ -1,6 +1,6 @@
-"""Motor de riesgos de AstroMed.
+"""AstroMed risk engine.
 
-La API solo necesita esto:
+The API only needs this:
 
     from risk import evaluate
 """

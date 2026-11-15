@@ -1,44 +1,44 @@
-# AstroMed · Team Antares: motor de riesgos
+# AstroMed · Team Antares: risk engine
 
-Dueño: Arsenii. Lo usa: Jesus (`api/`).
+The risk engine used by the API (`api/`).
 
-El motor es una función de Python puro, sin red, sin base de datos y sin dependencias externas. La configuración compartida está en `astromed_config.py`. La API la importa y la llama dentro de su propio proceso. Python 3.11 o más.
+The engine is a pure Python function: no network, no database and no external dependencies. The shared configuration lives in `astromed_config.py`. The API imports it and calls it inside its own process. Python 3.11 or later.
 
 ```python
 from risk import evaluate
 ```
 
-## Resumen en una tabla
+## Summary in one table
 
-| | Qué | Detalle |
+| | What | Detail |
 |---|---|---|
-| **Le mandas** | `telemetry` | Mensajes ① de telemetría del **último minuto** |
-| | `events` | Eventos ① de los **últimos 7 días** |
-| | `manual_checks` | Chequeos ② de los **últimos 7 días** |
+| **You send** | `telemetry` | ① telemetry messages from the **last minute** |
+| | `events` | ① events from the **last 7 days** |
+| | `manual_checks` | ② checks from the **last 7 days** |
 | | `now` | `datetime.now(timezone.utc)` |
-| **Te devuelve** | un `dict` | La evaluación ③, como `contracts/assessment.example.json` |
+| **You get back** | a `dict` | The ③ assessment, like `contracts/assessment.example.json` |
 
-Todos los textos que devuelve (motivos, recomendaciones, resumen) van **en inglés**, porque el proyecto se presenta en inglés.
+All the texts it returns (reasons, recommendations, summary) are **in English**, because the project is presented in English.
 
-Todo de **un solo `crew_id`**, como dicts con el mismo JSON que llegó a la API. No hace falta ordenarlos: el motor ordena por `ts`.
+Everything is for **a single `crew_id`**, as dicts with the same JSON that reached the API. You do not need to sort them: the engine sorts by `ts`.
 
-## 1. Qué le mandas
+## 1. What you send
 
-### Cuándo llamarlo
+### When to call it
 
-Cada vez que guardes un mensaje de un tripulante con `crew_id`: telemetría (cada 2 s en la placa actual), un evento o un chequeo manual. Si el `crew_id` llega `null` (nadie ha pasado la tarjeta), guarda el mensaje pero no llames al motor.
+Every time you store a message from a crew member with a `crew_id`: telemetry (every 2 s on the current board), an event or a manual check. If `crew_id` is `null` (nobody has swiped a card), store the message but do not call the engine.
 
-### Cuánto historial
+### How much history
 
-| Lista | Ventana | Por qué |
+| List | Window | Why |
 |---|---|---|
-| `telemetry` | Último minuto (unos 30 mensajes de la placa actual) | El motor descarta la telemetría de más de 60 s: un pulso de hace 10 minutos ya no vale. Mandar más no rompe nada, solo es más lento |
-| `events` | Últimos 7 días | Las flexiones se comparan con la media del propio tripulante en 7 días, y salen en la tendencia |
-| `manual_checks` | Últimos 7 días | El nivel de hoy usa los chequeos de las últimas 24 h; la tendencia, los de 7 días |
+| `telemetry` | Last minute (about 30 messages from the current board) | The engine discards telemetry older than 60 s: a pulse from 10 minutes ago is no longer valid. Sending more breaks nothing, it is just slower |
+| `events` | Last 7 days | Push-ups are compared with the crew member's own 7-day average, and they appear in the trend |
+| `manual_checks` | Last 7 days | Today's level uses the checks from the last 24 h; the trend uses those from 7 days |
 
-**Importante:** guarda el `ts` que viene en el mensaje, no la hora a la que llegó a la API. La tendencia y la basal de las flexiones se calculan con ese `ts`. El simulador manda historia con fechas pasadas, y la placa reenvía mensajes atrasados cuando se recupera la conexión.
+**Important:** store the `ts` that comes in the message, not the time it reached the API. The trend and the push-up baseline are computed with that `ts`. The simulator sends history with past dates, and the board resends late messages when the connection recovers.
 
-### Ejemplo en un endpoint
+### Example in an endpoint
 
 ```python
 from datetime import datetime, timedelta, timezone
@@ -55,16 +55,16 @@ db.save_assessment(assessment)
 await ws.broadcast({"type": "assessment", "data": assessment})
 ```
 
-`db.telemetry`, `db.events` y `db.checks` son de ejemplo: cómo lees la base de datos es cosa tuya. Cada una devuelve una lista de dicts.
+`db.telemetry`, `db.events` and `db.checks` are examples: how you read the database is up to you. Each returns a list of dicts.
 
-`evaluate()` no lanza excepciones con datos ausentes, incompletos o con basura (textos donde va un número, listas, `null`…): eso cuenta como "no data". Aun así, envuélvelo en un `try` para que un fallo del motor nunca tumbe el endpoint que guarda los datos.
+`evaluate()` does not raise exceptions on missing, incomplete or garbage data (text where a number goes, lists, `null`...): that counts as "no data". Even so, wrap it in a `try` so that an engine failure never takes down the endpoint that stores the data.
 
-Dos detalles:
+Two details:
 
-- **`now` tiene que llevar zona horaria:** `datetime.now(timezone.utc)`. Con un `datetime.now()` sin zona, el motor lanza `ValueError`. Si lo aceptara, en UTC+1 toda la telemetría parecería de hace una hora y saldría todo "no data".
-- **Duplicados:** el motor cuenta una sola vez los mensajes con el mismo `(device_id, ts, type)`, que es lo que la placa repite en los reintentos. Aun así, conviene no guardarlos dos veces.
+- **`now` must carry a timezone:** `datetime.now(timezone.utc)`. With a naive `datetime.now()`, the engine raises `ValueError`. If it accepted it, in UTC+1 all telemetry would look an hour old and everything would come out as "no data".
+- **Duplicates:** the engine counts messages with the same `(device_id, ts, type)` only once, which is what the board repeats on retries. Even so, avoid storing them twice.
 
-## 2. Qué te devuelve
+## 2. What you get back
 
 ```json
 {
@@ -89,93 +89,93 @@ Dos detalles:
 }
 ```
 
-| Campo | Qué es | Ojo con |
+| Field | What it is | Watch out for |
 |---|---|---|
-| `overall_level` | El peor de los 4 sistemas: 0 verde, 1 ámbar, 2 naranja, 3 rojo | **Puede ser `null`** si no hay ningún dato |
-| `systems.*.level` | Nivel de cada sistema | **Puede ser `null`**: la web lo pinta gris, "no data", nunca verde |
-| `systems.*.reasons` | Motivos **en inglés**, primero los más graves y luego los "no data" | |
-| `trends` | Una recta por indicador: chequeo, flexiones y sensor (sección 5) | Solo aparecen los que tienen **al menos 7 medidas** |
-| `trends[].crosses_in` | Medidas (`basis: "count"`) o segundos (`"time"`) hasta cruzar el siguiente umbral | `null` si no lo cruza dentro del horizonte |
-| `recommendations` | **En inglés**: primero la acción del nivel, luego las contramedidas y los avisos de tendencia | |
-| `earth_summary` | Texto en inglés listo para mandar a los médicos en Tierra | Solo en nivel 3; si no, `null` |
+| `overall_level` | The worst of the 4 systems: 0 green, 1 amber, 2 orange, 3 red | **Can be `null`** if there is no data at all |
+| `systems.*.level` | Level of each system | **Can be `null`**: the web app paints it gray, "no data", never green |
+| `systems.*.reasons` | Reasons **in English**, the most severe first and then the "no data" ones | |
+| `trends` | One line per indicator: check, push-ups and sensor (section 5) | Only those with **at least 7 measurements** appear |
+| `trends[].crosses_in` | Measurements (`basis: "count"`) or seconds (`"time"`) until the next threshold is crossed | `null` if it is not crossed within the horizon |
+| `recommendations` | **In English**: first the level's action, then the countermeasures and trend warnings | |
+| `earth_summary` | English text ready to send to the doctors on Earth | Only at level 3; otherwise `null` |
 
-Los cuatro sistemas se reparten así en la web: `cardiovascular`, `neuro` y `musculoskeletal` van en el muñeco del tripulante; `environment`, en la cabina.
+The four systems are laid out like this in the web app: `cardiovascular`, `neuro` and `musculoskeletal` go on the crew member's figure; `environment`, on the cabin.
 
-## 3. Reglas que evitan falsas alarmas
+## 3. Rules that avoid false alarms
 
-Además de los umbrales de `thresholds.json`, el motor aplica estas reglas. No cambian el contrato ③: solo deciden el nivel y añaden una nota al final del motivo, en inglés. Todas son **criterio propio** y se ajustan en `thresholds.json` (`rules_source` explica cada una).
+In addition to the thresholds in `thresholds.json`, the engine applies these rules. They do not change the ③ contract: they only decide the level and add a note at the end of the reason, in English. All of them are **team criterion** and are tuned in `thresholds.json` (`rules_source` explains each one).
 
-| Regla | Qué hace | Por qué | Ajuste |
+| Rule | What it does | Why | Setting |
 |---|---|---|---|
-| **Pulso y temperatura sostenidos** | Naranja o rojo solo si **al menos 3 lecturas consecutivas durante 10 s** están en ese nivel o peor. Mientras no, cualquier lectura alta da **ámbar, nunca verde**: `(not sustained yet: 1 of 3 readings)`. Lecturas altas y bajas mezcladas dan ámbar con `(inconsistent readings; check the sensor)` | La fotorresistencia es ruidosa y el termistor se puede soltar. El pulso usa ventanas de 10 s que se solapan. La placa actual manda cada 2 s: necesita al menos 6 lecturas para cubrir 10 s entre la primera y la última. El simulador manda cada 5 s y necesita 3: un pico suelto no debe llamar a Tierra, pero un fallo del sensor tampoco debe esconder un problema real | `sustain_readings` y `sustain_seconds` en `heart_rate_bpm` y `body_temp_c` |
-| **Pulso tras ejercicio** | Si el último mensaje dice `activity: "moving"`, o hubo una serie de flexiones en los últimos 5 min, el pulso alto en **naranja** baja a ámbar: `(after exercise; recheck at rest)`. El rojo (más de 150 lpm) y el pulso bajo no se rebajan | Subir el pulso con el esfuerzo es normal, pero más de 150 ya no se explica por unas flexiones | `heart_rate_bpm.exercise_recovery_s` |
-| **Temperatura de muñeca** | La temperatura **baja** da como mucho ámbar: `(wrist reading; confirm with a thermometer)`. La alta (fiebre) mantiene naranja y rojo | El termistor va en la muñeca, y la piel se enfría varios grados con el ambiente aunque el tripulante esté bien (white paper de Polar, citado en `thresholds.json`). Una muñeca fría pide un termómetro, no llamar a Tierra | `body_temp_c.low_max_level` |
-| **Serie del tripulante anterior** | Se ignora una serie de flexiones que llega hasta 3 s después de un `crew_checkin` `in` | Si se pasa una tarjeta con una serie a medias, la placa manda el resumen con el `crew_id` del que entra, pero las flexiones son del anterior y le bajarían la basal | Fijo, 3 s |
-| **Tensión entre días** | El naranja necesita dos medidas seguidas en naranja o peor. La última tiene que ser de las últimas 24 h; la anterior puede ser de cualquiera de los 7 días | La guía dice "140/90 en dos medidas", y en la misión se mide una vez al día. Antes, la medida de ayer (a 25 h) no contaba | Ventana de 7 días |
-| **Ánimo frente a su media** | Ámbar si el ánimo de hoy está **1,5 puntos o más** por debajo de la media del propio tripulante en los 7 días anteriores, con al menos 3 chequeos previos. Se suma al corte fijo (menos de 3) | Un 3/5 es normal para alguien que suele estar en 3, pero es una bajada clara para alguien que siempre está en 5 | `mood.personal_drop`, `mood.personal_min_checks` |
+| **Sustained pulse and temperature** | Orange or red only if **at least 3 consecutive readings spanning 10 s** are at that level or worse. Until then, any high reading gives **amber, never green**: `(not sustained yet: 1 of 3 readings)`. Mixed high and low readings give amber with `(inconsistent readings; check the sensor)` | The photoresistor is noisy and the thermistor can come loose. The pulse uses overlapping 10 s windows. Both the current board and the simulator send every 2 s, so at least 6 readings are needed to cover 10 s between the first and the last (3 readings would span only 4 s). A lone spike must not call Earth, but a sensor failure must not hide a real problem either | `sustain_readings` and `sustain_seconds` in `heart_rate_bpm` and `body_temp_c` |
+| **Pulse after exercise** | If the latest message says `activity: "moving"`, or there was a set of push-ups in the last 5 min, a high pulse at **orange** drops to amber: `(after exercise; recheck at rest)`. Red (above 150 bpm) and a low pulse are not downgraded | A raised pulse from effort is normal, but above 150 is no longer explained by a few push-ups | `heart_rate_bpm.exercise_recovery_s` |
+| **Wrist temperature** | A **low** temperature gives at most amber: `(wrist reading; confirm with a thermometer)`. A high one (fever) keeps orange and red | The thermistor sits on the wrist, and the skin cools several degrees with the surroundings even if the crew member is fine (Polar white paper, cited in `thresholds.json`). A cold wrist calls for a thermometer, not for calling Earth | `body_temp_c.low_max_level` |
+| **Previous crew member's set** | A set of push-ups that arrives up to 3 s after a `crew_checkin` `in` is ignored | If a card is swiped in the middle of a set, the board sends the summary with the `crew_id` of the person arriving, but the push-ups belong to the previous one and would lower the new one's baseline | Fixed, 3 s |
+| **Blood pressure across days** | Orange needs two consecutive readings at orange or worse. The latest must be from the last 24 h; the previous one can be from any of the 7 days | The team guide says "140/90 on two readings", and during the mission it is measured once a day. Before, yesterday's reading (25 h ago) did not count | 7-day window |
+| **Mood against own average** | Amber if today's mood is **1.5 points or more** below the crew member's own average over the previous 7 days, with at least 3 previous checks. It is added to the fixed cut (below 3) | A 3/5 is normal for someone who is usually at 3, but it is a clear drop for someone who is always at 5 | `mood.personal_drop`, `mood.personal_min_checks` |
 
-Consecuencia para la demo: el segundo tripulante sale en ámbar a los 100 s y en **rojo a los 110 s**, cuando ya hay 3 lecturas de 156 lpm.
+Consequence for the demo: the simulator (`simulator/config.json`) sets the second crew member (`336F8312`) to level 2, so by default it reaches **orange** (pulse about 114 bpm, 38.6 °C) once the 10 s sustain window is covered. It only reaches **red** when run with a level-3 override, for example `python -m simulator.simulate --level 336F8312=3` (pulse 160 bpm, 39.8 °C), again after at least 6 readings at 2 s.
 
-## 4. Modo demo
+## 4. Demo mode
 
-Arranca la API con la variable de entorno `ASTROMED_DEMO=1`. Así el ámbar por inactividad salta a los 30 s en vez de a los 600 s, igual que el evento `inactivity` de la placa.
+Start the API with the environment variable `ASTROMED_DEMO=1`. That way the amber for inactivity fires at 30 s instead of 600 s, just like the board's `inactivity` event.
 
-**Ojo:** el firmware está ahora en modo demo (`INACTIVITY_THRESHOLD_S 30` en `firmware/uno_sensores/config.h`). Con la placa real, arranca la API con `ASTROMED_DEMO=1`; si no, la placa avisará de inactividad a los 30 s y el motor no la pintará en ámbar hasta los 600 s. Para uso real, los dos a 600 s.
+**Note:** the firmware is currently in demo mode (`INACTIVITY_THRESHOLD_S 30` in `firmware/uno_sensors/config.h`). With the real board, start the API with `ASTROMED_DEMO=1`; otherwise the board will report inactivity at 30 s and the engine will not paint it amber until 600 s. For real use, set both to 600 s.
 
 ```bash
 ASTROMED_DEMO=1 uvicorn api.main:app --reload
 ```
 
-(El comando de `uvicorn` es un ejemplo; usa el tuyo.)
+(The `uvicorn` command is an example; use your own.)
 
-## 5. Rectas de tendencia
+## 5. Trend lines
 
-Cada tendencia es una recta de mínimos cuadrados sobre las medidas reales del propio tripulante, proyectada hacia delante. Avisa si la recta cruza el siguiente umbral aunque hoy esté en verde. La recta y los puntos van en la evaluación, así que la web los dibuja tal cual, sin recalcular nada.
+Each trend is a least-squares line over the crew member's own real measurements, projected forward. It warns if the line crosses the next threshold even though today it is green. The line and the points are part of the assessment, so the web app draws them as they are, without recomputing anything.
 
-| Datos | Eje x (`basis`) | Ventana | Proyección (`horizon`) |
+| Data | x axis (`basis`) | Window | Projection (`horizon`) |
 |---|---|---|---|
-| Chequeo manual: tensión, glucosa, ánimo | Por chequeo (`count`, `check`): el último es 0, el anterior −1… | Últimos 7 días | 7 chequeos más |
-| Flexiones (`exercise_summary`) | Por serie (`count`, `set`) | Últimos 7 días | 7 series más |
-| Sensor: pulso, temperatura corporal, cabina, humedad | Segundos respecto a ahora (`time`, `s`) | Último minuto (unas 30 lecturas) | 60 s |
+| Manual check: blood pressure, glucose, mood | Per check (`count`, `check`): the latest is 0, the previous one −1... | Last 7 days | 7 more checks |
+| Push-ups (`exercise_summary`) | Per set (`count`, `set`) | Last 7 days | 7 more sets |
+| Sensor: pulse, body temperature, cabin temperature, humidity | Seconds relative to now (`time`, `s`) | Last minute (about 30 readings) | 60 s |
 
-Criterio propio:
+Team criterion:
 
-- **Hacen falta 7 medidas.** Con el séptimo chequeo aparece la recta; con 7 lecturas del sensor (14 s), la del sensor.
-- **Chequeos y series van por medida, no por día.** En uso real se hace un chequeo al día, así que 7 chequeos son una semana. En la demo se pueden meter 7 chequeos en unos minutos y la recta sale igual de bien; por días, todos caerían en el mismo día y la pendiente se dispararía.
-- **Solo se vigila el umbral hacia el que empeora.** Si el valor está en una franja alta y la recta baja (o en una baja y sube), se está recuperando: `threshold` es `null`.
-- **Temperatura corporal baja:** solo se vigila el ámbar, porque el motor no la sube de ámbar (sección 3).
-- **Flexiones:** el umbral en repeticiones es la basal (media de las series anteriores a la última) menos el porcentaje de caída de cada nivel.
+- **7 measurements are needed.** The line appears with the seventh check; the sensor line appears with 7 sensor readings (12 s at 2 s spacing).
+- **Checks and sets go per measurement, not per day.** In real use there is one check per day, so 7 checks are a week. In the demo you can enter 7 checks within a few minutes and the line comes out just as well; per day, they would all fall on the same day and the slope would blow up.
+- **Only the threshold in the worsening direction is monitored.** If the value is in a high band and the line goes down (or in a low band and it goes up), it is recovering: `threshold` is `null`.
+- **Low body temperature:** only amber is monitored, because the engine does not raise it above amber (section 3).
+- **Push-ups:** the threshold in repetitions is the baseline (average of the sets before the latest) minus the drop percentage of each level.
 
-### Probarlas
+### Trying them out
 
 ```bash
 python -m pytest -q risk/tests/test_trends.py
 python -m simulator.simulate --mode normal --evaluate --fast --count 150
 ```
 
-Las pruebas comprueban, entre otras cosas, que 7 chequeos seguidos dan la misma recta que 7 chequeos en 7 días, que con 6 medidas no hay recta y que un pulso que sube 1 lpm/s avisa de que cruzará 120 lpm en 12 s. El modo `normal` del simulador hace subir y bajar los niveles en rampa, y las rectas del sensor lo detectan. Ver [`simulator/README.md`](../simulator/README.md).
+The tests check, among other things, that 7 consecutive checks give the same line as 7 checks over 7 days, that with 6 measurements there is no line, and that a pulse rising 1 bpm/s warns that it will cross 120 bpm in 12 s. The simulator's `normal` mode ramps the levels up and down, and the sensor lines detect it. See [`simulator/README.md`](../simulator/README.md).
 
-## 6. Respuestas de la API al simulador y a la placa
+## 6. API responses to the simulator and the board
 
-El simulador reacciona igual que el ESP32 (detalle en `contracts/README.md`):
+The simulator reacts like the ESP32 (details in `contracts/README.md`):
 
-| Respondes | Qué hace |
+| You respond | What it does |
 |---|---|
-| 2xx | Lo da por enviado |
-| 409 | Lo toma como duplicado ya guardado |
-| Otro 4xx (400, 401, 422…) | **Descarta el mensaje**: ese dato se pierde |
-| 5xx o sin respuesta | Reintenta a 1, 2, 4… s, hasta 30 s |
+| 2xx | Considers it sent |
+| 409 | Treats it as an already stored duplicate |
+| Other 4xx (400, 404, 422...) | **Drops the message**: that data is lost. The exceptions are 408 and 429, which are retried (the ESP32 also retries 401 and 403) |
+| 5xx or no response | Retries at 1, 2, 4... s, up to 30 s |
 
-Por eso, nunca respondas 422 a un campo `null`: los `null` son normales (sensor sin contacto, DHT11 fallando, respiración que no se mide).
+That is why you should never answer 422 to a `null` field: `null`s are normal (sensor without contact, failing DHT11, respiration that is not measured). Genuinely impossible values are what 422 is for.
 
-## Archivos
+## Files
 
-| Archivo | Qué hace |
+| File | What it does |
 |---|---|
-| `engine.py` | `evaluate()`: junta todo |
-| `indicators.py` | Nivel 0–3 de cada medida y modo demo |
-| `thresholds.json` | Umbrales y reglas extra; cada corte cita su fuente |
-| `trends.py` | Rectas de tendencia (sección 5) |
-| `recommendations.py` | Contramedidas y avisos de tendencia |
-| `summary.py` | Resumen en inglés para Tierra |
-| `tests/` | `pytest -q` desde la raíz del repo |
+| `engine.py` | `evaluate()`: puts everything together |
+| `indicators.py` | Level 0-3 for each measurement and demo mode |
+| `thresholds.json` | Thresholds and extra rules; each cut cites its source |
+| `trends.py` | Trend lines (section 5) |
+| `recommendations.py` | Countermeasures and trend warnings |
+| `summary.py` | English summary for Earth |
+| `tests/` | `pytest -q` from the repo root |

@@ -24,7 +24,7 @@ def config(levels, mode="fixed", **extra):
 
 
 def run(device: Device, seconds: int):
-    """Telemetría y eventos de `seconds` segundos, con su ts."""
+    """Telemetry and events for `seconds` seconds, each with its ts."""
     telemetry, events = [], [device.checkin(START)]
     for tick in range(seconds // device.interval_s):
         evs, tel = device.tick(START + timedelta(seconds=2 + tick * device.interval_s))
@@ -39,16 +39,16 @@ def levels_at_end(device: Device, seconds: int = 240):
     return evaluate(telemetry[-30:], events, [], now)
 
 
-# --- forma de los mensajes ---------------------------------------------------------
+# --- message shape -----------------------------------------------------------------
 
-def test_config_por_defecto_tiene_dos_tripulantes_del_kit():
+def test_default_config_has_the_two_kit_crew_members():
     cfg = load_config(CONFIG_PATH)
     assert [c["crew_id"] for c in cfg["crew"]] == ["F3786E09", "336F8312"]
     assert cfg["mode"] in ("fixed", "normal") and cfg["interval_s"] == 2
     assert len({c["device_id"] for c in cfg["crew"]}) == 2
 
 
-def test_mensajes_pasan_los_contratos_de_la_api():
+def test_messages_pass_the_api_contracts():
     device = build_devices(config({"F3786E09": 3}))[0]
     telemetry, events = run(device, 60)
     for msg in telemetry:
@@ -59,53 +59,53 @@ def test_mensajes_pasan_los_contratos_de_la_api():
     for ev in events:
         EventPayload.model_validate(ev)
     assert {e["type"] for e in events} == {"crew_checkin", "exercise_summary"}
-    assert len({(m["device_id"], m["ts"]) for m in telemetry}) == len(telemetry)   # nunca un ts repetido
+    assert len({(m["device_id"], m["ts"]) for m in telemetry}) == len(telemetry)   # never a repeated ts
 
 
-def test_formulas_de_cabina():
+def test_cabin_formulas():
     assert dew_point_c(23, 45) == 10.4
     assert heat_index_c(22.5, 45) == 22.5
     assert condensation_risk(1.5) == "high" and condensation_risk(5) == "medium" and condensation_risk(6) == "low"
 
 
-def test_primera_serie_no_cae_en_los_3_s_del_fichaje():
+def test_first_set_does_not_fall_within_3_s_of_checkin():
     device = build_devices(config({"F3786E09": 0}))[0]
     _, events = run(device, 20)
     first = next(e for e in events if e["type"] == "exercise_summary")
     assert datetime.fromisoformat(first["ts"].replace("Z", "+00:00")) - START > timedelta(seconds=4)
 
 
-# --- niveles fijos -------------------------------------------------------------------
+# --- fixed levels --------------------------------------------------------------------
 
 @pytest.mark.parametrize("level", [0, 1, 2, 3])
-def test_nivel_fijo_da_ese_nivel_en_cada_sistema(level):
+def test_fixed_level_gives_that_level_in_every_system(level):
     result = levels_at_end(build_devices(config({"F3786E09": level}))[0])
     for system in ("cardiovascular", "musculoskeletal", "environment"):
         assert result["systems"][system]["level"] == level, (system, result["systems"][system])
-    assert result["systems"]["neuro"]["level"] is None             # solo con chequeo manual
+    assert result["systems"]["neuro"]["level"] is None             # manual check only
     assert result["overall_level"] == level
 
 
-def test_nivel_por_sistema():
+def test_level_per_system():
     result = levels_at_end(build_devices(config({"F3786E09": {"cardiovascular": 3, "environment": 1}}))[0])
     levels = {k: v["level"] for k, v in result["systems"].items()}
     assert levels == {"cardiovascular": 3, "neuro": None, "musculoskeletal": 0, "environment": 1}
 
 
-def test_nivel_fijo_no_da_avisos_de_tendencia_falsos():
+def test_fixed_level_gives_no_false_trend_warnings():
     for level in (0, 1, 2):
         result = levels_at_end(build_devices(config({"F3786E09": level}))[0])
         assert not [t for t in result["trends"] if t["basis"] == "time" and t["crosses_in"] is not None]
 
 
-def test_nivel_invalido_se_rechaza():
+def test_invalid_level_is_rejected():
     with pytest.raises(ValueError):
         build_devices(config({"F3786E09": 4}))
     with pytest.raises(ValueError):
         build_devices(config({"F3786E09": 1}, mode="random"))
 
 
-def test_override_de_nivel_y_modo_desde_la_linea_de_comandos(tmp_path):
+def test_level_and_mode_override_from_command_line(tmp_path):
     path = tmp_path / "c.json"
     path.write_text(json.dumps(config({"F3786E09": 0, "336F8312": 0})))
     args = type("A", (), {"mode": "normal", "level": ["336F8312=3"], "url": None, "api_key": None})()
@@ -113,19 +113,19 @@ def test_override_de_nivel_y_modo_desde_la_linea_de_comandos(tmp_path):
     assert cfg["mode"] == "normal" and cfg["crew"][1]["level"] == 3 and cfg["crew"][0]["level"] == 0
 
 
-def test_flexiones_mantienen_la_caida_del_nivel_frente_a_su_media():
+def test_pushups_keep_the_level_drop_against_their_average():
     for level, drop in enumerate(ANCHORS["drop"]):
         reps, rng = [], random.Random(level)
         for _ in range(15):
             reps.append(next_reps(reps, drop, rng))
-        for i in range(3, len(reps)):                               # tras las 3 series de basal
+        for i in range(3, len(reps)):                               # after the 3 baseline sets
             baseline = sum(reps[:i]) / i
             assert drop_level(max(0, (baseline - reps[i]) / baseline * 100)) == level, (level, reps)
 
 
-# --- modo normal ---------------------------------------------------------------------
+# --- normal mode ---------------------------------------------------------------------
 
-def test_modo_normal_recorre_niveles_y_las_rectas_lo_ven():
+def test_normal_mode_cycles_levels_and_trends_see_it():
     device = build_devices(config({"F3786E09": 0}, mode="normal"))[0]
     telemetry, events = run(device, 600)
     seen, crossing = set(), set()
@@ -146,10 +146,10 @@ def test_severidad_va_en_rampa_hacia_su_objetivo():
     assert interpolate((0, 10, 20, 30), 1.5) == 15
 
 
-# --- reintentos como el ESP32 -------------------------------------------------------
+# --- retries like the ESP32 ---------------------------------------------------------
 
 def serve(statuses):
-    """Servidor que responde con los códigos de la lista, uno por petición."""
+    """Server that replies with the codes in the list, one per request."""
     seen = []
 
     class Handler(BaseHTTPRequestHandler):
@@ -172,7 +172,7 @@ def serve(statuses):
     return server, seen
 
 
-def test_reintenta_5xx_y_manda_la_clave():
+def test_retries_5xx_and_sends_the_key():
     server, seen = serve([503, 500, 201])
     try:
         sender = Sender(f"http://127.0.0.1:{server.server_port}", "demo", sleep=lambda s: None)
@@ -185,7 +185,7 @@ def test_reintenta_5xx_y_manda_la_clave():
     assert sender.stats == {"sent": 1, "duplicate": 0, "dropped": 0, "retries": 2}
 
 
-def test_409_es_duplicado_y_422_se_descarta():
+def test_409_is_duplicate_and_422_is_dropped():
     server, seen = serve([409, 422, 200])
     try:
         sender = Sender(f"http://127.0.0.1:{server.server_port}", None, sleep=lambda s: None)
@@ -199,16 +199,16 @@ def test_409_es_duplicado_y_422_se_descarta():
     assert not sender.queue
 
 
-def test_sin_api_guarda_la_cola():
+def test_without_api_keeps_the_queue():
     waits = []
     sender = Sender("http://127.0.0.1:9", None, timeout=0.2, sleep=waits.append)
     sender.push("/api/v1/telemetry", {"n": 1})
     sender.flush()
-    assert waits == [1, 2, 4, 8]          # 1+2+4+8 = 15; el siguiente (16) pasaría de 30 s
+    assert waits == [1, 2, 4, 8]          # 1+2+4+8 = 15; the next one (16) would exceed 30 s
     assert len(sender.queue) == 1
 
 
-def test_408_429_3xx_y_ok_false_se_reintentan_como_en_el_esp32():
+def test_408_429_3xx_and_ok_false_are_retried_like_the_esp32():
     server, seen = serve([429, 408, 301, (200, b'{"ok": false}'), (200, b'{"ok": true}')])
     try:
         sender = Sender(f"http://127.0.0.1:{server.server_port}", None, sleep=lambda s: None)
@@ -217,7 +217,7 @@ def test_408_429_3xx_y_ok_false_se_reintentan_como_en_el_esp32():
     finally:
         server.shutdown()
     assert len(seen) == 5
-    assert all(path == "/api/v1/telemetry" for path, _, _ in seen)   # no siguió el 301
+    assert all(path == "/api/v1/telemetry" for path, _, _ in seen)   # did not follow the 301
     assert sender.stats == {"sent": 1, "duplicate": 0, "dropped": 0, "retries": 4}
 
 

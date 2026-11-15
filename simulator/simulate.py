@@ -1,27 +1,29 @@
-"""Simulador de dos ESP32 (uno por tripulante) para el vídeo.
+"""Simulator of two ESP32 boards (one per crew member) for the demo video.
 
-Cada placa simulada manda lo mismo que la real, con el mismo formato y la
-misma lógica de reintentos: crew_checkin al empezar, telemetría cada 2 s y
-una serie de flexiones (exercise_summary) cada pushup_every_s. La API guarda
-los mensajes, llama al motor de riesgos y avisa a la web por WebSocket.
+Each simulated board sends the same thing as the real one, with the same
+format and the same retry logic: crew_checkin at startup, telemetry every
+2 s, and a set of push-ups (exercise_summary) every pushup_every_s. The API
+stores the messages, calls the risk engine, and notifies the web app over
+WebSocket.
 
-El chequeo manual (tensión, glucosa y ánimo) NO se simula: se mete a mano en
-la web. Por eso el sistema neuro sale "No data" hasta el primer chequeo.
+The manual check (blood pressure, glucose, and mood) is NOT simulated: it is
+entered by hand in the web app. That is why the neuro system shows "No data"
+until the first check.
 
-Configuración: simulator/config.json (ver simulator/README.md).
-    mode "fixed":  cada tripulante se queda en el nivel que pongas (0 a 3),
-                   para todos los sistemas o uno por sistema.
-    mode "normal": el nivel de cada sistema va cambiando solo, con rampas
-                   suaves entre niveles; las rectas de tendencia lo detectan.
+Configuration: simulator/config.json (see simulator/README.md).
+    mode "fixed":  each crew member stays at the level you set (0 to 3),
+                   for all systems or one per system.
+    mode "normal": each system's level changes on its own, with smooth ramps
+                   between levels; the trendlines detect them.
 
-Uso:
-    python -m simulator.simulate                         # manda a la API del config
+Usage:
+    python -m simulator.simulate                         # send to the API in the config
     python -m simulator.simulate --mode normal
     python -m simulator.simulate --level F3786E09=1 --level 336F8312=3
-    python -m simulator.simulate --print --count 3        # JSON por pantalla, sin API
-    python -m simulator.simulate --evaluate --fast --count 60   # motor local, sin API
+    python -m simulator.simulate --print --count 3        # print JSON, no API
+    python -m simulator.simulate --evaluate --fast --count 60   # local engine, no API
 
-Solo usa la biblioteca estándar.
+Uses only the standard library.
 """
 
 from __future__ import annotations
@@ -44,14 +46,14 @@ from pathlib import Path
 CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
 MAX_QUEUE = 50
 MAX_BACKOFF_S = 30
-SYSTEMS = ("cardiovascular", "musculoskeletal", "environment")   # neuro: solo chequeo manual
+SYSTEMS = ("cardiovascular", "musculoskeletal", "environment")   # neuro: manual check only
 
-# Valor de cada medida en cada nivel (0, 1, 2, 3). Están en el centro de cada
-# franja de risk/thresholds.json, para que el ruido no cambie de nivel.
-#   cardiovascular: el nivel 2 sale de la temperatura (fiebre, 38-39,5 °C),
-#   porque el motor rebaja a ámbar un pulso naranja tras hacer flexiones.
-#   environment: temperatura de cabina; la humedad se queda en 30-60 %.
-#   musculoskeletal: caída de flexiones frente a la media propia (10, 20 y 40 %).
+# Value of each measurement at each level (0, 1, 2, 3). They sit in the middle
+# of each band in risk/thresholds.json, so that noise does not change the level.
+#   cardiovascular: level 2 comes from temperature (fever, 38-39.5 °C),
+#   because the engine downgrades an orange pulse to amber after push-ups.
+#   environment: cabin temperature; humidity stays within 30-60%.
+#   musculoskeletal: push-up drop versus the personal average (10, 20, and 40%).
 ANCHORS = {
     "hr": (72, 108, 114, 160),
     "body": (36.7, 37.7, 38.6, 39.8),
@@ -62,22 +64,22 @@ ANCHORS = {
 NOISE = {"hr": 3, "body": 0.05, "cabin": 0.15, "rh": 1}
 DROP_CUTS = (10, 20, 40)      # pushup_drop_pct en risk/thresholds.json
 FIRST_SET_REPS = 20
-BASELINE_SETS = 3             # las 3 primeras series son las de siempre: su basal
-MOVE_EVERY_S = 12             # se mueve cada 12 s: nunca llega a la inactividad de 30 s
+BASELINE_SETS = 3             # the first 3 sets are the usual ones: their baseline
+MOVE_EVERY_S = 12             # moves every 12 s: never reaches the 30 s inactivity alert
 
 
-# --- física de la cabina (las mismas fórmulas que el firmware) -----------------
+# --- cabin physics (the same formulas as the firmware) -------------------------
 
 def dew_point_c(temp_c: float, humidity_pct: float) -> float:
-    """Punto de rocío con la fórmula de Magnus (a = 17,62; b = 243,12 °C)."""
+    """Dew point using the Magnus formula (a = 17.62; b = 243.12 °C)."""
     a, b = 17.62, 243.12
     gamma = math.log(max(humidity_pct, 1) / 100) + a * temp_c / (b + temp_c)
     return round(b * gamma / (a - gamma), 1)
 
 
 def heat_index_c(temp_c: float, humidity_pct: float) -> float:
-    """Índice de calor de NOAA (Rothfusz). Por debajo de 26,7 °C (80 °F) o de
-    40 % de humedad es igual a la temperatura, como en el firmware."""
+    """NOAA heat index (Rothfusz). Below 26.7 °C (80 °F) or 40% humidity it
+    equals the temperature, as in the firmware."""
     t = temp_c * 9 / 5 + 32
     if t < 80 or humidity_pct < 40:
         return round(temp_c, 1)
@@ -97,8 +99,8 @@ def condensation_risk(margin_c: float) -> str:
 
 
 def local_alerts(msg: dict) -> list[str]:
-    """Alertas de la placa, con los umbrales de firmware/uno_sensores/config.h
-    y en el mismo orden fijo. No son los niveles del motor."""
+    """Board alerts, using the thresholds in firmware/uno_sensors/config.h
+    and in the same fixed order. These are not the engine's levels."""
     v, c, out = msg["vitals"], msg["cabin"], []
     hr, body = v["heart_rate_bpm"], v["body_temp_c"]
     if hr is not None and hr > 120:
@@ -120,21 +122,21 @@ def local_alerts(msg: dict) -> list[str]:
     return out
 
 
-# --- niveles ---------------------------------------------------------------------
+# --- levels ----------------------------------------------------------------------
 
 def interpolate(anchors: tuple, severity: float) -> float:
-    """Valor para un nivel continuo (1,5 = a medio camino entre ámbar y naranja)."""
+    """Value for a continuous level (1.5 = halfway between amber and orange)."""
     s = min(3.0, max(0.0, severity))
     i = min(2, int(s))
     return anchors[i] + (anchors[i + 1] - anchors[i]) * (s - i)
 
 
 class Severity:
-    """Nivel de un sistema a lo largo del tiempo.
+    """Level of one system over time.
 
-    fixed:  siempre el mismo.
-    normal: cada change_every_s elige un nivel nuevo (con level_weights) y va
-            hacia él a ramp_s_per_level segundos por nivel.
+    fixed:  always the same.
+    normal: every change_every_s it picks a new level (using level_weights)
+            and ramps toward it at ramp_s_per_level seconds per level.
     """
 
     def __init__(self, level: float, mode: str = "fixed", rng: random.Random | None = None,
@@ -171,13 +173,13 @@ def drop_level(drop_pct: float) -> int:
 
 
 def next_reps(previous: list[int], drop: float, rng: random.Random) -> int:
-    """Repeticiones de la serie siguiente para que el motor vea la caída
-    `drop` frente a la media de las series anteriores (su basal)."""
+    """Repetitions for the next set, so that the engine sees a drop of `drop`
+    compared with the average of the previous sets (the baseline)."""
     if len(previous) < BASELINE_SETS:
         return FIRST_SET_REPS + (rng.choice((-1, 0, 1)) if previous else 0)
     baseline = sum(previous) / len(previous)
     if drop <= 0.05:
-        # Nivel 0: oscila alrededor de su número de siempre, sin ir a la deriva.
+        # Level 0: oscillates around the usual number, without drifting.
         usual = round(sorted(previous)[len(previous) // 2])
         return max(1, usual + rng.choice((-1, 0, 0, 0, 1)))
     target = baseline * (1 - drop)
@@ -187,26 +189,26 @@ def next_reps(previous: list[int], drop: float, rng: random.Random) -> int:
     return min(same or candidates, key=lambda r: abs((baseline - r) / baseline - drop))
 
 
-# --- una placa simulada ------------------------------------------------------------
+# --- one simulated board -----------------------------------------------------------
 
 @dataclass
 class Device:
     crew_id: str
     device_id: str
-    levels: dict                       # sistema -> Severity
+    levels: dict                       # system -> Severity
     rng: random.Random
     interval_s: float = 2
     pushup_every_s: float = 20
     reps: list = field(default_factory=list)
     elapsed: float = 0.0
     last_move: float = 0.0
-    next_pushup: float = 6.0           # el motor ignora las series de los 3 s siguientes a un fichaje
+    next_pushup: float = 6.0           # the engine ignores sets within 3 s after a check-in
 
     def checkin(self, ts: datetime, action: str = "in") -> dict:
         return self._event(ts, "crew_checkin", "info", {"action": action})
 
     def tick(self, ts: datetime) -> tuple[list[dict], dict]:
-        """Eventos y telemetría de este instante; luego avanza interval_s."""
+        """Events and telemetry for this instant; then advances interval_s."""
         s = {name: sev.step(self.interval_s if self.elapsed else 0) for name, sev in self.levels.items()}
         events = []
         if self.elapsed >= self.next_pushup:
@@ -230,7 +232,7 @@ class Device:
         hr = int(round(noisy("hr", s["cardiovascular"])))
         body = round(noisy("body", s["cardiovascular"]), 1)
         temp = round(noisy("cabin", s["environment"]), 1)
-        rh = int(round(noisy("rh", s["environment"])))                      # el DHT11 da enteros
+        rh = int(round(noisy("rh", s["environment"])))                      # the DHT11 returns integers
         dew = dew_point_c(temp, rh)
         still = self.elapsed - self.last_move
         msg = {
@@ -276,12 +278,12 @@ def build_devices(config: dict) -> list[Device]:
     return devices
 
 
-# --- envío a la API (misma lógica que el ESP32) --------------------------------------
+# --- sending to the API (same logic as the ESP32) ------------------------------------
 
 class Sender:
-    """Cola de envío con la misma lógica de reintentos que el ESP32: 2xx y 409
-    dan el mensaje por enviado; 2xx con {"ok": false}, 408, 429, 3xx, 5xx o sin
-    respuesta en 4 s reintentan a 1, 2, 4… s hasta 30 s; otro 4xx lo descarta."""
+    """Send queue with the same retry logic as the ESP32: 2xx and 409 count
+    the message as sent; 2xx with {"ok": false}, 408, 429, 3xx, 5xx, or no
+    response within 4 s retry at 1, 2, 4... s up to 30 s; any other 4xx drops it."""
 
     def __init__(self, url: str, api_key: str | None, timeout: float = 4.0, sleep=time.sleep):
         self.url = url.rstrip("/")
@@ -353,9 +355,9 @@ _NO_REDIRECTS = urllib.request.build_opener(_NoRedirect)
 
 
 def previous_sets(url: str, crew_id: str, now: datetime) -> list[int]:
-    """Series de flexiones que la API ya tiene de los últimos 7 días. El motor
-    las usa como basal, así que el simulador también, para que la caída sea
-    la del nivel elegido aunque se arranque varias veces seguidas."""
+    """Push-up sets the API already has from the last 7 days. The engine uses
+    them as the baseline, so the simulator does too, so that the drop matches
+    the chosen level even when started several times in a row."""
     query = urllib.parse.urlencode({"crew_id": crew_id, "type": "exercise_summary",
                                     "from": iso(now - timedelta(days=7))})
     try:
@@ -366,7 +368,7 @@ def previous_sets(url: str, crew_id: str, now: datetime) -> list[int]:
     return [r["data"]["reps"] for r in rows if isinstance(r.get("data", {}).get("reps"), int)]
 
 
-# --- bucle principal -------------------------------------------------------------------
+# --- main loop -------------------------------------------------------------------------
 
 def load_config(path: str | Path = CONFIG_PATH, overrides: argparse.Namespace | None = None) -> dict:
     config = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -415,7 +417,7 @@ def run(args: argparse.Namespace) -> None:
         else:
             local[crew_id]["events" if path.endswith("events") else "telemetry"].append(msg)
 
-    # Fichaje: uno tras otro, 1 s de diferencia. La web sigue al último.
+    # Check-ins: one after another, 1 s apart. The web app follows the last one.
     for i, d in enumerate(devices):
         emit("/api/v1/events", d.checkin(start + timedelta(seconds=i)), d.crew_id)
     if sender:
@@ -425,7 +427,7 @@ def run(args: argparse.Namespace) -> None:
     clock0 = time.monotonic()
     try:
         while args.count is None or tick < args.count:
-            # Con --fast, después de los fichajes (uno por segundo).
+            # With --fast, after the check-ins (one per second).
             now = (start + timedelta(seconds=len(devices) + tick * interval) if args.fast
                    else datetime.now(timezone.utc).replace(microsecond=0))
             for d in devices:
@@ -440,7 +442,7 @@ def run(args: argparse.Namespace) -> None:
                     print(summary_line(d, local[d.crew_id], now), flush=True)
             tick += 1
             if not args.fast and (args.count is None or tick < args.count):
-                # Ritmo fijo, como la placa: el tiempo de envío no retrasa el siguiente.
+                # Fixed pace, like the board: send time does not delay the next one.
                 time.sleep(max(0.0, clock0 + tick * interval - time.monotonic()))
     except KeyboardInterrupt:
         pass
@@ -454,8 +456,8 @@ def run(args: argparse.Namespace) -> None:
 
 
 def summary_line(device: Device, history: dict, now: datetime) -> str:
-    """Niveles que daría el motor con lo enviado, como los vería la web."""
-    from risk import evaluate   # import tardío: el simulador no depende del motor
+    """Levels the engine would give for what was sent, as the web app would see them."""
+    from risk import evaluate   # late import: the simulator does not depend on the engine
 
     recent = [m for m in history["telemetry"] if now - parse(m["ts"]) <= timedelta(seconds=60)]
     result = evaluate(recent, history["events"], [], now)
