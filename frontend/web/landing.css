@@ -1,14 +1,14 @@
-/* AstroMed: estilos de la portada (index.html). La consola usa styles.css.
-   Paleta de Antares: supergigante roja (ámbar, cobre y óxido) y su compañera azul.
-   Solo en la portada: en la consola el rojo está reservado a las alertas. */
+/* AstroMed: landing page styles (index.html). The console uses styles.css.
+   Antares palette: red supergiant (amber, copper, and rust) and its blue companion.
+   Landing page only: in the console, red is reserved for alerts. */
 :root {
   --bg: #080505;
   --ink: #f6efe9;
   --dim: #ab9d96;
   --line: rgba(255, 228, 210, .10);
   --glass: rgba(255, 236, 222, .04);
-  --accent: #ffb37a;     /* ámbar de Antares */
-  --accent-2: #ff7a59;   /* cobre */
+  --accent: #ffb37a;     /* Antares amber */
+  --accent-2: #ff7a59;   /* copper */
   --companion: #a9dcff;  /* Antares B */
   --glow: 255, 150, 96;
 
@@ -96,7 +96,7 @@ h1 em { font-style: normal; background: linear-gradient(100deg, var(--accent), v
 .rise { opacity: 0; transform: translateY(24px); animation: rise .9s var(--ease) forwards; animation-delay: calc(var(--d) * .12s + .15s); }
 @keyframes rise { to { opacity: 1; transform: none; } }
 
-/* Franja inferior: qué se mide, en tres grupos */
+/* Bottom strip: what is measured, in three groups */
 .signals {
   position: absolute; left: 0; right: 0; bottom: 0; margin: 0;
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -108,7 +108,7 @@ h1 em { font-style: normal; background: linear-gradient(100deg, var(--accent), v
 .signals dt { font: 500 11.5px var(--mono); letter-spacing: .18em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
 .signals dd { font-size: 14px; color: #cdbfb6; }
 
-/* ───────── SECCIONES ───────── */
+/* ───────── SECTIONS ───────── */
 .section { position: relative; max-width: 1180px; margin: 0 auto; padding: clamp(80px, 11vw, 150px) 20px 0; }
 .kicker { font: 500 12.5px var(--mono); letter-spacing: .18em; color: var(--accent); margin-bottom: 14px; }
 h2 { font: 600 clamp(30px, 4.4vw, 56px)/1.06 var(--display); letter-spacing: -.03em; text-wrap: balance; }
@@ -119,7 +119,7 @@ h3 { font: 600 22px var(--display); letter-spacing: -.01em; }
   background: linear-gradient(160deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, .012));
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
 }
-/* Brillo que sigue al ratón (--mx/--my los pone landing.js) */
+/* Glow that follows the mouse (--mx/--my are set by landing.js) */
 .card::before {
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .3s;
   background: radial-gradient(340px circle at var(--mx, 50%) var(--my, 50%), rgba(var(--glow), .14), transparent 60%);
@@ -163,5 +163,5 @@ h3 { font: 600 22px var(--display); letter-spacing: -.01em; }
   .rise, .reveal { opacity: 1; transform: none; }
 }
 
-/* Antares B: la compañera azul aparece como punto pequeño en la etiqueta superior */
+/* Antares B: the blue companion appears as a small dot in the top label */
 .eyebrow i { background: var(--accent); box-shadow: 0 0 12px var(--accent), 9px -5px 0 -2px var(--companion); }

@@ -1,4 +1,4 @@
-"""Nivel de riesgo (0 a 3) de una sola medida, según risk/thresholds.json."""
+"""Risk level (0 to 3) of a single measurement, based on risk/thresholds.json."""
 
 from __future__ import annotations
 
@@ -17,14 +17,14 @@ class IndicatorResult:
     indicator: str
     system: str
     value: float | None
-    level: int | None  # None = sin dato; nunca se trata como verde
-    code: str | None  # p. ej. "HR_HIGH"; None si está en rango o sin dato
-    reason: str | None  # texto en inglés para el frontend; None si está en rango
-    cut: float | None = None  # corte superado; None si está en rango o sin dato
+    level: int | None  # None = no data; never treated as green
+    code: str | None  # e.g. "HR_HIGH"; None if in range or no data
+    reason: str | None  # English text for the frontend; None if in range
+    cut: float | None = None  # cut exceeded; None if in range or no data
 
 
 def load_thresholds(path: str | None = None) -> dict:
-    """Umbrales por indicador, con los de demo encima si demo_mode()."""
+    """Thresholds per indicator, with the demo ones on top if demo_mode()."""
     return _load(str(path or THRESHOLDS_PATH), demo_mode())
 
 
@@ -40,7 +40,7 @@ def _load(path: str, demo: bool) -> dict:
 
 
 def level_for(indicator: str, value: float | None, thresholds: dict | None = None) -> IndicatorResult:
-    """Compara una medida con sus umbrales y devuelve su nivel y su motivo.
+    """Compare a measurement with its thresholds and return its level and reason.
 
     >>> level_for("heart_rate_bpm", 118).level
     1
@@ -72,14 +72,14 @@ def level_for(indicator: str, value: float | None, thresholds: dict | None = Non
 
 
 def restate(result: IndicatorResult, level: int, note: str, thresholds: dict | None = None) -> IndicatorResult:
-    """El mismo resultado con otro nivel (más bajo) y una nota al final del
-    motivo. El corte y el motivo se recalculan para ese nivel."""
+    """The same result at another (lower) level, with a note at the end of the
+    reason. The cut and the reason are recomputed for that level."""
     spec = (thresholds or load_thresholds())[result.indicator]
     if not level:
         return IndicatorResult(result.indicator, result.system, result.value, 0, None, None)
     direction = "HIGH" if (result.code or "").endswith("_HIGH") else "LOW"
     cuts = spec.get("high" if direction == "HIGH" else "low", [])
-    # El corte de ese nivel; si es null, el más cercano por debajo (o el primero que haya).
+    # The cut for that level; if it is null, the closest one below (or the first one available).
     below = [c for c in cuts[:level] if c is not None]
     above = [c for c in cuts[level:] if c is not None]
     cut = below[-1] if below else above[0] if above else result.cut
@@ -90,15 +90,15 @@ def restate(result: IndicatorResult, level: int, note: str, thresholds: dict | N
 
 
 def as_number(value):
-    """El valor si es un número de verdad (int o float, no bool); si no, None.
-    Así un "80" o un [1] que se cuele cuenta como sin dato, no rompe el motor."""
+    """The value if it is a real number (int or float, not bool); otherwise None.
+    That way a stray "80" or [1] counts as no data instead of breaking the engine."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return value if value == value else None          # NaN también es sin dato
+    return value if value == value else None          # NaN is also no data
 
 
 def _band(value: float, cuts: list, *, above: bool, inclusive: bool) -> int:
-    """Nivel más alto cuyo corte se supera. Los cortes null no cuentan."""
+    """Highest level whose cut is exceeded. Null cuts are ignored."""
     level = 0
     for i, cut in enumerate(cuts, start=1):
         if cut is None:
@@ -113,11 +113,11 @@ def _band(value: float, cuts: list, *, above: bool, inclusive: bool) -> int:
 
 
 def _fmt(number: float) -> str:
-    """118 -> '118', 38.0 -> '38', 37.6 -> '37.6' (punto decimal, en inglés)."""
+    """118 -> '118', 38.0 -> '38', 37.6 -> '37.6' (decimal point, English style)."""
     return f"{number:.1f}".rstrip("0").rstrip(".")
 
 
 def with_unit(number: float, unit: str) -> str:
-    """'118 bpm', '72%', '2/5': sin espacio delante de % y de /5."""
+    """'118 bpm', '72%', '2/5': no space before % and /5."""
     sep = "" if unit.startswith(("%", "/")) else " "
     return f"{_fmt(number)}{sep}{unit}"

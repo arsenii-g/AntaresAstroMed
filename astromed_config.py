@@ -8,7 +8,11 @@ TEAM_NAME = "Team Antares"
 
 def setting(name: str, default: str | None = None) -> str | None:
     """Prefer ASTROMED_*; accept the previous SPACEHEALTH_* environment names."""
-    return os.environ.get(f"ASTROMED_{name}", os.environ.get(f"SPACEHEALTH_{name}", default))
+    for prefix in ("ASTROMED", "SPACEHEALTH"):
+        value = os.environ.get(f"{prefix}_{name}")
+        if value:          # an empty variable counts as unset
+            return value
+    return default
 
 
 def demo_mode() -> bool:

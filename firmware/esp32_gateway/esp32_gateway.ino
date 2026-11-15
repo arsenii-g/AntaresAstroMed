@@ -1,20 +1,20 @@
-// AstroMed - firmware del ESP32 (pasarela WiFi)
+// AstroMed - ESP32 firmware (WiFi gateway)
 //
-// Lee del UNO (UART2, GPIO16, 115200) una linea JSON por mensaje:
+// Reads one JSON line per message from the UNO (UART2, GPIO16, 115200):
 //   {"t":"tel", ...}  -> POST {API_BASE}/api/v1/telemetry
 //   {"t":"evt", ...}  -> POST {API_BASE}/api/v1/events
-// Le pone device_id y ts (UTC, ISO 8601, hora por NTP), y lo manda con
-// Content-Type: application/json y X-API-Key.
+// Adds device_id and ts (UTC, ISO 8601, time from NTP) and sends it with
+// Content-Type: application/json and X-API-Key.
 //
-// Si el backend no responde 200 con {"ok": true}, reintenta (1 s, 2 s, 4 s ... 30 s)
-// y guarda hasta 50 mensajes en cola; si se llena, descarta el mas antiguo.
-// El ts de cada mensaje se fija al recibirlo del UNO y no cambia en los reintentos,
-// asi el backend puede descartar duplicados por (device_id, ts, type).
+// If the backend does not answer 200 with {"ok": true}, it retries (1 s, 2 s, 4 s ... 30 s)
+// and keeps up to 50 messages queued; if the queue fills up, it drops the oldest.
+// Each message's ts is fixed when it arrives from the UNO and does not change on retries,
+// so the backend can discard duplicates by (device_id, ts, type).
 //
-// Si no hay Internet para NTP, toma la hora de la cabecera Date del backend.
+// If there is no Internet for NTP, it takes the time from the backend's Date header.
 //
-// Placa: "ESP32 Dev Module" (core esp32 de Espressif). Libreria: ArduinoJson 7.
-// Monitor serie del ESP32 a 115200 para ver el estado.
+// Board: "ESP32 Dev Module" (Espressif esp32 core). Library: ArduinoJson 7.
+// Open the ESP32 serial monitor at 115200 to see the status.
 
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -27,16 +27,16 @@
 HardwareSerial UnoSerial(2);
 
 // ============================================================================
-// Cola de mensajes
+// Message queue
 // ============================================================================
 
 enum Kind : uint8_t { K_TELEMETRY = 0, K_CHECKIN, K_INACTIVITY, K_EXERCISE, K_OTHER, K_COUNT };
 
 struct Msg {
   Kind kind;
-  String raw;        // linea tal cual llego del UNO
-  time_t epoch;      // 0 = aun sin hora
-  uint32_t capMs;    // millis() al recibirlo
+  String raw;        // line exactly as received from the UNO
+  time_t epoch;      // 0 = no time yet
+  uint32_t capMs;    // millis() when received
 };
 
 Msg msgQueue[QUEUE_MAX];
@@ -49,10 +49,10 @@ uint32_t ledOffMs = 0;
 
 bool timeSynced() { return time(nullptr) > 1700000000; }
 
-// Pone hora a los mensajes que aun no la tienen, en orden de llegada.
-// Si dos mensajes del mismo tipo caerian en el mismo segundo (p. ej. "out" e "in"
-// al cambiar de tarjeta), el segundo se adelanta 1 s para que el backend no
-// lo tome por duplicado.
+// Timestamps messages that do not have a time yet, in arrival order.
+// If two messages of the same type would fall in the same second (e.g. "out" and "in"
+// when swapping cards), the second is moved ahead by 1 s so the backend does not
+// treat it as a duplicate.
 void resolveTimes() {
   if (!timeSynced()) return;
   time_t nowE = time(nullptr);
@@ -73,7 +73,7 @@ void enqueue(Kind kind, const String &line) {
     qHead = (qHead + 1) % QUEUE_MAX;
     qCount--;
     dropped++;
-    Serial.println(F("[cola] llena: descarto el mensaje mas antiguo"));
+    Serial.println(F("[queue] full: dropping the oldest message"));
   }
   Msg &m = msgQueue[(qHead + qCount) % QUEUE_MAX];
   m.kind = kind;
@@ -91,7 +91,7 @@ void dequeue() {
 }
 
 // ============================================================================
-// Construccion del JSON final
+// Building the final JSON
 // ============================================================================
 
 String isoUtc(time_t t) {
@@ -161,7 +161,7 @@ int postJson(const char *path, const String &body, String &resp) {
   return code;
 }
 
-// Si no hay NTP (red sin Internet), usa la cabecera Date de cualquier respuesta del backend
+// If there is no NTP (network without Internet), use the Date header of any backend response
 bool syncTimeFromBackend() {
   HTTPClient http;
   if (!beginHttp(http, String(API_BASE) + "/")) return false;
@@ -185,11 +185,11 @@ bool syncTimeFromBackend() {
   tm.tm_hour = h;
   tm.tm_min = mi;
   tm.tm_sec = s;
-  time_t t = mktime(&tm);              // la zona horaria es UTC (configTime(0, 0, ...))
+  time_t t = mktime(&tm);              // the time zone is UTC (configTime(0, 0, ...))
   if (t < 1700000000) return false;
   struct timeval tv = {t, 0};
   settimeofday(&tv, nullptr);
-  Serial.printf("[hora] tomada del backend: %s\n", isoUtc(t).c_str());
+  Serial.printf("[time] taken from backend: %s\n", isoUtc(t).c_str());
   return true;
 }
 
@@ -197,11 +197,11 @@ void processQueue() {
   if (qCount == 0 || WiFi.status() != WL_CONNECTED) return;
   if ((int32_t)(millis() - nextTryMs) < 0) return;
   Msg &m = msgQueue[qHead];
-  if (m.epoch == 0) return;   // esperando hora
+  if (m.epoch == 0) return;   // waiting for time
 
   String body;
   if (!buildBody(m, body)) {
-    Serial.println(F("[envio] JSON del UNO invalido, descartado"));
+    Serial.println(F("[send] invalid JSON from UNO, dropped"));
     dequeue();
     return;
   }
@@ -212,39 +212,40 @@ void processQueue() {
   bool ok = false;
   if (code >= 200 && code < 300) {
     JsonDocument r;
-    // Se espera {"ok": true}; si la respuesta no es JSON, con el 2xx basta
+    // {"ok": true} is expected; if the response is not JSON, a 2xx is enough
     ok = deserializeJson(r, resp) || r["ok"].isNull() || r["ok"].as<bool>();
   } else if (code == 409) {
-    ok = true;  // el backend ya lo tenia (duplicado)
+    ok = true;  // the backend already had it (duplicate)
   }
 
   if (ok) {
-    Serial.printf("[envio] %s %d (%u en cola)\n", path, code, qCount - 1);
+    Serial.printf("[send] %s %d (%u queued)\n", path, code, qCount - 1);
     dequeue();
     sentOk++;
     retryDelay = RETRY_MIN_MS;
     nextTryMs = millis();
     digitalWrite(STATUS_LED_PIN, HIGH);
     ledOffMs = millis() + 60;
-  } else if (code >= 400 && code < 500 && code != 408 && code != 429) {
-    // Error del cliente (422 valor imposible, 401 clave mala...): reintentar no lo arregla
-    Serial.printf("[envio] %s rechazado %d: %s\n  cuerpo: %s\n", path, code, resp.c_str(), body.c_str());
+  } else if (code >= 400 && code < 500 && code != 401 && code != 403 && code != 408 && code != 429) {
+    // Client error (422 impossible value...): retrying will not fix it.
+    // 401/403 (bad key) are retried: once the key is fixed, no data is lost
+    Serial.printf("[send] %s rejected %d: %s\n  body: %s\n", path, code, resp.c_str(), body.c_str());
     dequeue();
     sendFail++;
   } else {
     sendFail++;
-    Serial.printf("[envio] %s fallo (%d), reintento en %u ms\n", path, code, retryDelay);
+    Serial.printf("[send] %s failed (%d), retrying in %u ms\n", path, code, retryDelay);
     if (code < 0) probeBackend();
-    if (code >= 500 && retryDelay == RETRY_MIN_MS) {   // solo en el primer fallo de cada mensaje
-      Serial.printf("  respuesta: %.300s\n  cuerpo: %s\n", resp.c_str(), body.c_str());
+    if (code >= 500 && retryDelay == RETRY_MIN_MS) {   // only on the first failure of each message
+      Serial.printf("  response: %.300s\n  body: %s\n", resp.c_str(), body.c_str());
     }
     nextTryMs = millis() + retryDelay;
     retryDelay = min<uint32_t>(retryDelay * 2, RETRY_MAX_MS);
   }
 }
 
-// Diagnostico cuando no hay conexion: abre una conexion TCP pelada al backend y mide
-// cuanto tarda en fallar. Como mucho una vez por minuto.
+// Diagnostics when there is no connection: opens a bare TCP connection to the backend
+// and measures how long it takes to fail. At most once per minute.
 void probeBackend() {
   static uint32_t lastProbe = 0;
   if (lastProbe && millis() - lastProbe < 60000) return;
@@ -263,19 +264,19 @@ void probeBackend() {
   bool ok = c.connect(host.c_str(), port, HTTP_TIMEOUT_MS);
   uint32_t dt = millis() - t0;
   c.stop();
-  Serial.printf("[diag] mi IP %s, puerta de enlace %s. TCP a %s:%u: %s en %lu ms\n",
+  Serial.printf("[diag] my IP %s, gateway %s. TCP to %s:%u: %s in %lu ms\n",
                 WiFi.localIP().toString().c_str(), WiFi.gatewayIP().toString().c_str(),
-                host.c_str(), port, ok ? "CONECTA" : "falla", (unsigned long)dt);
+                host.c_str(), port, ok ? "CONNECTS" : "fails", (unsigned long)dt);
   if (ok)
-    Serial.println(F("[diag] El puerto esta abierto: el fallo es del protocolo (http/https) o del servidor."));
+    Serial.println(F("[diag] The port is open: the problem is the protocol (http/https) or the server."));
   else if (dt < HTTP_TIMEOUT_MS - 500)
-    Serial.println(F("[diag] Falla al instante: el ordenador contesta pero no hay servidor en ese puerto (no arrancado o escuchando solo en 127.0.0.1)."));
+    Serial.println(F("[diag] Fails instantly: the computer answers but no server is on that port (not started, or listening only on 127.0.0.1)."));
   else
-    Serial.println(F("[diag] Se agota el tiempo: no llegan los paquetes (cortafuegos, IP equivocada o el hotspot aisla a los clientes)."));
+    Serial.println(F("[diag] Times out: packets are not arriving (firewall, wrong IP, or the hotspot isolates clients)."));
 }
 
 // ============================================================================
-// Lectura del UNO
+// Reading from the UNO
 // ============================================================================
 
 String lineBuf;
@@ -285,14 +286,14 @@ const size_t MAX_LINE = 1024;
 void handleLine(String &line) {
   line.trim();
   if (line.length() == 0) return;
-  if (line[0] != '{') {                 // depuracion del UNO ("# ...")
+  if (line[0] != '{') {                 // UNO debug output ("# ...")
     Serial.print(F("[uno] "));
     Serial.println(line);
     return;
   }
   JsonDocument doc;
   if (deserializeJson(doc, line)) {
-    Serial.print(F("[uno] linea JSON corrupta: "));
+    Serial.print(F("[uno] corrupt JSON line: "));
     Serial.println(line);
     return;
   }
@@ -305,7 +306,7 @@ void handleLine(String &line) {
     if (strcmp(type, "crew_checkin") == 0) k = K_CHECKIN;
     else if (strcmp(type, "inactivity") == 0) k = K_INACTIVITY;
     else if (strcmp(type, "exercise_summary") == 0) k = K_EXERCISE;
-    Serial.printf("[uno] evento %s\n", type);
+    Serial.printf("[uno] event %s\n", type);
     enqueue(k, line);
   }
 }
@@ -325,7 +326,7 @@ void readUno() {
 }
 
 // ============================================================================
-// WiFi y estado
+// WiFi and status
 // ============================================================================
 
 uint32_t lastWifiAttempt = 0, wifiUpSince = 0, lastHttpTimeTry = 0, lastStatus = 0;
@@ -335,9 +336,9 @@ void maintainWifi() {
   bool up = WiFi.status() == WL_CONNECTED;
   if (up && !wasConnected) {
     wifiUpSince = millis();
-    Serial.printf("[wifi] conectado, IP %s\n", WiFi.localIP().toString().c_str());
+    Serial.printf("[wifi] connected, IP %s\n", WiFi.localIP().toString().c_str());
   }
-  if (!up && wasConnected) Serial.println(F("[wifi] desconectado"));
+  if (!up && wasConnected) Serial.println(F("[wifi] disconnected"));
   wasConnected = up;
 
   if (!up && millis() - lastWifiAttempt > 10000) {
@@ -345,7 +346,7 @@ void maintainWifi() {
     WiFi.disconnect();
     WiFi.begin(WIFI_SSID, WIFI_PASS);
   }
-  // Sin NTP a los 15 s de tener WiFi: probar con la hora del backend cada 30 s
+  // No NTP 15 s after WiFi is up: try the backend's time every 30 s
   if (up && !timeSynced() && millis() - wifiUpSince > 15000 && millis() - lastHttpTimeTry > 30000) {
     lastHttpTimeTry = millis();
     syncTimeFromBackend();
@@ -355,9 +356,9 @@ void maintainWifi() {
 void printStatus() {
   if (millis() - lastStatus < 30000) return;
   lastStatus = millis();
-  Serial.printf("[estado] wifi=%s hora=%s cola=%u enviados=%lu fallos=%lu descartados=%lu\n",
-                WiFi.status() == WL_CONNECTED ? "si" : "no",
-                timeSynced() ? isoUtc(time(nullptr)).c_str() : "sin sincronizar",
+  Serial.printf("[status] wifi=%s time=%s queue=%u sent=%lu failures=%lu dropped=%lu\n",
+                WiFi.status() == WL_CONNECTED ? "yes" : "no",
+                timeSynced() ? isoUtc(time(nullptr)).c_str() : "not synced",
                 qCount, (unsigned long)sentOk, (unsigned long)sendFail, (unsigned long)dropped);
 }
 
@@ -370,21 +371,21 @@ void setup() {
   pinMode(STATUS_LED_PIN, OUTPUT);
   digitalWrite(STATUS_LED_PIN, LOW);
 
-  UnoSerial.setRxBufferSize(4096);   // aguanta varios mensajes mientras se hace un POST
+  UnoSerial.setRxBufferSize(4096);   // holds several messages while a POST is in progress
   UnoSerial.begin(UNO_BAUD, SERIAL_8N1, UNO_RX_PIN, UNO_TX_PIN);
   lineBuf.reserve(MAX_LINE);
 
-  Serial.println(F("\nAstroMed ESP32 arrancando"));
+  Serial.println(F("\nAstroMed ESP32 starting"));
   WiFi.mode(WIFI_STA);
   WiFi.onEvent([](WiFiEvent_t, WiFiEventInfo_t info) {
     uint8_t r = info.wifi_sta_disconnected.reason;
-    if (r == 36) return;  // STA_LEAVING: lo provoca nuestro propio reintento, no es un error
-    Serial.printf("[wifi] no conecta a \"%s\": motivo %u (%s)\n", WIFI_SSID, r,
+    if (r == 36) return;  // STA_LEAVING: caused by our own retry, not an error
+    Serial.printf("[wifi] cannot connect to \"%s\": reason %u (%s)\n", WIFI_SSID, r,
                   WiFi.disconnectReasonName((wifi_err_reason_t)r));
     if (r == WIFI_REASON_NO_AP_FOUND)
-      Serial.println(F("       No ve la red: el ESP32 solo usa 2,4 GHz. Pon el punto de acceso en 2,4 GHz y revisa el nombre."));
+      Serial.println(F("       Cannot see the network: the ESP32 only uses 2.4 GHz. Set the access point to 2.4 GHz and check the name."));
     else if (r == WIFI_REASON_AUTH_FAIL || r == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT || r == WIFI_REASON_HANDSHAKE_TIMEOUT)
-      Serial.println(F("       Ve la red pero no entra: revisa la contrasena (o pon la seguridad en WPA2)."));
+      Serial.println(F("       Sees the network but cannot join: check the password (or set security to WPA2)."));
   }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
   WiFi.setAutoReconnect(true);
   WiFi.begin(WIFI_SSID, WIFI_PASS);

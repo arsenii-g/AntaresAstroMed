@@ -1,6 +1,6 @@
 """RFID cards from contracts/README.md. Unknown cards remain valid inputs.
 
-Names and roles are not assigned yet (firmware/FORMATO_JSON_BACKEND.md):
+Names and roles are not assigned yet (firmware/BACKEND_JSON_FORMAT.md):
 edit them here when the crew is known.
 """
 CREW = {

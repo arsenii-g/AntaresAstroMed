@@ -50,7 +50,9 @@ Open the [landing page](http://localhost:8000) or the [crew console](http://loca
 
 The supplied [`.env.example`](.env.example) enables `ASTROMED_DEMO=1`, which triggers the inactivity alert after 30 seconds, matching the current firmware. Copy its settings to `.env` and start with `--env-file .env` to customize them.
 
-Configuration uses `ASTROMED_API_KEY`, `ASTROMED_CORS_ORIGINS`, and the optional `ASTROMED_DATABASE_URL`. Existing `SPACEHEALTH_*` variables remain supported; an `ASTROMED_*` value takes precedence when both are set. The existing device API key is unchanged. New installations create `astromed.db`; if `spacehealth.db` already exists in the working directory, AstroMed reuses it to preserve recorded data. An explicit database URL overrides this automatic choice.
+Configuration uses `ASTROMED_API_KEY`, `ASTROMED_CORS_ORIGINS`, and the optional `ASTROMED_DATABASE_URL`. Legacy `SPACEHEALTH_*` names and an existing `spacehealth.db` are still honored; see [`api/README.md`](api/README.md) for details.
+
+The default API key and the CORS `*` setting in `.env.example` are demo settings only; see the security notes in [`api/README.md`](api/README.md) before exposing the API beyond a trusted network.
 
 The ESP32 must use the same API key as the backend and the computer's address in `API_BASE`. GET requests and the dashboard's manual check endpoint do not require an API key. See the [firmware setup and wiring guide](firmware/README.md) for the physical device.
 
@@ -71,7 +73,7 @@ python -m simulator.simulate --mode normal
 
 Manual checks are entered through the console's *Daily check* view. The simulator sends the same message format as the physical station; the API and risk engine calculate the assessments and trendlines. See the [simulator guide](simulator/README.md) for configuration and operating modes.
 
-On Windows, after creating the virtual environment, [`arrancar-demo.bat`](arrancar-demo.bat) starts the API and simulator in separate windows.
+On Windows, after creating the virtual environment, [`start-demo.bat`](start-demo.bat) starts the API and simulator in separate windows.
 
 ## How it works
 
@@ -102,7 +104,7 @@ The console follows RFID check-ins, allows manual crew selection, and shows the 
 | `risk/` | Risk engine and `thresholds.json` | Arsenii |
 | `simulator/` | Two simulated ESP32 devices with configurable levels | Arsenii |
 | `api/` | FastAPI endpoints, SQLite persistence, and WebSocket | Jesus |
-| `frontend/boceto/` | AstroMed console, clickable body, daily checks, and charts | Roberto |
+| `frontend/web/` | AstroMed console, clickable body, daily checks, and charts | Roberto |
 
 ## Data contracts
 
@@ -143,14 +145,24 @@ python -m pytest -q
 Frontend tests require **Node.js 20 or later**, with no additional packages:
 
 ```bash
-node --test frontend/boceto/tests/*.test.js
+node --test frontend/web/tests/*.test.js
 ```
 
 ## Final version and contributions
 
-Use [`main`](https://github.com/arsenii-g/AntaresAstroMed/tree/main) for the final Team Antares submission. Historical feature branches are retained as development history; the integrated console served by the API is in `frontend/boceto/`.
+Use [`main`](https://github.com/arsenii-g/AntaresAstroMed/tree/main) for the final Team Antares submission. Historical feature branches are retained as development history; the integrated console served by the API is in `frontend/web/`.
 
 For future changes, open a pull request against `main`. Changes to a data contract should be reviewed by both the producer and consumer of that data.
+
+## Credits
+
+AstroMed builds on the following third-party software, data, and standards.
+
+- **Backend:** [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/), [SQLAlchemy](https://www.sqlalchemy.org/), and [Pydantic](https://docs.pydantic.dev/) (see `requirements.txt`). Tests use [pytest](https://pytest.org/) and [HTTPX](https://www.python-httpx.org/).
+- **Firmware:** the Arduino and ESP32 cores, the [MFRC522](https://github.com/miguelbalboa/rfid) library for the RFID reader, and [ArduinoJson](https://arduinojson.org/).
+- **Hardware design:** [KiCad](https://www.kicad.org/).
+- **Frontend:** [Google Fonts](https://fonts.google.com/): Sora, Inter, and JetBrains Mono.
+- **Standards and guidelines behind `risk/thresholds.json`:** NASA-STD-3001 (vols. 1 and 2), American Heart Association (AHA/ACC) blood pressure and heart rate guidance, American Diabetes Association (ADA) Standards of Care, and NOAA/NWS heat index tables.
 
 ## Limitations
 

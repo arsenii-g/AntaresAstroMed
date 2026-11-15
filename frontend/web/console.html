@@ -6,7 +6,7 @@
   <title>AstroMed · Team Antares · Crew Health Console</title>
   <meta name="description" content="AstroMed by Team Antares: crew health monitoring, body sensor telemetry, daily checks and explainable risk rules.">
   <link rel="icon" type="image/svg+xml" href="assets/antares-mark.svg">
-  <!-- Fuentes: si no hay internet se usan las del sistema (ver styles.css). -->
+  <!-- Fonts: system fonts are used if there is no internet (see styles.css). -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
 <body>
   <div class="grain" aria-hidden="true"></div>
 
-  <!-- ───────── BARRA SUPERIOR ───────── -->
+  <!-- ───────── TOP BAR ───────── -->
   <header class="topbar">
     <a class="brand" href="index.html" aria-label="AstroMed home">
       <img src="assets/antares-mark.svg" width="32" height="32" alt="">
@@ -36,10 +36,10 @@
     <div class="link-pill" id="linkPill" title="Body sensor link"><i></i><span id="linkText">SENSOR</span></div>
   </header>
 
-  <!-- Aviso de nivel 2 o 3 sin reconocer -->
+  <!-- Unacknowledged level 2 or 3 alert -->
   <div class="alert" id="alert" hidden></div>
 
-  <!-- ───────── VISTA: MONITOR ───────── -->
+  <!-- ───────── VIEW: MONITOR ───────── -->
   <main class="monitor" id="view-monitor">
 
     <div class="stack a-left">
@@ -117,9 +117,9 @@
 
   </main>
 
-  <!-- ───────── VISTA: CHEQUEO DIARIO ───────── -->
-  <!-- Mismo lenguaje visual que el monitor: paneles, esquinas HUD y etiquetas mono.
-       Los colores son neutros (azul de acento): aquí no se evalúa nada, solo se anota. -->
+  <!-- ───────── VIEW: DAILY CHECK ───────── -->
+  <!-- Same visual language as the monitor: panels, HUD corners, and mono labels.
+       Colors are neutral (accent blue): nothing is assessed here, only recorded. -->
   <main class="checkview" id="view-check" hidden>
     <form class="check-grid" id="checkForm" novalidate>
       <section class="panel check-main">

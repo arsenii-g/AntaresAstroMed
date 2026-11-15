@@ -49,21 +49,21 @@ def telemetry(seconds_ago, hr=None, temp=None, cabin=None, rh=None):
     return m
 
 
-def test_glucosa_que_sube_avisa_antes_de_salir_de_verde():
-    checks = [day_check(d, glucose=80 + 3 * (6 - d)) for d in range(6, -1, -1)]   # 80 → 98
+def test_rising_glucose_warns_before_leaving_green():
+    checks = [day_check(d, glucose=80 + 3 * (6 - d)) for d in range(6, -1, -1)]   # 80 -> 98
     result = evaluate([], [], checks, NOW)
     t = trend(result, "glucose_mg_dl")
-    assert result["systems"]["cardiovascular"]["level"] == 0       # hoy sigue en verde
+    assert result["systems"]["cardiovascular"]["level"] == 0       # still green today
     assert t["basis"] == "count" and t["x_unit"] == "check"
-    assert t["slope"] == pytest.approx(3, abs=0.01)                # 3 mg/dL por chequeo
+    assert t["slope"] == pytest.approx(3, abs=0.01)                # 3 mg/dL per check
     assert t["threshold"] == 99 and t["threshold_level"] == 1
     assert 0 < t["crosses_in"] <= 1
     assert t["points"] == [[-6.0, 80.0], [-5.0, 83.0], [-4.0, 86.0], [-3.0, 89.0], [-2.0, 92.0], [-1.0, 95.0], [0.0, 98.0]]
     assert any(r.startswith("Trend: glucose will reach 99 mg/dL in about 1 more daily check") for r in result["recommendations"])
 
 
-def test_siete_chequeos_seguidos_dan_la_misma_recta_que_siete_dias():
-    """En la demo se meten 7 chequeos en unos minutos: la recta va por chequeo, no por día."""
+def test_seven_consecutive_checks_give_the_same_line_as_seven_days():
+    """In the demo, 7 checks are entered within a few minutes: the line goes per check, not per day."""
     by_day = trend(evaluate([], [], [day_check(d, glucose=80 + 3 * (6 - d)) for d in range(6, -1, -1)], NOW), "glucose_mg_dl")
     quick = [minutes_check(6 - i, glucose=80 + 3 * i) for i in range(7)]
     fast = trend(evaluate([], [], quick, NOW), "glucose_mg_dl")
@@ -71,7 +71,7 @@ def test_siete_chequeos_seguidos_dan_la_misma_recta_que_siete_dias():
         assert fast[key] == by_day[key]
 
 
-def test_hacen_falta_7_medidas():
+def test_seven_measurements_are_needed():
     six = [minutes_check(5 - i, glucose=90 + i) for i in range(6)]
     assert evaluate([], [], six, NOW)["trends"] == []
     seven = [minutes_check(6 - i, glucose=90 + i) for i in range(7)]
@@ -79,29 +79,29 @@ def test_hacen_falta_7_medidas():
     assert names == {"systolic_mmhg", "diastolic_mmhg", "glucose_mg_dl", "mood"}
 
 
-def test_valores_estables_no_cruzan():
+def test_stable_values_do_not_cross():
     checks = [day_check(d) for d in range(6, -1, -1)]
     result = evaluate([], [], checks, NOW)
     assert all(t["crosses_in"] is None for t in result["trends"])
     assert not any(r.startswith("Trend") for r in result["recommendations"])
 
 
-def test_recta_cuenta_aunque_falte_un_dato_en_algun_chequeo():
+def test_line_counts_even_if_a_check_is_missing_a_value():
     checks = [minutes_check(7 - i, glucose=90 + i) for i in range(8)]
-    checks[3]["glucose_mg_dl"] = None                               # ese día no se midió
+    checks[3]["glucose_mg_dl"] = None                               # not measured that day
     t = trend(evaluate([], [], checks, NOW), "glucose_mg_dl")
     assert len(t["points"]) == 7 and t["points"][-1] == [0.0, 97.0]
 
 
-def test_animo_que_baja_cruza_por_abajo_y_no_baja_de_1():
+def test_falling_mood_crosses_downward_and_stays_at_or_above_1():
     moods = [5, 5, 5, 4, 4, 4, 3]
     checks = [minutes_check(6 - i, mood=m) for i, m in enumerate(moods)]
     t = trend(evaluate([], [], checks, NOW), "mood")
-    assert t["threshold"] == 3 and t["threshold_level"] == 1     # 3 aún es verde: el ámbar es menos de 3
+    assert t["threshold"] == 3 and t["threshold_level"] == 1     # 3 is still green: amber is below 3
     assert t["slope"] < 0 and t["projected"] >= 1
 
 
-def test_flexiones_que_caen_cruzan_el_umbral_de_la_basal():
+def test_falling_push_ups_cross_the_baseline_threshold():
     events = [pushups(d, r) for d, r in zip(range(6, -1, -1), [20, 20, 19, 19, 18, 18, 17])]
     result = evaluate([], events, [], NOW)
     t = trend(result, "pushup_reps")
@@ -110,37 +110,37 @@ def test_flexiones_que_caen_cruzan_el_umbral_de_la_basal():
     assert t["crosses_in"] is not None
 
 
-def test_pulso_que_sube_en_el_ultimo_minuto_da_tendencia_en_segundos():
-    msgs = [telemetry(2 * (14 - i), hr=80 + 2 * i) for i in range(15)]       # 80 → 108 en 28 s
+def test_pulse_rising_in_the_last_minute_gives_a_trend_in_seconds():
+    msgs = [telemetry(2 * (14 - i), hr=80 + 2 * i) for i in range(15)]       # 80 -> 108 in 28 s
     t = trend(evaluate(msgs, [], [], NOW), "heart_rate_bpm")
     assert t["basis"] == "time" and t["x_unit"] == "s" and t["horizon"] == 60
-    assert t["slope"] == pytest.approx(1.0)                                  # 1 lpm por segundo
+    assert t["slope"] == pytest.approx(1.0)                                  # 1 bpm per second
     assert t["threshold"] == 120 and t["threshold_level"] == 2
     assert t["crosses_in"] == pytest.approx(12, abs=0.1)
     assert t["points"][-1] == [0.0, 108.0]
 
 
-def test_sensor_sin_datos_no_da_tendencia_y_menos_de_7_lecturas_tampoco():
+def test_sensor_without_data_gives_no_trend_and_neither_do_fewer_than_7_readings():
     assert evaluate([telemetry(2 * (5 - i), hr=70) for i in range(6)], [], [], NOW)["trends"] == []
     msgs = [telemetry(2 * (9 - i), cabin=23.0 + 0.1 * i, rh=45) for i in range(10)]
     names = {t["indicator"] for t in evaluate(msgs, [], [], NOW)["trends"]}
     assert names == {"cabin_temp_c", "humidity_pct"}
 
 
-def test_temperatura_corporal_que_baja_solo_vigila_el_ambar():
-    msgs = [telemetry(2 * (9 - i), temp=37.2 - 0.05 * i) for i in range(10)]   # 37.2 → 36.75
+def test_falling_body_temperature_only_monitors_amber():
+    msgs = [telemetry(2 * (9 - i), temp=37.2 - 0.05 * i) for i in range(10)]   # 37.2 -> 36.75
     t = trend(evaluate(msgs, [], [], NOW), "body_temp_c")
     assert t["threshold"] == 36.0 and t["threshold_level"] == 1
     later = [telemetry(2 * (9 - i), temp=35.9 - 0.1 * i) for i in range(10)]
     assert trend(evaluate(later, [], [], NOW), "body_temp_c")["threshold"] is None
 
 
-def test_pocos_datos_no_dan_tendencia():
+def test_few_data_points_give_no_trend():
     result = evaluate([], [], [day_check(1), day_check(0)], NOW)
     assert result["trends"] == []
 
 
-def test_resumen_a_tierra_solo_en_rojo_y_en_ingles():
+def test_earth_summary_only_at_red_and_in_english():
     green = evaluate([], [], [day_check(0)], NOW)
     assert green["earth_summary"] is None
 
@@ -153,46 +153,46 @@ def test_resumen_a_tierra_solo_en_rojo_y_en_ingles():
     assert "Rest for 5 minutes and repeat the blood pressure" in text
 
 
-def test_modo_demo_baja_la_inactividad_a_30_s(monkeypatch):
+def test_demo_mode_lowers_inactivity_to_30_s(monkeypatch):
     assert level_for("still_for_s", 45).level == 0
     monkeypatch.setenv("SPACEHEALTH_DEMO", "1")
     assert level_for("still_for_s", 45).level == 1
     assert level_for("still_for_s", 90).level == 2
 
 
-def test_tension_se_confirma_con_la_medida_de_ayer():
+def test_blood_pressure_is_confirmed_by_yesterdays_reading():
     cardio = lambda checks: evaluate([], [], checks, NOW)["systems"]["cardiovascular"]
     first = cardio([day_check(0, systolic=145)])
     assert first["level"] == 1 and "first reading" in first["reasons"][0]
-    confirmed = cardio([day_check(1, systolic=145), day_check(0, systolic=146)])   # ayer, a 25 h
+    confirmed = cardio([day_check(1, systolic=145), day_check(0, systolic=146)])   # yesterday, 25 h ago
     assert confirmed["level"] == 2
-    only_yesterday = cardio([day_check(1, systolic=145)])                          # hoy no hay medida
+    only_yesterday = cardio([day_check(1, systolic=145)])                          # no reading today
     assert "Systolic blood pressure: no data" in only_yesterday["reasons"]
 
 
-def test_animo_frente_a_su_propia_media():
+def test_mood_against_own_average():
     neuro = lambda checks: evaluate([], [], checks, NOW)["systems"]["neuro"]
-    assert neuro([day_check(0, mood=3)])["level"] == 0                             # sin historia: corte fijo
+    assert neuro([day_check(0, mood=3)])["level"] == 0                             # no history: fixed cut
     usual_5 = [day_check(d, mood=5) for d in (4, 3, 2, 1)] + [day_check(0, mood=3)]
     drop = neuro(usual_5)
     assert drop["level"] == 1 and "2 points below own average 5/5" in drop["reasons"][0]
     usual_4 = [day_check(d, mood=4) for d in (4, 3, 2, 1)] + [day_check(0, mood=3)]
-    assert neuro(usual_4)["level"] == 0                                            # 1 punto: normal
+    assert neuro(usual_4)["level"] == 0                                            # 1 point: normal
     two_before = [day_check(d, mood=5) for d in (2, 1)] + [day_check(0, mood=3)]
-    assert neuro(two_before)["level"] == 0                                         # pocos chequeos previos
+    assert neuro(two_before)["level"] == 0                                         # too few previous checks
 
 
-def test_animo_baja_1_5_de_su_media():
+def test_mood_1_5_below_own_average():
     usual = [day_check(d, mood=m) for d, m in zip((3, 2, 1), (5, 5, 4))] + [day_check(0, mood=3)]
     neuro = evaluate([], [], usual, NOW)["systems"]["neuro"]
     assert neuro["level"] == 1 and "below own average" in neuro["reasons"][0]
 
 
-def test_si_la_recta_va_hacia_lo_normal_no_hay_umbral():
-    falling_high = [telemetry(2 * (9 - i), hr=160 - i) for i in range(10)]   # rojo que baja: se recupera
+def test_if_the_line_heads_to_normal_there_is_no_threshold():
+    falling_high = [telemetry(2 * (9 - i), hr=160 - i) for i in range(10)]   # red that falls: recovering
     t = trend(evaluate(falling_high, [], [], NOW), "heart_rate_bpm")
     assert t["slope"] < 0 and t["threshold"] is None and t["crosses_in"] is None
-    rising_low = [telemetry(2 * (9 - i), cabin=23, rh=20 + i) for i in range(10)]   # humedad baja que sube
+    rising_low = [telemetry(2 * (9 - i), cabin=23, rh=20 + i) for i in range(10)]   # low humidity that rises
     assert trend(evaluate(rising_low, [], [], NOW), "humidity_pct")["threshold"] is None
-    rising_high = [telemetry(2 * (9 - i), hr=130 + i) for i in range(10)]    # naranja que sube: vigila el rojo
+    rising_high = [telemetry(2 * (9 - i), hr=130 + i) for i in range(10)]    # orange that rises: watches red
     assert trend(evaluate(rising_high, [], [], NOW), "heart_rate_bpm")["threshold"] == 150

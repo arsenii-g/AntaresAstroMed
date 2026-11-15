@@ -1,17 +1,17 @@
-// Prueba del lector RFID RC522 con Arduino UNO
-// Libreria: "MFRC522" (GithubCommunity), desde el Gestor de bibliotecas.
-// Monitor serie a 115200 baudios.
+// RC522 RFID reader test with Arduino UNO
+// Library: "MFRC522" (GithubCommunity), from the Library Manager.
+// Serial Monitor at 115200 baud.
 //
-// Conexiones:
+// Wiring:
 //   RC522  -> UNO
 //   SDA    -> D10
 //   SCK    -> D13
 //   MOSI   -> D11
 //   MISO   -> D12
-//   IRQ    -> sin conectar
+//   IRQ    -> not connected
 //   GND    -> GND
 //   RST    -> D9
-//   3.3V   -> 3.3V   (NUNCA a 5V)
+//   3.3V   -> 3.3V   (NEVER to 5V)
 
 #include <SPI.h>
 #include <MFRC522.h>
@@ -20,13 +20,13 @@ const byte PIN_SS  = 10;
 const byte PIN_RST = 9;
 MFRC522 rfid(PIN_SS, PIN_RST);
 
-// Tripulantes vistos durante la prueba, para alternar entrada y salida
+// Crew members seen during the test, to alternate check-in and check-out
 const byte MAX_CREW = 5;
 String crewIds[MAX_CREW];
 bool   crewIn[MAX_CREW];
 byte   crewCount = 0;
 
-// Evita lecturas repetidas de la misma tarjeta
+// Avoids repeated reads of the same card
 String lastUid = "";
 unsigned long lastReadMs = 0;
 const unsigned long REPEAT_MS = 2000;
@@ -60,24 +60,24 @@ void setup() {
   delay(50);
 
   byte version = rfid.PCD_ReadRegister(MFRC522::VersionReg);
-  Serial.print(F("Version del RC522: 0x"));
+  Serial.print(F("RC522 version: 0x"));
   Serial.println(version, HEX);
 
   if (version == 0x00 || version == 0xFF) {
-    Serial.println(F("ERROR: no se detecta el RC522. Revisa cables, soldaduras y 3.3V."));
+    Serial.println(F("ERROR: RC522 not detected. Check wires, solder joints and 3.3V."));
   } else {
-    rfid.PCD_SetAntennaGain(rfid.RxGain_max);  // maxima sensibilidad de lectura
-    Serial.println(F("RC522 OK. Acerca una tarjeta o el llavero (a menos de 3 cm)."));
+    rfid.PCD_SetAntennaGain(rfid.RxGain_max);  // maximum read sensitivity
+    Serial.println(F("RC522 OK. Bring a card or key fob closer (within 3 cm)."));
   }
 }
 
 unsigned long lastBeatMs = 0;
 
 void loop() {
-  // Latido: confirma que el programa sigue corriendo
+  // Heartbeat: confirms the program is still running
   if (millis() - lastBeatMs > 3000) {
     lastBeatMs = millis();
-    Serial.println(F("... esperando tarjeta"));
+    Serial.println(F("... waiting for a card"));
   }
 
   if (!rfid.PICC_IsNewCardPresent()) return;
@@ -95,9 +95,9 @@ void loop() {
   lastReadMs = now;
 
   MFRC522::PICC_Type type = rfid.PICC_GetType(rfid.uid.sak);
-  Serial.print(F("Tarjeta: "));
+  Serial.print(F("Card: "));
   Serial.print(uid);
-  Serial.print(F("   tipo: "));
+  Serial.print(F("   type: "));
   Serial.println(rfid.PICC_GetTypeName(type));
 
   const char *action = "in";
@@ -106,10 +106,10 @@ void loop() {
     crewIn[idx] = !crewIn[idx];
     action = crewIn[idx] ? "in" : "out";
   } else {
-    Serial.println(F("Aviso: lista de tripulantes llena, no se guarda el estado."));
+    Serial.println(F("Warning: crew list full, state not saved."));
   }
 
-  // Mismo formato que el evento crew_checkin del doc
+  // Same format as the crew_checkin event in the doc
   Serial.print(F("{\"type\":\"crew_checkin\",\"crew_id\":\""));
   Serial.print(uid);
   Serial.print(F("\",\"data\":{\"action\":\""));

@@ -1,25 +1,25 @@
-// AstroMed - configuracion del ESP32
-// Copia este archivo como config.h y rellenalo. config.h no se sube a git (tiene claves).
+// AstroMed - ESP32 configuration
+// Copy this file as config.h and fill it in. config.h is not committed to git (it holds keys).
 #pragma once
 
-#define WIFI_SSID     "TU_WIFI_2_4GHZ"     // el ESP32 solo funciona en 2,4 GHz
-#define WIFI_PASS     "TU_CLAVE_WIFI"
+#define WIFI_SSID     "YOUR_WIFI_2_4GHZ"     // the ESP32 only works on 2.4 GHz
+#define WIFI_PASS     "YOUR_WIFI_PASSWORD"
 
-// Sin barra final. http://IP:puerto en la red local, o https://... (no se verifica el certificado)
-#define API_BASE      "https://IP_DEL_BACKEND:8000"
-#define API_KEY       "TU_API_KEY"
+// No trailing slash. http://IP:port on the local network, or https://... (the certificate is not verified)
+#define API_BASE      "https://BACKEND_IP:8000"
+#define API_KEY       "YOUR_API_KEY"
 #define DEVICE_ID     "esp32-01"
 
 #define NTP_SERVER_1  "pool.ntp.org"
 #define NTP_SERVER_2  "time.google.com"
 
-// UART2 del ESP32: RX = GPIO16 (llega el TX del UNO por el divisor 1k/2k)
+// ESP32 UART2: RX = GPIO16 (the UNO TX arrives through the 1k/2k divider)
 #define UNO_RX_PIN    16
-#define UNO_TX_PIN    17     // no se usa (no hace falta cablearlo)
+#define UNO_TX_PIN    17     // not used (no need to wire it)
 #define UNO_BAUD      115200
 
-#define QUEUE_MAX        50     // mensajes guardados si el backend no responde
+#define QUEUE_MAX        50     // messages kept if the backend does not answer
 #define HTTP_TIMEOUT_MS  4000
-#define RETRY_MIN_MS     1000   // reintentos: 1 s, 2 s, 4 s ... hasta 30 s
+#define RETRY_MIN_MS     1000   // retries: 1 s, 2 s, 4 s ... up to 30 s
 #define RETRY_MAX_MS     30000
-#define STATUS_LED_PIN   2      // LED azul de la placa: parpadea en cada envio correcto
+#define STATUS_LED_PIN   2      // board's blue LED: blinks on every successful send

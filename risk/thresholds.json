@@ -1,15 +1,15 @@
 {
   "_info": [
-    "Umbrales de demo, no clinicos. Cada indicador cita su fuente en 'source'.",
-    "high: cortes por arriba para los niveles 1, 2 y 3. Nivel n si el valor es mayor que high[n-1].",
-    "low: cortes por abajo para los niveles 1, 2 y 3. Nivel n si el valor es menor que low[n-1].",
-    "inclusive: true cambia 'mayor que' por 'mayor o igual' y 'menor que' por 'menor o igual'.",
-    "null: ese nivel no se usa en este indicador.",
-    "Guia = 'AstroMed: guia de Team Antares (NASA Space Apps 2026)'. 'Criterio propio' = valor de demo sin fuente externa.",
-    "nasa_ref: requisito de NASA que fija el corte, o null si NASA no publica un limite numerico para ese indicador.",
-    "demo: cortes que sustituyen a los normales si la variable de entorno ASTROMED_DEMO vale 1.",
-    "label y unit van en inglés: el motor escribe sus motivos en inglés (decisión del equipo, 14/11/2026).",
-    "rules_source: reglas extra del motor para ese indicador (lecturas sostenidas, recuperación tras ejercicio, media personal) y de dónde salen."
+    "Demo thresholds, not clinical. Each indicator cites its source in 'source'.",
+    "high: upper cuts for levels 1, 2 and 3. Level n if the value is greater than high[n-1].",
+    "low: lower cuts for levels 1, 2 and 3. Level n if the value is less than low[n-1].",
+    "inclusive: true turns 'greater than' into 'greater than or equal to' and 'less than' into 'less than or equal to'.",
+    "null: that level is not used for this indicator.",
+    "Team guide = 'AstroMed: Team Antares guide (NASA Space Apps 2026)'. 'Team criterion' = demo value with no external source.",
+    "nasa_ref: NASA requirement that sets the cut, or null if NASA does not publish a numeric limit for that indicator.",
+    "demo: cuts that replace the normal ones if the ASTROMED_DEMO environment variable is 1.",
+    "label and unit are in English: the engine writes its reasons in English (team decision, 2026-11-14).",
+    "rules_source: extra engine rules for that indicator (sustained readings, recovery after exercise, personal average) and where they come from."
   ],
   "indicators": {
     "heart_rate_bpm": {
@@ -27,12 +27,12 @@
         45,
         40
       ],
-      "source": "Nivel 1 alto: AHA, pulso normal en reposo 60-100 y taquicardia por encima de 100 (https://www.heart.org/en/health-topics/arrhythmia/about-arrhythmia/tachycardia--fast-heart-rate). Nivel 2 (120 y 45): guia. Resto: criterio propio.",
+      "source": "Level 1 high: AHA, normal resting pulse 60-100 and tachycardia above 100 (https://www.heart.org/en/health-topics/arrhythmia/about-arrhythmia/tachycardia--fast-heart-rate). Level 2 (120 and 45): team guide. Rest: team criterion.",
       "nasa_ref": null,
       "sustain_readings": 3,
       "sustain_seconds": 10,
       "exercise_recovery_s": 300,
-      "rules_source": "sustain_readings y sustain_seconds: el nivel 2 o 3 necesita al menos 3 lecturas seguidas y 10 s entre la primera y la última. El firmware calcula cada pulso con una ventana de 10 s y ahora manda cada 2 s; contar solo 3 observaciones solapadas confirmaría demasiado pronto. Con la placa actual y el simulador hacen falta al menos 6 lecturas a 2 s; mientras no, una lectura alta da ámbar, nunca verde. Lecturas altas y bajas mezcladas dan ámbar con aviso de revisar el sensor. Motivo: la fotorresistencia es ruidosa (notas del electrónico). exercise_recovery_s: durante 5 min tras una serie de flexiones, o con activity 'moving', el pulso alto en naranja baja a ámbar; el rojo (más de 150) no se rebaja. Todo: criterio propio."
+      "rules_source": "sustain_readings and sustain_seconds: level 2 or 3 needs at least 3 consecutive readings and 10 s between the first and the last. The firmware computes each pulse with a 10 s window and now sends every 2 s; counting only 3 overlapping observations would confirm too early. With the current board and the simulator, at least 6 readings at 2 s are needed; until then, a high reading gives amber, never green. Mixed high and low readings give amber with a notice to check the sensor. Reason: the photoresistor is noisy (electronics notes). exercise_recovery_s: for 5 min after a set of push-ups, or with activity 'moving', a high pulse at orange drops to amber; red (above 150) is not downgraded. All: team criterion."
     },
     "body_temp_c": {
       "label": "Body temperature",
@@ -49,11 +49,11 @@
         35.5,
         35.0
       ],
-      "source": "Nivel 1 alto: fiebre por encima de 37,5 °C oral, Clinical Methods, NCBI (https://www.ncbi.nlm.nih.gov/books/NBK331/). Nivel 3 bajo: hipotermia por debajo de 35 °C, Mayo Clinic (https://www.mayoclinic.org/diseases-conditions/hypothermia/symptoms-causes/syc-20352682). Nivel 2 (38,0 y 35,5): guia. Resto: criterio propio.",
+      "source": "Level 1 high: fever above 37.5 °C orally, Clinical Methods, NCBI (https://www.ncbi.nlm.nih.gov/books/NBK331/). Level 3 low: hypothermia below 35 °C, Mayo Clinic (https://www.mayoclinic.org/diseases-conditions/hypothermia/symptoms-causes/syc-20352682). Level 2 (38.0 and 35.5): team guide. Rest: team criterion.",
       "nasa_ref": null,
       "sustain_readings": 3,
       "sustain_seconds": 10,
-      "rules_source": "sustain_readings: igual que el pulso. Un termistor medio suelto da una lectura baja suelta, y eso no debe dar rojo ni resumen a Tierra. Criterio propio. low_max_level: el termistor va en la muñeca, y la piel se enfría con el ambiente: 'in warm conditions, skin temperature can be close to core body temperature, but several degrees lower in cold conditions' (Polar Research Center, 'Skin temperature', white paper, 16/06/2023, https://polar.com/img/static/whitepapers/pdf/polar-skin-temperature-white-paper.pdf). Por eso la temperatura baja da como mucho ámbar y pide confirmar con un termómetro; la alta (fiebre) mantiene sus niveles. Límite en ámbar: criterio propio.",
+      "rules_source": "sustain_readings: same as the pulse. A half-loose thermistor gives an isolated low reading, and that must not trigger red or an Earth summary. Team criterion. low_max_level: the thermistor sits on the wrist, and the skin cools with the surroundings: 'in warm conditions, skin temperature can be close to core body temperature, but several degrees lower in cold conditions' (Polar Research Center, 'Skin temperature', white paper, 16/06/2023, https://polar.com/img/static/whitepapers/pdf/polar-skin-temperature-white-paper.pdf). That is why a low temperature gives at most amber and asks for confirmation with a thermometer; a high one (fever) keeps its levels. Amber limit: team criterion.",
       "low_max_level": 1,
       "low_note": "wrist reading; confirm with a thermometer"
     },
@@ -73,9 +73,9 @@
         null,
         null
       ],
-      "source": "AHA/ACC: elevada 120-129, hipertension estadio 2 desde 140, grave por encima de 180 (181 con inclusive equivale a 'mas de 180' en mmHg enteros) (https://www.heart.org/en/health-topics/high-blood-pressure/understanding-blood-pressure-readings). Nivel 2 tambien en la guia.",
+      "source": "AHA/ACC: elevated 120-129, stage 2 hypertension from 140, severe above 180 (181 with inclusive is equivalent to 'above 180' in whole mmHg) (https://www.heart.org/en/health-topics/high-blood-pressure/understanding-blood-pressure-readings). Level 2 is also in the team guide.",
       "nasa_ref": null,
-      "rules_source": "El nivel 2 necesita dos medidas seguidas de nivel 2 o más (guía: 'escalar con 140/90 en dos medidas'). La anterior puede ser de cualquier día de los últimos 7; la última tiene que ser de las últimas 24 h. Ventana de 7 días: criterio propio."
+      "rules_source": "Level 2 needs two consecutive readings at level 2 or worse (team guide: 'escalate with 140/90 on two readings'). The previous one can be from any of the last 7 days; the latest must be from the last 24 h. 7-day window: team criterion."
     },
     "diastolic_mmhg": {
       "label": "Diastolic blood pressure",
@@ -93,9 +93,9 @@
         null,
         null
       ],
-      "source": "AHA/ACC: estadio 1 desde 80, estadio 2 desde 90, grave por encima de 120 (121 con inclusive equivale a 'mas de 120') (https://www.heart.org/en/health-topics/high-blood-pressure/understanding-blood-pressure-readings). Nivel 2 tambien en la guia.",
+      "source": "AHA/ACC: stage 1 from 80, stage 2 from 90, severe above 120 (121 with inclusive is equivalent to 'above 120') (https://www.heart.org/en/health-topics/high-blood-pressure/understanding-blood-pressure-readings). Level 2 is also in the team guide.",
       "nasa_ref": null,
-      "rules_source": "El nivel 2 necesita dos medidas seguidas de nivel 2 o más (guía: 'escalar con 140/90 en dos medidas'). La anterior puede ser de cualquier día de los últimos 7; la última tiene que ser de las últimas 24 h. Ventana de 7 días: criterio propio."
+      "rules_source": "Level 2 needs two consecutive readings at level 2 or worse (team guide: 'escalate with 140/90 on two readings'). The previous one can be from any of the last 7 days; the latest must be from the last 24 h. 7-day window: team criterion."
     },
     "glucose_mg_dl": {
       "label": "Glucose",
@@ -112,7 +112,7 @@
         70,
         54
       ],
-      "source": "ADA Standards of Care 2026: en ayunas, 100-125 prediabetes y 126 o mas diabetes (https://diabetesjournals.org/care/article/49/Supplement_1/S27/163926/2-Diagnosis-and-Classification-of-Diabetes); hipoglucemia nivel 1 por debajo de 70 y nivel 2 por debajo de 54 (https://pmc.ncbi.nlm.nih.gov/articles/PMC12690178/). Nivel 3 alto (250): criterio propio.",
+      "source": "ADA Standards of Care 2026: fasting, 100-125 prediabetes and 126 or more diabetes (https://diabetesjournals.org/care/article/49/Supplement_1/S27/163926/2-Diagnosis-and-Classification-of-Diabetes); hypoglycemia level 1 below 70 and level 2 below 54 (https://pmc.ncbi.nlm.nih.gov/articles/PMC12690178/). High level 3 (250): team criterion.",
       "nasa_ref": null
     },
     "mood": {
@@ -130,11 +130,11 @@
         2,
         null
       ],
-      "source": "Criterio propio sobre la escala de la guia (1 muy mal a 5 muy bien). Es el unico indicador neuro: no hay test de reaccion. Justificacion del sistema: NASA HRP, peligro de aislamiento y confinamiento (https://www.nasa.gov/hrp/hazards/).",
+      "source": "Team criterion on the team guide scale (1 very bad to 5 very good). It is the only neuro indicator: there is no reaction test. Justification for the system: NASA HRP, isolation and confinement hazard (https://www.nasa.gov/hrp/hazards/).",
       "nasa_ref": null,
       "personal_drop": 1.5,
       "personal_min_checks": 3,
-      "rules_source": "personal_drop: ámbar si el ánimo de hoy está 1,5 puntos o más por debajo de la media del propio tripulante en los 7 días anteriores, con al menos 3 chequeos previos; se suma a los cortes fijos. Criterio propio."
+      "rules_source": "personal_drop: amber if today's mood is 1.5 points or more below the crew member's own average over the previous 7 days, with at least 3 previous checks; it is added to the fixed cuts. Team criterion."
     },
     "pushup_drop_pct": {
       "label": "Push-up drop vs. own average",
@@ -151,7 +151,7 @@
         null,
         null
       ],
-      "source": "Nivel 2: NASA-STD-3001 vol. 1 rev. C, [V1 4024], la fuerza muscular en mision se mantiene en el 80 % o mas de la basal; una caida de mas del 20 % la incumple (https://www.nasa.gov/wp-content/uploads/2023/11/nasa-std-3001-vol-1-rev-c-with-signature.pdf). Las flexiones se usan como medida indirecta de esa fuerza. Niveles 1 y 3: criterio propio.",
+      "source": "Level 2: NASA-STD-3001 vol. 1 rev. C, [V1 4024], muscle strength in mission is kept at 80 % or more of baseline; a drop of more than 20 % violates it (https://www.nasa.gov/wp-content/uploads/2023/11/nasa-std-3001-vol-1-rev-c-with-signature.pdf). Push-ups are used as an indirect measure of that strength. Levels 1 and 3: team criterion.",
       "nasa_ref": "NASA-STD-3001 vol. 1 rev. C, [V1 4024] Permissible Outcome Limit for Muscle Strength"
     },
     "still_for_s": {
@@ -170,7 +170,7 @@
         null,
         null
       ],
-      "source": "Nivel 1 (600 s): guia, umbral del evento inactivity. Nivel 2: criterio propio.",
+      "source": "Level 1 (600 s): team guide, threshold of the inactivity event. Level 2: team criterion.",
       "nasa_ref": null
     },
     "cabin_temp_c": {
@@ -188,7 +188,7 @@
         18,
         15
       ],
-      "source": "Nivel 1 (25 y 20 °C): NASA-STD-3001 vol. 2, requisito [V2 6013] Crew Performance Environmental Zone, cuya justificación da 20–25 °C y 30–60 % de humedad como zona de confort y rendimiento. Nivel 2 (27 y 18 °C): requisito [V2 6012] Crew Health Environmental Limits, zona de 18 a 27 °C basada en ASHRAE 55 (https://www.nasa.gov/reference/6-0-natural-and-induced-environments-vol-2/). Nivel 3 (32 y 15 °C): criterio propio.",
+      "source": "Level 1 (25 and 20 °C): NASA-STD-3001 vol. 2, requirement [V2 6013] Crew Performance Environmental Zone, whose rationale gives 20-25 °C and 30-60 % humidity as the comfort and performance zone. Level 2 (27 and 18 °C): requirement [V2 6012] Crew Health Environmental Limits, 18 to 27 °C zone based on ASHRAE 55 (https://www.nasa.gov/reference/6-0-natural-and-induced-environments-vol-2/). Level 3 (32 and 15 °C): team criterion.",
       "nasa_ref": "NASA-STD-3001 vol. 2, [V2 6013] Crew Performance Environmental Zone y [V2 6012] Crew Health Environmental Limits"
     },
     "humidity_pct": {
@@ -206,7 +206,7 @@
         25,
         null
       ],
-      "source": "Nivel 1 (60 y 30 %): NASA-STD-3001 vol. 2, requisito [V2 6013] Crew Performance Environmental Zone, 30–60 % de humedad. Nivel 2 (75 y 25 %): requisito [V2 6012] Crew Health Environmental Limits, zona de 25 a 75 % de humedad relativa (https://www.nasa.gov/reference/6-0-natural-and-induced-environments-vol-2/). Sin nivel 3.",
+      "source": "Level 1 (60 and 30 %): NASA-STD-3001 vol. 2, requirement [V2 6013] Crew Performance Environmental Zone, 30-60 % humidity. Level 2 (75 and 25 %): requirement [V2 6012] Crew Health Environmental Limits, 25 to 75 % relative humidity zone (https://www.nasa.gov/reference/6-0-natural-and-induced-environments-vol-2/). No level 3.",
       "nasa_ref": "NASA-STD-3001 vol. 2, [V2 6013] Crew Performance Environmental Zone y [V2 6012] Crew Health Environmental Limits"
     },
     "heat_index_c": {
@@ -224,7 +224,7 @@
         null,
         null
       ],
-      "source": "NOAA/NWS: precaucion 80-90 °F, precaucion extrema 90-103 °F, peligro 103-124 °F, pasado a °C (https://www.weather.gov/ama/heatindex).",
+      "source": "NOAA/NWS: caution 80-90 °F, extreme caution 90-103 °F, danger 103-124 °F, converted to °C (https://www.weather.gov/ama/heatindex).",
       "nasa_ref": null
     },
     "condensation_margin_c": {
@@ -242,7 +242,7 @@
         2,
         null
       ],
-      "source": "Guia: riesgo de condensacion medio con margen de 2 a 5 °C y alto por debajo de 2 °C.",
+      "source": "Team guide: medium condensation risk with a margin of 2 to 5 °C and high below 2 °C.",
       "nasa_ref": null
     }
   },
@@ -253,7 +253,7 @@
         90,
         null
       ],
-      "source": "Guía: el evento inactivity usa 30 s en la demo y 600 s en uso real. Nivel 2 (90 s): criterio propio, misma proporción que 600 y 1800 s."
+      "source": "Team guide: the inactivity event uses 30 s in the demo and 600 s in real use. Level 2 (90 s): team criterion, same proportion as 600 and 1800 s."
     }
   }
 }

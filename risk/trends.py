@@ -1,28 +1,28 @@
-"""Tendencias: una recta de mínimos cuadrados sobre las medidas reales del
-propio tripulante, proyectada hacia delante.
+"""Trends: a least-squares line over the crew member's own real measurements,
+projected forward.
 
-Hay dos tipos de eje, según cómo llegan los datos:
+There are two kinds of x axis, depending on how the data arrives:
 
-- Por medida (basis "count"): chequeo manual (tensión, glucosa, ánimo) y
-  series de flexiones. Cada medida es un paso: la última es x = 0, la
-  anterior x = -1, y así. Se proyecta a 7 medidas más. Con un chequeo al día,
-  7 chequeos son una semana; en una demo se pueden meter 7 seguidos y la
-  recta sale igual de bien, porque no depende de cuánto tiempo pasa entre uno
-  y otro.
-- Por tiempo (basis "time"): telemetría del sensor (pulso, temperatura
-  corporal, temperatura y humedad de cabina). x = segundos respecto a ahora,
-  con la telemetría del último minuto que pasa la API. Se proyecta 60 s.
+- Per measurement (basis "count"): manual check (blood pressure, glucose,
+  mood) and push-up sets. Each measurement is one step: the latest is x = 0,
+  the previous one x = -1, and so on. Projected 7 measurements ahead. With
+  one check per day, 7 checks are a week; in a demo you can enter 7 in a
+  row and the line comes out just as well, because it does not depend on how
+  much time passes between them.
+- Per time (basis "time"): sensor telemetry (pulse, body temperature, cabin
+  temperature and humidity). x = seconds relative to now, using the last
+  minute of telemetry that the API passes in. Projected 60 s ahead.
 
-Criterio propio:
-- Hacen falta al menos 7 medidas con valor para dibujar una recta.
-- El umbral que se vigila es el siguiente que la recta todavía no ha pasado,
-  en la dirección de la pendiente. crosses_in dice cuántos pasos (o
-  segundos) faltan para que la recta lo cruce, o None si no lo cruza dentro
-  del horizonte.
-- El umbral de las flexiones se expresa en repeticiones: la basal (media de
-  las series anteriores a la última) menos el porcentaje de caída del nivel.
-- La temperatura corporal baja da como mucho ámbar (low_max_level), así que
-  su tendencia hacia abajo solo vigila el corte de ámbar.
+Team criterion:
+- At least 7 measurements with a value are needed to draw a line.
+- The monitored threshold is the next one the line has not yet passed, in
+  the direction of the slope. crosses_in says how many steps (or seconds)
+  are left before the line crosses it, or None if it does not cross it
+  within the horizon.
+- The push-up threshold is expressed in repetitions: the baseline (average
+  of the sets before the latest) minus the level's drop percentage.
+- A low body temperature gives at most amber (low_max_level), so its
+  downward trend only monitors the amber cut.
 """
 
 from __future__ import annotations
@@ -38,8 +38,8 @@ def _obj(value) -> dict:
 
 
 MIN_POINTS = 7
-HORIZON_COUNT = 7          # medidas hacia delante (chequeos o series)
-HORIZON_S = 60             # segundos hacia delante (telemetría)
+HORIZON_COUNT = 7          # measurements ahead (checks or sets)
+HORIZON_S = 60             # seconds ahead (telemetry)
 
 CHECK_TRENDS = {
     "systolic_mmhg": lambda c: _obj(c.get("blood_pressure")).get("systolic"),
@@ -61,16 +61,16 @@ class Trend:
     indicator: str
     label: str
     unit: str
-    basis: str                       # "count" o "time"
-    x_unit: str                      # "check", "set" o "s"
-    points: tuple                    # ((x, valor), ...) usados en el ajuste
-    slope: float                     # por x_unit
-    intercept: float                 # valor de la recta en x = 0
-    horizon: float                   # hasta dónde se proyecta, en x_unit
-    projected: float                 # valor de la recta en x = horizon
-    threshold: float | None          # siguiente corte en la dirección de la pendiente
-    threshold_level: int | None      # nivel al que llevaría ese corte
-    crosses_in: float | None         # x_unit hasta cruzarlo; None si no llega en el horizonte
+    basis: str                       # "count" or "time"
+    x_unit: str                      # "check", "set" or "s"
+    points: tuple                    # ((x, value), ...) used in the fit
+    slope: float                     # per x_unit
+    intercept: float                 # value of the line at x = 0
+    horizon: float                   # how far ahead it is projected, in x_unit
+    projected: float                 # value of the line at x = horizon
+    threshold: float | None          # next cut in the direction of the slope
+    threshold_level: int | None      # level that cut would lead to
+    crosses_in: float | None         # x_unit until it crosses; None if it does not within the horizon
 
     def as_dict(self) -> dict:
         return {
@@ -92,8 +92,8 @@ class Trend:
 
 def trends_for(telemetry: list[dict], checks: list[dict], events: list[dict],
                now: datetime, parse_ts) -> list[Trend]:
-    """telemetry: último minuto; checks y events: últimos 7 días. Todo ya
-    ordenado por ts y sin duplicados (lo hace engine.py)."""
+    """telemetry: last minute; checks and events: last 7 days. All already
+    sorted by ts and without duplicates (engine.py does that)."""
     thresholds = load_thresholds()
     out = []
 
@@ -140,9 +140,9 @@ def _fit(name, spec, points, basis, x_unit, horizon) -> Trend | None:
         low = [cut if i < spec["low_max_level"] else None for i, cut in enumerate(low)]
     inclusive = spec.get("inclusive", False)
 
-    now_value = intercept                       # la recta en x = 0
-    # Solo se vigila el umbral hacia el que empeora: un pulso alto que baja, o
-    # una humedad baja que sube, se están recuperando y no tienen umbral.
+    now_value = intercept                       # the line at x = 0
+    # Only the threshold in the worsening direction is monitored: a high pulse
+    # that falls, or a low humidity that rises, is recovering and has no threshold.
     above_high = _next_cut(now_value, high, above=True, inclusive=inclusive) != _first_cut(high)
     below_low = _next_cut(now_value, low, above=False, inclusive=inclusive) != _first_cut(low)
     found = None
@@ -168,7 +168,7 @@ def _fit(name, spec, points, basis, x_unit, horizon) -> Trend | None:
 
 
 def _next_cut(current, cuts, *, above, inclusive):
-    """Primer corte que el valor actual todavía no ha cruzado, con su nivel."""
+    """First cut the current value has not crossed yet, with its level."""
     for i, cut in enumerate(cuts, start=1):
         if cut is None:
             continue
@@ -182,7 +182,7 @@ def _next_cut(current, cuts, *, above, inclusive):
 
 
 def _first_cut(cuts):
-    """El primer corte que se usa, con su nivel (o None si no hay ninguno)."""
+    """The first cut in use, with its level (or None if there is none)."""
     return next(((cut, i) for i, cut in enumerate(cuts, start=1) if cut is not None), None)
 
 
