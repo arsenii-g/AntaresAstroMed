@@ -401,3 +401,6 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Demo mode (js/demo.js): recorded session on static hosting */
+.demo-banner { position: sticky; top: 0; z-index: 50; padding: 6px 16px; text-align: center; font: 500 12px/1.4 "JetBrains Mono", ui-monospace, monospace; letter-spacing: .02em; color: #05060a; background: var(--accent); }

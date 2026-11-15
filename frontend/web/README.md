@@ -27,6 +27,16 @@ default. If it is on another machine, use `console.html?api=http://IP:8000`. Add
 `&crew=F3786E09` to select a profile on open. GET requests and the daily check do
 not need an API key.
 
+**Demo mode.** On GitHub Pages, or with `?demo` in the URL, `js/demo.js` replaces the
+API with a replay of `demo/session.json`: WebSocket messages and assessments recorded
+from the real API and the simulator, moved to the current time and looped. A banner
+marks the page as a demo, and daily checks are accepted but not saved.
+
+GitHub Pages serves the `gh-pages` branch: a copy of this folder whose `console.html`
+adds `<meta name="astromed-demo" content="1">` after the charset line. To update it
+after changing the web app, copy this folder to the root of `gh-pages`, add that meta
+tag again, and push.
+
 The console uses `/api/v1/crew` to discover profiles and `/api/v1/crew/active` to
 recover the active tap on load and on reconnect. `latest` returns the status, name,
 and latest exercise set; `telemetry`, `checks`, and `events` provide the history.
