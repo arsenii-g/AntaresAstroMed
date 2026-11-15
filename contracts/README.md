@@ -1,4 +1,4 @@
-# Contratos
+# AstroMed · Team Antares: contratos
 
 Ejemplos JSON de lo que se manda entre las partes. Todas las fechas van en UTC (ISO 8601). Cambiar un contrato necesita un PR que aprueben quien produce el dato y quien lo usa.
 
@@ -7,11 +7,11 @@ los ejemplos. La API oficial y su conexión con la consola se describen en
 [`api/README.md`](../api/README.md). Los GET y el chequeo manual son públicos por
 decisión del equipo; la placa mantiene `X-API-Key` en telemetría y eventos.
 
-Fuente de este documento: guía del equipo y «SpaceHealth: formato JSON para el backend» del electrónico (14 de noviembre de 2026, versión definitiva sacada del firmware). Si algo no cuadra, manda el firmware.
+Fuente de este documento: guía de Team Antares y [AstroMed: formato JSON para el backend](../firmware/FORMATO_JSON_BACKEND.md), comprobado contra el firmware. Si algo no cuadra, manda el firmware.
 
 | Archivo | Contrato | Endpoint |
 |---|---|---|
-| `telemetry.example.json` | ① Telemetría normal | `POST /api/v1/telemetry`, cada 2 s en la placa actual; 5 s en el simulador |
+| `telemetry.example.json` | ① Telemetría normal | `POST /api/v1/telemetry`, cada 2 s tanto en la placa como en el simulador |
 | `telemetry-no-data.example.json` | ① Telemetría sin tripulante y con el DHT11 fallando | igual |
 | `event.example.json` | ① Evento `exercise_summary` | `POST /api/v1/events`, al ocurrir |
 | `event-crew_checkin.example.json` | ① Evento `crew_checkin` | igual |
@@ -93,4 +93,4 @@ Los mensajes se mandan en orden: mientras el primero falla, los demás esperan. 
 
 Para que haya tendencias, la API tiene que pasar al motor los chequeos y los eventos de **los últimos 7 días** y la telemetría del último minuto (unas 30 lecturas a 2 s).
 
-**Modo demo:** con la variable de entorno `SPACEHEALTH_DEMO=1` en el proceso de la API, el ámbar por inactividad salta a los 30 s en vez de a los 600 s, igual que el evento `inactivity` de la placa en la demo.
+**Modo demo:** con la variable de entorno `ASTROMED_DEMO=1` en el proceso de la API, el ámbar por inactividad salta a los 30 s en vez de a los 600 s, igual que el evento `inactivity` de la placa en la demo.

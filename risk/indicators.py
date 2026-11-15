@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+
+from astromed_config import demo_mode
 
 THRESHOLDS_PATH = Path(__file__).resolve().parent / "thresholds.json"
 
@@ -20,11 +21,6 @@ class IndicatorResult:
     code: str | None  # p. ej. "HR_HIGH"; None si está en rango o sin dato
     reason: str | None  # texto en inglés para el frontend; None si está en rango
     cut: float | None = None  # corte superado; None si está en rango o sin dato
-
-
-def demo_mode() -> bool:
-    """SPACEHEALTH_DEMO=1 activa los cortes de demo de thresholds.json."""
-    return os.environ.get("SPACEHEALTH_DEMO") == "1"
 
 
 def load_thresholds(path: str | None = None) -> dict:

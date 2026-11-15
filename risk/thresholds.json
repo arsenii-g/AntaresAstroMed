@@ -5,9 +5,9 @@
     "low: cortes por abajo para los niveles 1, 2 y 3. Nivel n si el valor es menor que low[n-1].",
     "inclusive: true cambia 'mayor que' por 'mayor o igual' y 'menor que' por 'menor o igual'.",
     "null: ese nivel no se usa en este indicador.",
-    "Guia = 'SpaceHealth: guia del equipo (NASA Space Apps 2026)'. 'Criterio propio' = valor de demo sin fuente externa.",
+    "Guia = 'AstroMed: guia de Team Antares (NASA Space Apps 2026)'. 'Criterio propio' = valor de demo sin fuente externa.",
     "nasa_ref: requisito de NASA que fija el corte, o null si NASA no publica un limite numerico para ese indicador.",
-    "demo: cortes que sustituyen a los normales si la variable de entorno SPACEHEALTH_DEMO vale 1.",
+    "demo: cortes que sustituyen a los normales si la variable de entorno ASTROMED_DEMO vale 1.",
     "label y unit van en inglés: el motor escribe sus motivos en inglés (decisión del equipo, 14/11/2026).",
     "rules_source: reglas extra del motor para ese indicador (lecturas sostenidas, recuperación tras ejercicio, media personal) y de dónde salen."
   ],
@@ -32,7 +32,7 @@
       "sustain_readings": 3,
       "sustain_seconds": 10,
       "exercise_recovery_s": 300,
-      "rules_source": "sustain_readings y sustain_seconds: el nivel 2 o 3 necesita al menos 3 lecturas seguidas y 10 s entre la primera y la última. El firmware calcula cada pulso con una ventana de 10 s y ahora manda cada 2 s; contar solo 3 observaciones solapadas confirmaría demasiado pronto. Con la placa actual hacen falta al menos 6 lecturas a 2 s; con el simulador, 3 a 5 s; mientras no, una lectura alta da ámbar, nunca verde. Lecturas altas y bajas mezcladas dan ámbar con aviso de revisar el sensor. Motivo: la fotorresistencia es ruidosa (notas del electrónico). exercise_recovery_s: durante 5 min tras una serie de flexiones, o con activity 'moving', el pulso alto en naranja baja a ámbar; el rojo (más de 150) no se rebaja. Todo: criterio propio."
+      "rules_source": "sustain_readings y sustain_seconds: el nivel 2 o 3 necesita al menos 3 lecturas seguidas y 10 s entre la primera y la última. El firmware calcula cada pulso con una ventana de 10 s y ahora manda cada 2 s; contar solo 3 observaciones solapadas confirmaría demasiado pronto. Con la placa actual y el simulador hacen falta al menos 6 lecturas a 2 s; mientras no, una lectura alta da ámbar, nunca verde. Lecturas altas y bajas mezcladas dan ámbar con aviso de revisar el sensor. Motivo: la fotorresistencia es ruidosa (notas del electrónico). exercise_recovery_s: durante 5 min tras una serie de flexiones, o con activity 'moving', el pulso alto en naranja baja a ámbar; el rojo (más de 150) no se rebaja. Todo: criterio propio."
     },
     "body_temp_c": {
       "label": "Body temperature",

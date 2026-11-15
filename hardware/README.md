@@ -1,4 +1,4 @@
-# Hardware: Arduino UNO + ESP32 shield
+# AstroMed · Team Antares: Arduino UNO + ESP32 shield
 
 Schematic and PCB for the AstroMed shield, a board that replaces the breadboard prototype. It sits on top of an **Arduino UNO R3**, carries an **ESP32 DevKit V1 (30-pin, CP2102)** in female headers, and provides connectors for every sensor.
 
@@ -6,7 +6,7 @@ Schematic and PCB for the AstroMed shield, a board that replaces the breadboard 
 
 ![Schematic](esquematico.png)
 
-Pin assignments follow [`firmware/uno_sensores/config.h`](../firmware/uno_sensores/config.h), [`firmware/esp32_gateway/config.h`](../firmware/esp32_gateway/config.h) and [`firmware/README.md`](../firmware/README.md). Any pin change on the PCB must also be made in `config.h` and communicated to the electronics lead.
+Pin assignments follow [`firmware/uno_sensores/config.h`](../firmware/uno_sensores/config.h), [`firmware/esp32_gateway/config.example.h`](../firmware/esp32_gateway/config.example.h) and [`firmware/README.md`](../firmware/README.md). Any pin change on the PCB must also be made in `config.h` and communicated to the electronics lead.
 
 The PIR sensor, the sleep sensors and the HC-SR04 respiration measurement were removed from the project and are not part of this design.
 
@@ -28,7 +28,6 @@ The PIR sensor, the sleep sensors and the HC-SR04 respiration measurement were r
 | `kicad_pcb_editor.png`, `kicad_3d_bottom.png` | Screenshots of the KiCad PCB editor and 3D viewer (bottom side) |
 | `gerbers/` | Gerber and Excellon drill files |
 | `astromed_gerbers.zip` | Same files zipped, ready to upload to a PCB manufacturer |
-| `fotos/` | Photos of the assembled board (optional, pending) |
 
 - **KiCad version:** 10.0.8. Files saved by KiCad 10 cannot be opened in KiCad 8 or 9.
 - **Libraries:** only the standard KiCad libraries are used (`Device`, `Connector_Generic`, `MCU_Module`, `Switch`, `Jumper`, `power`). Symbols are also embedded in the `.kicad_sch` file.

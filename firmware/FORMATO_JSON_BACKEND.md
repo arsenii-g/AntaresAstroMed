@@ -1,8 +1,8 @@
-# AstroMed: formato JSON para el backend
+# AstroMed · Team Antares: formato JSON para el backend
 
 Nov 14, 2026 · @therin · versión definitiva, sacada del firmware
 
-Este documento sustituye a «SpaceHealth qué se mide y qué se manda por JSON final.md» para el backend. Todo lo que pone aquí está comprobado contra el código: `firmware/uno_sensores/uno_sensores.ino`, `firmware/uno_sensores/config.h` y `firmware/esp32_gateway/esp32_gateway.ino`. Si algo no cuadra, manda el código.
+Este documento define el formato final del firmware de AstroMed para el backend de Team Antares. Todo lo que pone aquí está comprobado contra el código: `firmware/uno_sensores/uno_sensores.ino`, `firmware/uno_sensores/config.h` y `firmware/esp32_gateway/esp32_gateway.ino`. Si algo no cuadra, manda el código.
 
 ## Resumen
 
@@ -56,7 +56,7 @@ La respiración no se mide. `resp_rate_bpm` se queda en el JSON a `null` para no
 
 El pulso, la temperatura corporal y el movimiento se miden siempre, haya o no alguien fichado. Si `crew_id` es `null`, esos valores no son de ningún tripulante.
 
-> **Estado actual del firmware:** en `config.h` está `PRUEBA_RFID_US = 1` (prueba por partes). Así solo salen los eventos `crew_checkin` y `exercise_summary`, y no hay telemetría ni `inactivity`. Con `PRUEBA_RFID_US = 0` sale todo lo de este documento.
+> **Estado final del firmware:** en `config.h` está `PRUEBA_RFID_US = 0`, que activa la telemetría y los eventos de este documento. El valor `1` se reserva para probar por separado RFID y ultrasonidos, sin telemetría ni eventos de inactividad.
 
 ## Tarjetas registradas
 
@@ -304,26 +304,26 @@ No hay sensor en las paredes, que son las superficies más frías, así que esto
 
 Los cálculos se hacen con la humedad sin redondear, así que recalcularlos con `humidity_pct` puede dar una décima de diferencia.
 
-## Qué decirle al backend
+## Requisitos de la integración con el backend
 
-Los seis primeros puntos bastan para que la demo funcione sin perder datos; el resto lo mejora.
+Esta es la referencia del protocolo entre el ESP32 y la API de AstroMed. La implementación integrada se describe en [la guía de la API](../api/README.md).
 
-- [ ] Exponer `POST /api/v1/telemetry` y `POST /api/v1/events` exactamente con esas rutas (sin barra final y sin redirigir de `http` a `https`), con JSON y la cabecera `X-API-Key`, y responder `200` con `{"ok": true}` en menos de 4 s.
-- [ ] No responder nunca 2xx con `{"ok": false}`: el ESP32 lo reintenta sin fin y bloquea la cola.
-- [ ] Aceptar `null` en `crew_id`, `heart_rate_bpm`, `resp_rate_bpm` (siempre `null`), `body_temp_c` y en **todos** los `cabin.*`, sin tratarlo como error.
-- [ ] Guardar cada mensaje con su `ts` en UTC y su `crew_id`, y tratar los duplicados (misma combinación de `device_id`, `ts` y `type`) respondiendo `200` o `409`, nunca otro 4xx.
-- [ ] No rechazar con 4xx datos que son válidos aunque no se esperen (un `crew_id` sin asignar, un valor raro, un campo de más, un `type` desconocido): cualquier 4xx que no sea `408`, `409` o `429` hace que el ESP32 **tire el mensaje**. Guárdalo y márcalo. Usa `401` solo para la clave mala y `400` solo para JSON roto. Si hay que limitar, responde `429`, que sí se reintenta.
-- [ ] Responder a `GET /` sin pedir `X-API-Key` y con cabecera `Date` (casi todos los servidores la ponen solos). Es como el ESP32 saca la hora sin Internet.
-- [ ] Leer los campos «número» como número, sea entero o decimal (`23` o `23.0`).
-- [ ] Servir el último estado de cada tripulante: `GET /api/v1/crew/{crew_id}/latest`.
-- [ ] Asociar `crew_id` (UID del RFID) con nombre y rol; un UID desconocido se guarda igual y se marca como sin asignar.
-- [ ] Decidir qué hacer con la telemetría con `crew_id` a `null` (vitales que no son de nadie): guardarla aparte o no mostrarla en ningún tripulante.
-- [ ] Servir el histórico: `GET /api/v1/crew/{crew_id}/telemetry?from=&to=`.
-- [ ] Servir los eventos, filtrables: `GET /api/v1/events?crew_id=&type=`.
-- [ ] Deducir el inicio y el fin de cada alerta comparando telemetrías seguidas, y avisar al dashboard en tiempo real (WebSocket o SSE) cuando empiece una alerta o llegue un evento.
-- [ ] Guardar los umbrales de alerta como configuración editable, con los valores de la tabla de códigos como punto de partida.
-- [ ] Si se validan rangos, hacerlo al menos con estos márgenes, que el firmware ya garantiza: pulso 35–200, `hr_quality` 0–1, temperatura corporal 30–45 °C, humedad 0–100 %. Mejor marcar el valor como sospechoso que responder `422`, porque `422` pierde el mensaje entero. La respiración ya no se valida.
-- [ ] Permitir CORS para el origen del dashboard.
+- Exponer `POST /api/v1/telemetry` y `POST /api/v1/events` exactamente con esas rutas (sin barra final y sin redirigir de `http` a `https`), con JSON y la cabecera `X-API-Key`, y responder `200` con `{"ok": true}` en menos de 4 s.
+- No responder nunca 2xx con `{"ok": false}`: el ESP32 lo reintenta sin fin y bloquea la cola.
+- Aceptar `null` en `crew_id`, `heart_rate_bpm`, `resp_rate_bpm` (siempre `null`), `body_temp_c` y en **todos** los `cabin.*`, sin tratarlo como error.
+- Guardar cada mensaje con su `ts` en UTC y su `crew_id`, y tratar los duplicados (misma combinación de `device_id`, `ts` y `type`) respondiendo `200` o `409`, nunca otro 4xx.
+- No rechazar con 4xx datos que son válidos aunque no se esperen (un `crew_id` sin asignar, un valor raro, un campo de más, un `type` desconocido): cualquier 4xx que no sea `408`, `409` o `429` hace que el ESP32 **tire el mensaje**. Guárdalo y márcalo. Usa `401` solo para la clave mala y `400` solo para JSON roto. Si hay que limitar, responde `429`, que sí se reintenta.
+- Responder a `GET /` sin pedir `X-API-Key` y con cabecera `Date` (casi todos los servidores la ponen solos). Es como el ESP32 saca la hora sin Internet.
+- Leer los campos «número» como número, sea entero o decimal (`23` o `23.0`).
+- Servir el último estado de cada tripulante: `GET /api/v1/crew/{crew_id}/latest`.
+- Asociar `crew_id` (UID del RFID) con nombre y rol; un UID desconocido se guarda igual y se marca como sin asignar.
+- Decidir qué hacer con la telemetría con `crew_id` a `null` (vitales que no son de nadie): guardarla aparte o no mostrarla en ningún tripulante.
+- Servir el histórico: `GET /api/v1/crew/{crew_id}/telemetry?from=&to=`.
+- Servir los eventos, filtrables: `GET /api/v1/events?crew_id=&type=`.
+- Deducir el inicio y el fin de cada alerta comparando telemetrías seguidas, y avisar al dashboard en tiempo real (WebSocket o SSE) cuando empiece una alerta o llegue un evento.
+- Guardar los umbrales de alerta como configuración editable, con los valores de la tabla de códigos como punto de partida.
+- Si se validan rangos, hacerlo al menos con estos márgenes, que el firmware ya garantiza: pulso 35–200, `hr_quality` 0–1, temperatura corporal 30–45 °C, humedad 0–100 %. Mejor marcar el valor como sospechoso que responder `422`, porque `422` pierde el mensaje entero. La respiración ya no se valida.
+- Permitir CORS para el origen del dashboard.
 
 ## JSON Schema
 
