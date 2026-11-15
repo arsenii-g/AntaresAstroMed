@@ -4,9 +4,9 @@ Schematic and PCB for the AstroMed shield, a board that replaces the breadboard 
 
 ![PCB, 3D view](pcb_3d.png)
 
-![Schematic](esquematico.png)
+![Schematic](schematic.png)
 
-Pin assignments follow [`firmware/uno_sensores/config.h`](../firmware/uno_sensores/config.h), [`firmware/esp32_gateway/config.example.h`](../firmware/esp32_gateway/config.example.h) and [`firmware/README.md`](../firmware/README.md). Any pin change on the PCB must also be made in `config.h` and communicated to the electronics lead.
+Pin assignments follow [`firmware/uno_sensors/config.h`](../firmware/uno_sensors/config.h), [`firmware/esp32_gateway/config.example.h`](../firmware/esp32_gateway/config.example.h) and [`firmware/README.md`](../firmware/README.md). Any pin change on the PCB must also be made in `config.h`.
 
 The PIR sensor, the sleep sensors and the HC-SR04 respiration measurement were removed from the project and are not part of this design.
 
@@ -14,8 +14,8 @@ The PIR sensor, the sleep sensors and the HC-SR04 respiration measurement were r
 
 | File | Description |
 |---|---|
-| `esquematico.pdf` | Schematic, A3 PDF |
-| `esquematico.png` | Schematic, PNG at 200 dpi |
+| `schematic.pdf` | Schematic, A3 PDF |
+| `schematic.png` | Schematic, PNG at 200 dpi |
 | `bom.csv` | Bill of materials exported from KiCad |
 | `astromed/astromed.kicad_pro` | KiCad project file |
 | `astromed/astromed.kicad_sch` | Schematic (KiCad 10 format) |
@@ -39,7 +39,7 @@ The PIR sensor, the sleep sensors and the HC-SR04 respiration measurement were r
 - **Sensors that move use JST-XH connectors.** The HC-SR04 (on the floor, push-ups), the tilt switch (worn by the crew member), the NTC (wrist) and the pulse finger clip connect through latching 2.5 mm JST-XH connectors (`J2`, `J3`, `J6`, `J7`), so cables do not pull out during use.
 - **Static modules plug into the board.** The DHT11 (`J4`) and the DS1307 RTC (`J5`) plug into female sockets, with no cables. The RC522 (`J1`) stays on a 1x08 male header and is wired to the reader, which must sit on an accessible face of the enclosure.
 - **ESP32 on 1x15 female headers, with two positions for the right row.** KiCad has no symbol for the DevKit V1. Pin 1 of each header is at the antenna end. The right row can be fitted at 25.4 mm (`J9`, row A, default) or 22.86 mm (`J11`, row B, marked DNP) from the left row (`J8`), because 30-pin DevKit V1 clones use either spacing. Measure the board and solder the socket in the matching row only.
-- **Pulse sensor on a 4-pin connector (`J7`).** The LED and LDR face each other across the fingertip, so they are mounted in an external finger clip. The 220 Ω and 10 kΩ resistors are on the PCB. The firmware currently simulates the heart rate (`PULSE_SIMULATED 1`), but the circuit is kept for future use.
+- **Pulse sensor on a 4-pin connector (`J7`).** The LED and LDR face each other across the fingertip, so they are mounted in an external finger clip. The 220 Ω and 10 kΩ resistors are on the PCB. The firmware measures the pulse with this LED and LDR pair over a 10 s window (`PIN_PULSE_LED`, `PIN_PULSE_LDR` and `PULSE_WINDOW_MS` in `config.h`).
 - **Off-board parts.** `TH1` (NTC), `D1` (LED), `R6` (LDR) and `SW2` (tilt switch) are drawn to show the complete circuit and are listed in the BOM. They are marked `on_board = no` (field *Mounting*), so they have no footprint and are not transferred to the PCB. Each one is wired to its connector.
 - **Push button `SW1`.** 6 mm tactile switch mounted on the board. It is optional.
 - **Spare pins.** D2, A2 and A3 are routed to header `J10` together with 5V and GND.
@@ -210,8 +210,8 @@ From `hardware/`, with `kicad-cli` from KiCad 10:
 kicad-cli sch erc --severity-all -o astromed/erc.rpt astromed/astromed.kicad_sch
 kicad-cli sch export netlist -o astromed/astromed.net astromed/astromed.kicad_sch
 kicad-cli sch export bom --fields 'Reference,Value,Footprint,${QUANTITY},Mounting,${DNP}' --labels 'Reference,Value,Footprint,Quantity,Mounting,DNP' --group-by Value,Footprint --ref-range-delimiter '' -o bom.csv astromed/astromed.kicad_sch
-kicad-cli sch export pdf -o esquematico.pdf astromed/astromed.kicad_sch
-pdftoppm -png -r 200 -singlefile esquematico.pdf esquematico
+kicad-cli sch export pdf -o schematic.pdf astromed/astromed.kicad_sch
+pdftoppm -png -r 200 -singlefile schematic.pdf schematic
 kicad-cli pcb drc --schematic-parity --severity-all --refill-zones --save-board -o astromed/drc.rpt astromed/astromed.kicad_pcb
 kicad-cli pcb export gerbers --no-protel-ext -l F.Cu,B.Cu,F.Silkscreen,B.Silkscreen,F.Mask,B.Mask,Edge.Cuts -o gerbers/ astromed/astromed.kicad_pcb
 kicad-cli pcb export drill --excellon-separate-th -o gerbers/ astromed/astromed.kicad_pcb

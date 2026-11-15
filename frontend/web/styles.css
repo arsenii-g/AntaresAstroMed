@@ -1,14 +1,14 @@
-/* AstroMed: consola de salud de la tripulación. Colores y tamaños como variables aquí arriba. */
+/* AstroMed: crew health console. Colors and sizes are variables up here. */
 :root {
   --bg: #05060a;
   --ink: #e8edf5;
   --dim: #7f8aa0;
-  --label: #a3adc0;   /* etiquetas y texto secundario: más claro que --dim para que se lea */
+  --label: #a3adc0;   /* labels and secondary text: lighter than --dim so it stays readable */
   --line: rgba(255, 255, 255, .08);
   --line-2: rgba(255, 255, 255, .045);
   --accent: #8fd8ff;
 
-  /* Niveles del motor: 0 verde, 1 ámbar, 2 naranja, 3 rojo, null gris */
+  /* Engine levels: 0 green, 1 amber, 2 orange, 3 red, null gray */
   --lv0: #5ef2c0;
   --lv1: #ffc857;
   --lv2: #ff8a3d;
@@ -50,7 +50,7 @@ button, select, input { font: inherit; color: inherit; }
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* ───────── BARRA SUPERIOR ───────── */
+/* ───────── TOP BAR ───────── */
 .topbar {
   position: sticky; top: 0; z-index: 30; height: 52px; padding: 0 20px;
   display: flex; align-items: center; gap: 28px;
@@ -72,7 +72,7 @@ button, select, input { font: inherit; color: inherit; }
 .link-pill.live i { background: var(--lv0); box-shadow: 0 0 8px var(--lv0); }
 .link-pill.lost i { background: var(--lv3); box-shadow: 0 0 8px var(--lv3); }
 
-/* ───────── AVISO ───────── */
+/* ───────── ALERT ───────── */
 .alert {
   margin: 12px 20px 0; padding: 10px 12px 10px 16px; display: flex; align-items: center; gap: 14px;
   border: 1px solid color-mix(in srgb, var(--lv) 45%, transparent); border-left: 3px solid var(--lv); border-radius: var(--r);
@@ -88,10 +88,10 @@ button, select, input { font: inherit; color: inherit; }
 
 /* ───────── MONITOR ───────── */
 .monitor, .checkview { width: 100%; max-width: 1680px; margin: 0 auto; padding: 12px 20px 20px; flex: 1; }
-/* Tres columnas independientes, sin filas compartidas, para que no queden huecos:
-   izquierda  tripulación, sistemas, acciones y sensor
-   centro     cuerpo, resumen para Tierra y registro (el registro ocupa lo que sobra)
-   derecha    constantes y tendencias */
+/* Three independent columns, with no shared rows, so there are no gaps:
+   left    crew, systems, actions, and sensor
+   center  body, Earth summary, and log (the log takes the remaining space)
+   right   vital signs and trends */
 .monitor {
   display: grid; gap: 12px; align-items: stretch;
   grid-template-columns: 300px minmax(0, 1fr) 340px;
@@ -100,7 +100,7 @@ button, select, input { font: inherit; color: inherit; }
 .a-left { grid-area: left; } .a-center { grid-area: center; } .a-right { grid-area: right; }
 .stack { display: grid; gap: 12px; align-content: start; min-width: 0; }
 .a-center { display: flex; flex-direction: column; }
-/* El cuerpo se queda en su sitio, arriba, y deja ver el registro debajo sin scroll. */
+/* The body stays in place at the top and leaves the log visible below without scrolling. */
 .a-scan { flex: none; height: clamp(500px, calc(100vh - 330px), 860px); display: flex; flex-direction: column; }
 #trends { max-height: 440px; overflow-y: auto; overscroll-behavior: contain; }
 
@@ -126,7 +126,7 @@ button, select, input { font: inherit; color: inherit; }
 .toggle { padding: 3px 8px; border: 1px solid var(--line); border-radius: 5px; background: none; color: var(--dim); cursor: pointer; }
 .toggle[aria-pressed="true"] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
 
-/* Tripulación */
+/* Crew */
 .crew {
   width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 11px 14px 11px 16px; text-align: left;
   border: 0; border-bottom: 1px solid var(--line-2); background: none; cursor: pointer; position: relative; transition: background .2s;
@@ -141,7 +141,7 @@ button, select, input { font: inherit; color: inherit; }
 .crew .meta { grid-column: 2; text-align: right; color: var(--label); }
 .crew .stale { color: var(--lv1); }
 
-/* Sistemas */
+/* Systems */
 .sys {
   width: 100%; display: block; padding: 11px 14px 11px 16px; text-align: left; border: 0; border-bottom: 1px solid var(--line-2);
   background: none; cursor: pointer; position: relative; transition: background .2s, opacity .2s;
@@ -157,7 +157,7 @@ button, select, input { font: inherit; color: inherit; }
 .sys li + li { margin-top: 3px; }
 .sys .none { color: var(--label); }
 
-/* Cuerpo */
+/* Body */
 .scan { display: flex; flex-direction: column; }
 .scan .ph h2 { color: var(--ink); }
 .scan-status { display: flex; align-items: center; gap: 12px; }
@@ -170,7 +170,7 @@ button, select, input { font: inherit; color: inherit; }
 .hud.tl { top: 10px; left: 10px; border-right: 0; border-bottom: 0; } .hud.tr { top: 10px; right: 10px; border-left: 0; border-bottom: 0; }
 .hud.bl { bottom: 10px; left: 10px; border-right: 0; border-top: 0; } .hud.br { bottom: 10px; right: 10px; border-left: 0; border-top: 0; }
 
-/* Constantes */
+/* Vital signs */
 .vitals { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; padding: 0; background: var(--line-2); }
 .vital { padding: 12px 14px; background: #080a10; }
 .vital.wide { grid-column: 1 / -1; }
@@ -183,7 +183,7 @@ button, select, input { font: inherit; color: inherit; }
 .vitals.stale .val { color: var(--dim); }
 .vital .alerts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; min-height: 22px; }
 
-/* Tendencias y acciones: mismo lenguaje que las constantes (cifra grande, línea con brillo) */
+/* Trends and actions: same look as the vital signs (large number, glowing line) */
 .trend + .trend { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line-2); }
 .trend { font-size: 13.5px; color: #c3cbd9; }
 .trend b { color: var(--ink); font-weight: 600; }
@@ -202,7 +202,7 @@ button, select, input { font: inherit; color: inherit; }
 .trend-key i.dash { border-top: 3px dotted var(--accent); box-shadow: none; margin-left: 6px; }
 .trend-key i.th { border-top: 2px dashed var(--lv1); box-shadow: none; margin-left: 6px; }
 
-/* Gráfica de 7 días (js/trendchart.js). El color solo marca el nivel del umbral. */
+/* 7-day chart (js/trendchart.js). Color only marks the threshold level. */
 .tplot { position: relative; margin-top: 10px; max-width: 440px; }
 .tchart { display: block; width: 100%; height: auto; overflow: visible; }
 .thud { fill: none; stroke: rgba(143, 216, 255, .45); stroke-width: 1; }
@@ -216,7 +216,7 @@ button, select, input { font: inherit; color: inherit; }
 .tthreshold-label.far { opacity: .8; }
 .tfit, .tproj { fill: none; stroke: var(--accent); stroke-linecap: round; filter: drop-shadow(0 0 5px rgba(143, 216, 255, .6)); }
 .tfit { stroke-width: 2; }
-.tproj { stroke-width: 2.6; stroke-dasharray: 0 6; }          /* línea de puntos, como el holograma */
+.tproj { stroke-width: 2.6; stroke-dasharray: 0 6; }          /* dotted line, like the hologram */
 .tnow { fill: #fff; stroke: var(--accent); stroke-width: 2; filter: drop-shadow(0 0 6px var(--accent)); }
 .tcross { fill: var(--lv); stroke: #080a10; stroke-width: 1.5; filter: drop-shadow(0 0 6px var(--lv)); }
 .tpulse { fill: none; stroke: var(--accent); stroke-width: 1.5; transform-box: fill-box; transform-origin: center; animation: ring 2.2s var(--ease) infinite; }
@@ -238,14 +238,14 @@ button, select, input { font: inherit; color: inherit; }
 .empty { font-size: 13.5px; color: var(--label); }
 .recs li.empty::before { content: none; }
 
-/* Resumen para Tierra */
+/* Earth summary */
 .downlink { border-color: color-mix(in srgb, var(--lv3) 50%, transparent); background: linear-gradient(180deg, rgba(255, 77, 109, .10), rgba(255, 77, 109, .02)); }
 .downlink .ph h2 { color: var(--lv3); }
 .downlink pre { font-size: 13.5px; line-height: 1.75; color: #f1d5db; white-space: pre-wrap; }
 .blink { width: 7px; height: 7px; border-radius: 50%; background: var(--lv3); animation: pulse 1s infinite; }
 
-/* Registro de eventos */
-/* Ocupa el alto que dejan libre las columnas laterales; su contenido hace scroll dentro. */
+/* Event log */
+/* Fills the height left free by the side columns; its content scrolls inside. */
 .a-log { flex: 1; display: flex; flex-direction: column; min-height: 260px; }
 .log { list-style: none; padding: 0; flex: 1; min-height: 0; overflow: auto; contain: size; overscroll-behavior: contain; }
 .log li { display: grid; grid-template-columns: 82px 170px 96px 1fr; gap: 10px; align-items: baseline; padding: 7px 14px; border-bottom: 1px solid var(--line-2); font-size: 13.5px; }
@@ -256,16 +256,16 @@ button, select, input { font: inherit; color: inherit; }
 .log .msg { color: #c9d0dc; min-width: 0; }
 @keyframes flash { from { background: rgba(143, 216, 255, .12); } }
 
-/* Enlace con el vehículo */
+/* Vehicle link */
 #planet { display: block; width: 100%; height: 150px; border-bottom: 1px solid var(--line-2); }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; }
 .kv dt { color: var(--label); }
 .kv dd { text-align: right; font-variant-numeric: tabular-nums; }
 .kv .warn { color: var(--lv1); }
 
-/* ───────── CHEQUEO DIARIO ───────── */
-/* Mismo estilo que el monitor. Solo azul de acento y gris: los colores de nivel
-   (verde, ámbar, naranja, rojo) quedan para la evaluación del motor. */
+/* ───────── DAILY CHECK ───────── */
+/* Same style as the monitor. Accent blue and gray only: the level colors
+   (green, amber, orange, red) are kept for the engine's assessment. */
 .checkview { max-width: 1120px; }
 .check-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; align-items: start; }
 .crew-pick { display: flex; align-items: center; gap: 8px; font-size: 12px; }
@@ -301,7 +301,7 @@ select, input {
 select:focus, input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(143, 216, 255, .12); }
 input::placeholder { color: #7b8599; }
 
-/* Ánimo: cinco caras grandes */
+/* Mood: five large faces */
 .mood { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
 .mood button {
   display: grid; justify-items: center; gap: 8px; padding: 18px 6px 14px; border-radius: 12px;
@@ -314,14 +314,14 @@ input::placeholder { color: #7b8599; }
 .mood svg path, .mood svg .eye { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .mood b { font: 300 22px var(--display); }
 .mood span { font: 500 11.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
-/* La cara elegida toma el color de su nivel: 1 rojo, 2 naranja, 3 ámbar, 4 y 5 verde */
+/* The selected face takes its level's color: 1 red, 2 orange, 3 amber, 4 and 5 green */
 .mood button:hover { color: color-mix(in srgb, var(--lv) 70%, var(--ink)); }
 .mood button[aria-checked="true"] { color: var(--lv); border-color: var(--lv); background: color-mix(in srgb, var(--lv) 12%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--lv) 14%, transparent), 0 12px 30px -12px color-mix(in srgb, var(--lv) 60%, transparent); }
 .summary .mood-v { color: var(--lv); }
 .mood button[aria-checked="true"] svg { animation: pop .4s var(--ease); }
 @keyframes pop { 40% { transform: scale(1.18); } }
 
-/* Medidas: número grande + deslizador */
+/* Measurements: large number + slider */
 .meters { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .meters.one { grid-template-columns: minmax(0, 1fr); max-width: 420px; }
 .meter { display: grid; gap: 10px; padding: 16px 18px 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(0, 0, 0, .22); transition: border-color .3s, background .3s; }
@@ -346,7 +346,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 .submit { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 6px; border-top: 1px solid var(--line-2); }
 #checkMsg { flex: 1; min-width: 200px; }
 
-/* Resumen lateral */
+/* Side summary */
 .check-side { position: sticky; top: 64px; }
 .summary { list-style: none; margin: 0; padding: 6px 0; }
 .summary li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 12px 16px; border-bottom: 1px solid var(--line-2); cursor: pointer; transition: background .2s; }
@@ -365,7 +365,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* ───────── PANTALLAS MÁS PEQUEÑAS ───────── */
+/* ───────── SMALLER SCREENS ───────── */
 @media (max-width: 1240px) {
   .monitor {
     grid-template-columns: 280px minmax(0, 1fr);

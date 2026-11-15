@@ -25,7 +25,10 @@ class Timestamped(WireModel):
     @field_validator("ts")
     @classmethod
     def utc(cls, value: datetime) -> datetime:
-        return value.astimezone(timezone.utc)
+        try:
+            return value.astimezone(timezone.utc)
+        except OverflowError:
+            raise ValueError("Timestamp is out of range") from None
 
 
 class Vitals(WireModel):

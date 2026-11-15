@@ -18,21 +18,21 @@ dist/
 .pio/
 build/
 
-# Secretos y entorno
+# Secrets and environment
 .env
 .env.*
 !.env.example
 firmware/**/secrets.h
 
-# Sistema y editores
+# System and editors
 .DS_Store
 .vscode/
 .idea/
 
-# Firmware: claves del WiFi y de la API (usar config.example.h)
+# Firmware: Wi-Fi and API keys (use config.example.h)
 firmware/esp32_gateway/config.h
 
-# KiCad: estado local del editor, bloqueos y copias
+# KiCad: local editor state, locks, and backups
 *.kicad_prl
 *.lck
 *-backups/

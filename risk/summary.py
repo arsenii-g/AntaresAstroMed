@@ -1,8 +1,9 @@
-"""Resumen en inglés para los médicos en Tierra (guía: nivel 3, "genera un
-resumen listo para enviar").
+"""English summary for the doctors on Earth (team guide: level 3, "generate a
+summary ready to send").
 
-Como el resto de textos del motor, va en inglés (decisión del equipo, 14/11/2026). Solo se genera cuando el
-nivel global es 3. Textos: criterio propio.
+Like the rest of the engine's texts, it is in English (team decision,
+2026-11-14). It is only generated when the overall level is 3. Texts: team
+criterion.
 """
 
 from __future__ import annotations

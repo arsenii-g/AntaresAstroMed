@@ -4950,7 +4950,7 @@
 		)
 		(uuid "cd313cde-5610-5be5-818f-55fbdd980142")
 	)
-	(text "Pin assignments: firmware/uno_sensores/config.h and firmware/esp32_gateway/config.h.   Moving sensors on JST-XH connectors; DHT11 and RTC plug into female sockets; RC522 by cable; ESP32 on female headers.\nTH1, D1, R6 and SW2 (Mounting = Off board) have no footprint: they are listed in the BOM and wired to their connectors."
+	(text "Pin assignments: firmware/uno_sensors/config.h and firmware/esp32_gateway/config.h.   Moving sensors on JST-XH connectors; DHT11 and RTC plug into female sockets; RC522 by cable; ESP32 on female headers.\nTH1, D1, R6 and SW2 (Mounting = Off board) have no footprint: they are listed in the BOM and wired to their connectors."
 		(exclude_from_sim no)
 		(at 15 20.22 0)
 		(effects

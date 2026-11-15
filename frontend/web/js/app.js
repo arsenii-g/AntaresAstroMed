@@ -1,29 +1,29 @@
-// Lógica de la consola. Habla con la API (api/main.py):
-//   GET  /api/v1/crew/{id}/latest      → último estado y nombre, al cargar y al reconectar
-//   GET  /api/v1/crew/{id}/telemetry   → histórico, para las líneas de pulso y temperatura
-//   GET  /api/v1/events                → registro de eventos guardados
-//   WS   /ws                           → mensajes { type, data }: telemetry, event, assessment
-//   POST /api/v1/checks                → chequeo diario (contrato ②)
-// Todo lo que se pinta sale de esos mensajes: niveles, motivos, acciones y
-// tendencias (con sus puntos y su recta) los calcula el motor (risk/).
-// Se puede cambiar desde la URL: console.html?api=http://192.168.1.20:8000&crew=F3786E09
+// Console logic. Talks to the API (api/main.py):
+//   GET  /api/v1/crew/{id}/latest      → latest state and name, on load and on reconnect
+//   GET  /api/v1/crew/{id}/telemetry   → history, for the pulse and temperature lines
+//   GET  /api/v1/events                → stored event log
+//   WS   /ws                           → { type, data } messages: telemetry, event, assessment
+//   POST /api/v1/checks                → daily check (contract ②)
+// Everything rendered comes from those messages: levels, reasons, actions, and
+// trends (with their points and line) are computed by the engine (risk/).
+// Can be changed from the URL: console.html?api=http://192.168.1.20:8000&crew=F3786E09
 
 import { createPlanet, PALETTES } from "./planet.js";
 import { createHologram } from "./hologram.js";
 import { trendChart, attachTrendHover } from "./trendchart.js";
 import { mergeReadings, sparkPath } from "./data.js";
 
-// ─── Configuración ──────────────────────────────────────────────────────────
+// ─── Configuration ──────────────────────────────────────────────────────────
 const params = new URLSearchParams(location.search);
-// Por defecto, la API en el mismo ordenador que sirve la web, puerto 8000 (uvicorn)
+// By default, the API is on the same machine that serves the page, port 8000 (uvicorn)
 const API_URL = (params.get("api") ?? (location.port === "5173" ? `${location.protocol}//${location.hostname}:8000` : location.origin)).replace(/\/$/, "");
 const WS_PATH = "/ws";
 const API_KEY = params.get("key"); // GET and manual checks do not require a key.
-// Tarjetas del kit (api/crew.py). Los que lleguen por el WebSocket con otro
-// crew_id se añaden solos.
+// Kit cards (api/crew.py). Any crew member arriving over the WebSocket with another
+// crew_id is added automatically.
 const KNOWN_CREW = ["F3786E09", "336F8312"];
-const STALE_S = 15;            // criterio propio: varios mensajes seguidos perdidos (la placa manda cada 2 s)
-const HISTORY = 48;            // puntos de las líneas de pulso y temperatura
+const STALE_S = 15;            // chosen threshold: several consecutive messages missed (the board sends every 2 s)
+const HISTORY = 48;            // points in the pulse and temperature lines
 
 const LEVEL_NAME = { 0: "Nominal", 1: "Watch", 2: "Alert", 3: "Critical", null: "No data" };
 const SYSTEMS = [
@@ -32,7 +32,7 @@ const SYSTEMS = [
   ["musculoskeletal", "Musculoskeletal"],
   ["environment", "Environment"],
 ];
-// Alertas locales de la placa (firmware/uno_sensores/config.h). No son niveles del motor.
+// Local board alerts (firmware/uno_sensors/config.h). They are not engine levels.
 const BOARD_ALERT = {
   HR_HIGH: "Pulse > 120", HR_LOW: "Pulse < 45", BODY_TEMP_HIGH: "Body temp > 38.0 °C", BODY_TEMP_LOW: "Body temp < 35.5 °C",
   CABIN_TEMP_HIGH: "Cabin > 28 °C", CABIN_TEMP_LOW: "Cabin < 18 °C", HEAT_INDEX_HIGH: "Heat index > 32 °C", CONDENSATION_HIGH: "Condensation risk high",
@@ -40,7 +40,7 @@ const BOARD_ALERT = {
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const lv = (level) => (level == null ? "" : String(level));      // valor de data-level
+const lv = (level) => (level == null ? "" : String(level));      // data-level value
 const name = (level) => LEVEL_NAME[level ?? null];
 const hms = (ts) => new Date(ts).toISOString().slice(11, 19);
 const crewOf = (id) => state.crew.get(id) ?? { crew_id: id ?? "", name: id ?? "Select a crew member or scan a card", role: "" };
@@ -49,29 +49,29 @@ const tsMs = (ts) => { const t = Date.parse(ts ?? ""); return Number.isNaN(t) ? 
 const ageS = (ms) => (ms == null ? null : Math.max(0, Math.round((Date.now() - ms) / 1000)));
 const ago = (s) => (s == null ? "—" : s < 60 ? `${s} s ago` : `${Math.floor(s / 60)} min ago`);
 
-// ─── Estado ─────────────────────────────────────────────────────────────────
+// ─── State ─────────────────────────────────────────────────────────────────
 const state = {
   crew: new Map(),             // crew_id -> { crew_id, name, role }
   crewId: params.get("crew") ?? KNOWN_CREW[0],
   followStation: !params.has("crew"),
   stationTs: 0,
-  focus: null,                 // sistema filtrado, o null
-  assessment: {},              // crew_id -> última evaluación ③
-  telemetry: {},               // crew_id -> última telemetría ①
-  hrHistory: {},               // crew_id -> últimos pulsos, para la gráfica
-  tempHistory: {},             // crew_id -> últimas temperaturas corporales, para la gráfica
+  focus: null,                 // filtered system, or null
+  assessment: {},              // crew_id -> latest assessment ③
+  telemetry: {},               // crew_id -> latest telemetry ①
+  hrHistory: {},               // crew_id -> latest pulse readings, for the chart
+  tempHistory: {},             // crew_id -> latest body temperatures, for the chart
   samples: {},
   lastExercise: {},
   seenEvents: new Set(),
-  lastPacket: {},              // crew_id -> hora local de llegada (ms)
+  lastPacket: {},              // crew_id -> local arrival time (ms)
   packets: 0,
-  met: null,                   // { s, at }: último met_s recibido y cuándo
+  met: null,                   // { s, at }: latest met_s received and when
   log: [],
   logOnlySelected: false,
-  acked: new Set(),            // avisos reconocidos en esta consola
-  source: "connecting",        // connecting | live | lost (estado del WebSocket)
+  acked: new Set(),            // alerts acknowledged in this console
+  source: "connecting",        // connecting | live | lost (WebSocket state)
 };
-let lastRecs = null, lastEarth = null;       // para no repintar lo que no cambia
+let lastRecs = null, lastEarth = null;       // to avoid repainting what has not changed
 
 // ─── 3D ─────────────────────────────────────────────────────────────────────
 createPlanet($("planet"), { horizon: 0.58, radius: (w) => w * 0.9, parallax: false, palette: PALETTES.antares });
@@ -84,7 +84,7 @@ function setFocus(system) {
   renderSystems();
 }
 
-// ─── Entrada de datos ───────────────────────────────────────────────────────
+// ─── Data input ───────────────────────────────────────────────────────
 function addCrew(id, name, role) {
   const known = state.crew.get(id);
   if (known && !name) return;
@@ -94,21 +94,21 @@ function addCrew(id, name, role) {
   if (id === state.crewId) $("scanCrew").textContent = `${crewOf(id).name} · ${id}`;
 }
 
-// `fromHistory`: datos pedidos por HTTP (no en directo); la antigüedad sale de su ts.
+// `fromHistory`: data fetched over HTTP (not live); its age comes from its ts.
 function onMessage({ type, data }, { fromHistory = false } = {}) {
   if (!data) return;
-  // Con varias placas a la vez, la telemetría alterna de tripulante cada 2 s:
-  // "Follow sensor" sigue los fichajes RFID, y la telemetría solo si no hay nadie seleccionado.
+  // With several boards at once, telemetry switches crew member every 2 s:
+  // "Follow sensor" follows RFID taps, and telemetry only if nobody is selected.
   if (!fromHistory && type === "telemetry" && !state.crewId) applyStation({ crew_id: data.crew_id, ts: data.ts });
   if (!fromHistory && type === "event" && data.type === "crew_checkin") {
     applyStation({ crew_id: data.data?.action === "in" ? data.crew_id : null, ts: data.ts });
   }
-  if (!data || !data.crew_id) return;            // sin tripulante (nadie ha fichado con la tarjeta)
+  if (!data || !data.crew_id) return;            // no crew member (nobody has tapped the card)
   const id = data.crew_id;
   if (!state.crew.has(id)) addCrew(id);
   if (type === "assessment") {
     const prev = state.assessment[id];
-    if (prev && tsMs(prev.ts) && tsMs(data.ts) && tsMs(data.ts) < tsMs(prev.ts)) return;   // llegó tarde
+    if (prev && tsMs(prev.ts) && tsMs(data.ts) && tsMs(data.ts) < tsMs(prev.ts)) return;   // arrived late
     logChanges(state.assessment[id], data);
     state.assessment[id] = data;
     renderRoster(); renderAlert();
@@ -142,13 +142,13 @@ function onMessage({ type, data }, { fromHistory = false } = {}) {
       inactivity: `No movement for ${d.still_for_s ?? "?"} s`,
       crew_checkin: d.action === "out" ? "Crew member checked out" : "Crew member checked in",
     }[data.type] ?? `Event: ${data.type}`;
-    addLog(data, data.severity === "medium" ? 1 : undefined, msg);     // info = sin nivel
+    addLog(data, data.severity === "medium" ? 1 : undefined, msg);     // info = no level
   } else if (type === "check") {
     addLog(data, undefined, "Daily check received");
   }
 }
 
-// ─── Registro de eventos ────────────────────────────────────────────────────
+// ─── Event log ────────────────────────────────────────────────────
 function logChanges(prev, next) {
   if (!prev) {
     addLog(next, next.overall_level, `First assessment received · overall ${name(next.overall_level)}`);
@@ -180,7 +180,7 @@ $("logFilter").addEventListener("click", (e) => {
   renderLog();
 });
 
-// ─── Tripulación ────────────────────────────────────────────────────────────
+// ─── Crew ────────────────────────────────────────────────────────────
 function renderRoster() {
   const crew = crewList();
   $("crewCount").textContent = `${crew.length} ON BOARD`;
@@ -229,7 +229,7 @@ $("followStation").addEventListener("click", async () => {
   if (active) applyStation(active);
 });
 
-// ─── Aviso: nivel 2 o 3 que nadie ha reconocido ─────────────────────────────
+// ─── Alert: level 2 or 3 that nobody has acknowledged ─────────────────────────────
 function currentAlert() {
   let worst = null;
   for (const c of crewList()) {
@@ -264,13 +264,13 @@ $("alert").addEventListener("click", (e) => {
   }
 });
 
-// ─── Evaluación del tripulante seleccionado ─────────────────────────────────
+// ─── Assessment of the selected crew member ─────────────────────────────────
 function renderAssessment() {
   const a = state.assessment[state.crewId];
   const c = crewOf(state.crewId);
   $("scanCrew").textContent = `${c.name} · ${c.crew_id}`;
   if (!a) {
-    // Sin evaluación todavía: todo en gris ("No data"), nunca en verde
+    // No assessment yet: everything gray ("No data"), never green
     $("overall").dataset.level = ""; $("overall").textContent = name(null);
     $("overallTs").textContent = "WAITING FOR ASSESSMENT";
     holo.setLevels(Object.fromEntries(SYSTEMS.map(([k]) => [k, null])));
@@ -289,8 +289,8 @@ function renderAssessment() {
   holo.setLevels(Object.fromEntries(SYSTEMS.map(([k]) => [k, a.systems?.[k]?.level ?? null])));
   renderSystems();
 
-  // Una gráfica por indicador con al menos 7 medidas. Primero las que cruzan un
-  // umbral; luego los chequeos y las series, y después los sensores.
+  // One chart per indicator with at least 7 measurements. First those that cross a
+  // threshold; then checks and sets, and then sensors.
   const trends = [...(a.trends ?? [])].sort((x, y) =>
     (x.crosses_in == null) - (y.crosses_in == null) || (x.basis === "time") - (y.basis === "time"));
   $("trends").innerHTML = trends.length
@@ -343,7 +343,7 @@ $("systems").addEventListener("click", (e) => {
 
 function renderVitals() {
   const t = state.telemetry[state.crewId];
-  const num = (v, digits = 0) => (typeof v === "number" ? v.toFixed(digits) : "—");   // null = sin dato
+  const num = (v, digits = 0) => (typeof v === "number" ? v.toFixed(digits) : "—");   // null = no data
   const hist = state.hrHistory[state.crewId] ?? [];
   const validHr = hist.filter((v) => typeof v === "number");
   const lo = Math.min(...validHr, 50), hi = Math.max(...validHr, 110);
@@ -377,7 +377,7 @@ function renderVitals() {
   renderAge();
 }
 
-// ─── Enlace, reloj y antigüedad de los datos (cada segundo) ─────────────────
+// ─── Link, clock, and data age (every second) ─────────────────
 function renderAge() {
   const age = ageS(state.lastPacket[state.crewId]);
   const stale = age != null && age > STALE_S;
@@ -385,7 +385,7 @@ function renderAge() {
   $("vitalsAge").style.color = stale ? "var(--lv1)" : "";
   $("vitals").classList.toggle("stale", stale);
 }
-// Pastilla de arriba: conexión con la base y si llegan datos del sensor.
+// Top pill: connection to the base and whether sensor data is arriving.
 function renderSource() {
   const age = ageS(state.lastPacket[state.crewId]);
   const ok = state.source === "live" && age != null && age <= STALE_S;
@@ -420,7 +420,7 @@ function renderClock() {
   }
 }
 
-// ─── Vistas ─────────────────────────────────────────────────────────────────
+// ─── Views ─────────────────────────────────────────────────────────────────
 function showView(v) {
   for (const b of document.querySelectorAll(".views button")) b.setAttribute("aria-selected", String(b.dataset.view === v));
   $("view-monitor").hidden = v !== "monitor";
@@ -431,13 +431,13 @@ document.querySelector(".views").addEventListener("click", (e) => {
   if (b) showView(b.dataset.view);
 });
 
-// ─── Chequeo diario (contrato ②) ────────────────────────────────────────────
+// ─── Daily check (contract ②) ────────────────────────────────────────────
 let mood = null;
 let checkStep = 0;
 const CHECK_HINT = "Leave anything empty if you did not measure it today.";
 const MOOD_LABEL = ["Very low", "Low", "Okay", "Good", "Very good"];
-const MOOD_LEVEL = [3, 2, 1, 0, 0];   // color de la cara elegida: triste en rojo … feliz en verde
-const visited = new Set([0]);   // pasos vistos: un paso visto y vacío cuenta como omitido
+const MOOD_LEVEL = [3, 2, 1, 0, 0];   // color of the selected face: sad in red … happy in green
+const visited = new Set([0]);   // visited steps: a visited but empty step counts as skipped
 function showCheckStep(step) {
   checkStep = Math.max(0, Math.min(2, step));
   visited.add(checkStep);
@@ -458,7 +458,7 @@ function resetCheck() {
   showCheckStep(0);
 }
 
-// Deslizadores: el número es el dato que se envía; el deslizador solo ayuda a ponerlo.
+// Sliders: the number is the value that gets sent; the slider only helps set it.
 const RANGE_OF = { sys: "sysRange", dia: "diaRange", glu: "gluRange" };
 function syncSliders() {
   for (const [id, rangeId] of Object.entries(RANGE_OF)) {
@@ -481,7 +481,7 @@ for (const b of document.querySelectorAll("[data-clear]")) {
   });
 }
 
-// Pasos y resumen lateral
+// Steps and side summary
 function goToStep(step) {
   const error = checkStep === 1 && step > 1 ? validatePressure() : null;
   if (error) { $("checkMsg").textContent = error; return; }
@@ -516,7 +516,7 @@ function renderCheckSummary() {
   $("checkWho").textContent = state.crewId ? crewOf(state.crewId).name.toUpperCase() : "—";
 }
 
-// Teclas 1–5 para el ánimo, Intro para avanzar (fuera de los campos de texto)
+// Keys 1–5 for mood, Enter to advance (outside text fields)
 document.addEventListener("keydown", (e) => {
   if ($("view-check").hidden || e.ctrlKey || e.metaKey || e.altKey) return;
   const typing = e.target.matches?.("input:not([type=range]), select, textarea");
@@ -551,7 +551,7 @@ function renderCrewOptions() {
   renderCheckSummary();
 }
 $("checkCrew").addEventListener("change", (e) => selectCrew(e.target.value));
-// Caras: la boca pasa de triste (1) a sonriente (5)
+// Faces: the mouth goes from sad (1) to smiling (5)
 const face = (n) => {
   const c = 30 + (n - 3) * 5;
   return `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21"/>
@@ -578,7 +578,7 @@ function buildCheck() {
     mood,
   };
 }
-// Lo que se envía sigue el contrato ② (contracts/check.example.json); no se enseña en pantalla.
+// What is sent follows contract ② (contracts/check.example.json); it is not shown on screen.
 function renderPayload() { renderCheckSummary(); }
 $("checkForm").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -595,7 +595,7 @@ $("checkForm").addEventListener("submit", async (e) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(check),
     });
-    // 409 = ya estaba guardado (mismo crew_id y ts)
+    // The API answers 200 for both new and duplicate checks (duplicate: true), so r.ok is enough.
     $("checkMsg").textContent = r.ok || r.status === 409 ? "Check saved. Thank you."
       : r.status === 422 ? "Some values are not valid. Check them and try again."
       : "Could not save the check. Try again in a minute.";
@@ -609,7 +609,7 @@ $("checkForm").addEventListener("submit", async (e) => {
   } finally { btn.disabled = false; }
 });
 
-// ─── Conexión con la API ────────────────────────────────────────────────────
+// ─── API connection ────────────────────────────────────────────────────
 const headers = () => API_KEY ? { "X-API-Key": API_KEY } : {};
 
 async function getJSON(path) {
@@ -619,7 +619,7 @@ async function getJSON(path) {
   return r.json();
 }
 
-// Último estado de un tripulante, y su histórico de telemetría para las líneas.
+// Latest state of a crew member, and its telemetry history for the lines.
 async function loadCrew(id) {
   const from = encodeURIComponent(new Date(Date.now() - 7 * 86400000).toISOString());
   const [latest, history, events] = await Promise.all([
@@ -648,7 +648,7 @@ async function loadAll() {
   await Promise.all([...new Set([...KNOWN_CREW, ...state.crew.keys()])].map(loadCrew));
 }
 
-// WebSocket con reconexión: espera 1, 2, 4… s, hasta 30 s. Al volver, se pide el estado.
+// WebSocket with reconnection: waits 1, 2, 4… s, up to 30 s. On reconnect, the state is requested again.
 let retry = 0;
 function connect() {
   const ws = new WebSocket(API_URL.replace(/^http/, "ws") + WS_PATH);
@@ -664,7 +664,7 @@ function connect() {
   };
 }
 
-// ─── Arranque ───────────────────────────────────────────────────────────────
+// ─── Startup ───────────────────────────────────────────────────────────────
 for (const id of new Set([...KNOWN_CREW, state.crewId])) state.crew.set(id, { crew_id: id, name: id, role: "" });
 renderCrewOptions();
 renderSource(); renderClock(); renderRoster(); renderAssessment(); renderVitals();

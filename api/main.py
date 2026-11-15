@@ -1,5 +1,6 @@
 """AstroMed: firmware -> SQLite -> local rules engine -> browser."""
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from email.utils import format_datetime
@@ -33,7 +34,7 @@ def now_utc():
 
 
 def verify_api_key(request: Request, x_api_key: str | None = Header(default=None)):
-    if x_api_key != request.app.state.api_key:
+    if not secrets.compare_digest((x_api_key or "").encode(), request.app.state.api_key.encode()):
         raise HTTPException(401, "Invalid or missing X-API-Key")
 
 
@@ -82,10 +83,15 @@ def create_app(database_url=None, api_key=None):
     @app.exception_handler(RequestValidationError)
     async def invalid(request, exc):
         errors = [{"loc": list(e["loc"]), "msg": e["msg"], "type": e["type"]} for e in exc.errors()]
+        # /checks is public, so its rejections are not stored: anyone could fill the table.
         try:
+            if request.url.path == "/api/v1/checks":
+                raise LookupError
             with app.state.session_factory() as db:
                 db.add(RejectedMessage(received_at=now_utc(), path=request.url.path, errors=errors))
                 db.commit()
+        except LookupError:
+            pass
         except Exception:
             log.exception("Could not store validation failure")
         code = 400 if any(e["type"] == "json_invalid" for e in errors) else 422
@@ -204,7 +210,7 @@ def create_app(database_url=None, api_key=None):
         return {"ok": True, "system": PRODUCT_NAME, "team": TEAM_NAME, "server_time": now_utc(),
                 "demo_mode": demo_mode()}
 
-    frontend = ROOT / "frontend" / "boceto"
+    frontend = ROOT / "frontend" / "web"
     if frontend.is_dir():
         app.mount("/", StaticFiles(directory=frontend, html=True), name="frontend")
     else:

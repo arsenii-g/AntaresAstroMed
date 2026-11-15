@@ -1,14 +1,14 @@
-// Gráfica de un elemento de `trends` (contrato ③), tal como lo manda el motor
-// (risk/trends.py). No se calcula ni se copia nada aquí: los puntos medidos, la
-// recta (slope, intercept), el horizonte y el umbral vienen en el mensaje.
+// Chart for one element of `trends` (contract ③), exactly as the engine sends it
+// (risk/trends.py). Nothing is computed or copied here: the measured points, the
+// line (slope, intercept), the horizon, and the threshold all come in the message.
 //
-//   basis "count": x = número de medida (último chequeo o serie = 0, el
-//                  anterior = −1…); se proyecta `horizon` medidas más.
-//   basis "time":  x = segundos respecto a la evaluación; se proyecta
-//                  `horizon` segundos.
+//   basis "count": x = measurement number (latest check or set = 0, the
+//                  previous one = −1…); `horizon` more measurements are projected.
+//   basis "time":  x = seconds relative to the assessment; `horizon`
+//                  seconds are projected.
 //
-// Línea continua: ajuste sobre las medidas. Punteada: proyección. Discontinua
-// de color: el siguiente umbral en la dirección de la pendiente, si hay.
+// Solid line: fit over the measurements. Dotted: projection. Colored dashed
+// line: the next threshold in the direction of the slope, if any.
 
 const W = 320, H = 150;
 const M = { t: 16, r: 10, b: 26, l: 44 };
@@ -25,14 +25,14 @@ function niceStep(raw) {
   return (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * p;
 }
 
-/** Texto de x: "−6 checks", "Last", "+7 checks"; "−60 s", "Now", "+60 s". */
+/** X-axis text: "−6 checks", "Last", "+7 checks"; "−60 s", "Now", "+60 s". */
 function xLabel(x, t) {
   if (x === 0) return t.basis === "time" ? "Now" : "Last";
   const n = Math.round(Math.abs(x));
   return `${x > 0 ? "+" : "−"}${n}${t.basis === "time" ? " s" : ` ${plural(n, t.x_unit)}`}`;
 }
 
-/** Cuándo cruza: "in 12 s" o "in about 3 checks". */
+/** When it crosses: "in 12 s" or "in about 3 checks". */
 export function crossText(t) {
   if (t.crosses_in == null) return "";
   if (t.basis === "time") return `in ${Math.round(t.crosses_in)} s`;
@@ -40,7 +40,7 @@ export function crossText(t) {
   return `in about ${n} more ${plural(n, t.x_unit)}`;
 }
 
-/** HTML de una tendencia: título, resumen y gráfica. `levelName` lo pone app.js. */
+/** HTML for one trend: title, summary, and chart. `levelName` is supplied by app.js. */
 export function trendChart(t, { levelName = (l) => l } = {}) {
   const points = (t.points ?? []).filter((p) => Array.isArray(p) && p.every(Number.isFinite));
   const slope = Number(t.slope) || 0, b = Number(t.intercept) || 0;
@@ -54,14 +54,14 @@ export function trendChart(t, { levelName = (l) => l } = {}) {
   const threshold = t.threshold == null ? null : Number(t.threshold);
   const crosses = t.crosses_in != null && threshold != null;
 
-  // Eje Y: medidas, recta en los extremos y umbral, con algo de aire.
+  // Y axis: measurements, line at the ends, and threshold, with some padding.
   const vals = [...values, line(x0), line(0), line(horizon)];
   if (threshold != null) vals.push(threshold);
   let lo = Math.min(...vals), hi = Math.max(...vals);
   const pad = Math.max((hi - lo) * 0.18, Math.abs(hi) * 0.02, 0.5);
   lo -= pad; hi += pad;
   const yOf = (v) => M.t + (1 - (clamp(v, lo, hi) - lo) / (hi - lo)) * PH;
-  // Sin decimales en escalas amplias de enteros (pulso, tensión); con uno en el resto.
+  // No decimals on wide integer scales (pulse, blood pressure); one decimal otherwise.
   const digits = values.every((v) => Number.isInteger(v)) && hi - lo >= 10 ? 0 : 1;
   const fmt = (v) => Number(v).toFixed(digits);
 
@@ -138,7 +138,7 @@ export function trendChart(t, { levelName = (l) => l } = {}) {
   </div>`;
 }
 
-/** Cruceta y tooltip para todas las gráficas que haya dentro de `root` (ahora o después). */
+/** Crosshair and tooltip for every chart inside `root` (now or added later). */
 export function attachTrendHover(root) {
   const hideAll = () => {
     for (const g of root.querySelectorAll(".thover")) g.setAttribute("visibility", "hidden");

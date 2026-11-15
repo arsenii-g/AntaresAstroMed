@@ -1,4 +1,81 @@
 {
   "type": "assessment",
-  "data": {}
+  "data": {
+    "crew_id": "F3786E09",
+    "ts": "2026-11-14T10:30:05Z",
+    "overall_level": 1,
+    "systems": {
+      "cardiovascular": {
+        "level": 1,
+        "reasons": [
+          "Heart rate 118 bpm, above 100 bpm"
+        ]
+      },
+      "neuro": {
+        "level": 0,
+        "reasons": []
+      },
+      "musculoskeletal": {
+        "level": 0,
+        "reasons": []
+      },
+      "environment": {
+        "level": 1,
+        "reasons": [
+          "Cabin humidity 72%, above 60%"
+        ]
+      }
+    },
+    "trends": [
+      {
+        "indicator": "glucose_mg_dl",
+        "label": "Glucose",
+        "unit": "mg/dL",
+        "basis": "count",
+        "x_unit": "check",
+        "points": [
+          [
+            -6.0,
+            80.0
+          ],
+          [
+            -5.0,
+            83.0
+          ],
+          [
+            -4.0,
+            86.0
+          ],
+          [
+            -3.0,
+            89.0
+          ],
+          [
+            -2.0,
+            92.0
+          ],
+          [
+            -1.0,
+            95.0
+          ],
+          [
+            0.0,
+            98.0
+          ]
+        ],
+        "slope": 3.0,
+        "intercept": 98.0,
+        "horizon": 7,
+        "projected": 119.0,
+        "threshold": 99,
+        "threshold_level": 1,
+        "crosses_in": 0.3
+      }
+    ],
+    "recommendations": [
+      "Seated rest for 10 minutes, then repeat the heart rate reading",
+      "Check cabin humidity control"
+    ],
+    "earth_summary": null
+  }
 }

@@ -1,18 +1,18 @@
-"""evaluate(): punto de entrada del motor de riesgos.
+"""evaluate(): entry point of the risk engine.
 
-Pasos (guía del equipo, sección 5):
-  1. Nivel por indicador contra thresholds.json (indicators.py).
-  2. Nivel por sistema: el peor de sus indicadores.
-  3. Tendencias: recta de mínimos cuadrados con al menos 7 medidas. Chequeos
-     y flexiones, medida a medida, proyectadas 7 medidas; pulso, temperatura
-     corporal y cabina, en segundos, proyectadas 60 s (trends.py).
-  4. Recomendaciones: una contramedida por cada ámbar o peor, y un aviso por
-     cada tendencia que cruce un umbral dentro de su horizonte.
-  5. Resumen en inglés para Tierra cuando el nivel global es 3 (summary.py).
+Steps (team guide, section 5):
+  1. Level per indicator against thresholds.json (indicators.py).
+  2. Level per system: the worst of its indicators.
+  3. Trends: least-squares line with at least 7 measurements. Checks and
+     push-up sets, measurement by measurement, projected 7 measurements
+     ahead; pulse, body temperature and cabin, in seconds, projected 60 s
+     ahead (trends.py).
+  4. Recommendations: one countermeasure for each amber or worse result, and
+     one warning for each trend that crosses a threshold within its horizon.
+  5. English summary for Earth when the overall level is 3 (summary.py).
 
-Un dato ausente es "no data" (sin dato), nunca verde. Todos los textos de
-salida van en inglés. Si un sistema no tiene ningún dato,
-su nivel es None.
+Missing data is "no data", never green. All output texts are in English. If
+a system has no data at all, its level is None.
 """
 
 from __future__ import annotations
@@ -26,10 +26,10 @@ from .trends import trends_for
 
 SYSTEMS = ("cardiovascular", "neuro", "musculoskeletal", "environment")
 
-# Antigüedad máxima de un dato para darlo por válido (criterio propio).
-TELEMETRY_MAX_AGE = timedelta(seconds=60)   # llega cada 2 s: unas 30 lecturas
-CHECK_MAX_AGE = timedelta(hours=24)         # un chequeo manual al día
-HISTORY_WINDOW = timedelta(days=7)          # basal de flexiones y tendencias
+# Maximum age of a reading to be considered valid (team criterion).
+TELEMETRY_MAX_AGE = timedelta(seconds=60)   # arrives every 2 s: about 30 readings
+CHECK_MAX_AGE = timedelta(hours=24)         # one manual check per day
+HISTORY_WINDOW = timedelta(days=7)          # push-up baseline and trends
 
 
 def evaluate(
@@ -38,24 +38,24 @@ def evaluate(
     manual_checks: list[dict],
     now: datetime,
 ) -> dict:
-    """Evalúa el riesgo de un tripulante.
+    """Evaluate the risk of one crew member.
 
     Args:
-        telemetry: mensajes ① de telemetría (contracts/telemetry.example.json),
-            todos del mismo crew_id. Cualquier campo puede venir como None.
-        events: eventos ① (crew_checkin, inactivity, exercise_summary) del
-            mismo crew_id, de los últimos 7 días.
-        manual_checks: chequeos manuales ② del mismo crew_id. Para la
-            tendencia, la API debe pasar los de los últimos 7 días.
-        now: hora actual, datetime CON zona horaria: datetime.now(timezone.utc).
-            Sin zona lanza ValueError: un datetime.now() local en UTC+1 haría
-            que toda la telemetría pareciera de hace una hora.
+        telemetry: ① telemetry messages (contracts/telemetry.example.json),
+            all with the same crew_id. Any field may be None.
+        events: ① events (crew_checkin, inactivity, exercise_summary) with the
+            same crew_id, from the last 7 days.
+        manual_checks: ② manual checks with the same crew_id. For trends, the API
+            must pass those from the last 7 days.
+        now: current time, a datetime WITH a timezone: datetime.now(timezone.utc).
+            Without one it raises ValueError: a local datetime.now() in UTC+1
+            would make all telemetry look an hour old.
 
     Returns:
-        La evaluación ③ (contracts/assessment.example.json). El nivel de un
-        sistema sin ningún dato, y overall_level si no hay ninguno, es None.
+        The ③ assessment (contracts/assessment.example.json). The level of a
+        system with no data, and overall_level if there is none, is None.
 
-    Nunca lanza excepciones por datos ausentes, incompletos o con basura.
+    Never raises exceptions for missing, incomplete or garbage data.
     """
     if not isinstance(now, datetime) or now.tzinfo is None:
         raise ValueError("evaluate(now=...) needs a timezone-aware datetime: datetime.now(timezone.utc)")
@@ -101,7 +101,7 @@ def evaluate(
     }
 
 
-# --- indicadores ---------------------------------------------------------------
+# --- indicators ---------------------------------------------------------------
 
 def _telemetry_indicators(telemetry: list[dict], events: list[dict], now: datetime) -> list[IndicatorResult]:
     motion = lambda m: _obj(m.get("motion"))
@@ -120,7 +120,7 @@ def _telemetry_indicators(telemetry: list[dict], events: list[dict], now: dateti
         "heat_index_c": lambda m: cabin(m).get("heat_index_c"),
         "condensation_margin_c": margin,
     }
-    # El dato más reciente que no sea None dentro de la ventana de 60 s.
+    # The most recent non-None value within the 60 s window.
     return [_heart_rate(telemetry, events, now), _body_temp(telemetry)] + [
         level_for(name, _latest(telemetry, get)) for name, get in getters.items()
     ]
@@ -131,15 +131,15 @@ def _vital(message: dict, name: str):
 
 
 def _sustained(telemetry: list[dict], indicator: str) -> IndicatorResult:
-    """Nivel de un signo vital con la regla de lecturas sostenidas (criterio
-    propio, ver risk/README.md, sección 3):
+    """Level of a vital sign with the sustained-readings rule (team criterion,
+    see risk/README.md, section 3):
 
-    - Ámbar con una sola lectura: avisar pronto no cuesta nada.
-    - Naranja o rojo solo si las sustain_readings últimas lecturas están en
-      ese nivel o peor. Mientras no, ámbar: nunca verde, para que un fallo
-      del sensor no esconda un problema real.
-    - Lecturas altas y bajas mezcladas en la ventana: ámbar y revisar el
-      sensor, porque la señal no es fiable.
+    - Amber on a single reading: warning early costs nothing.
+    - Orange or red only if the last sustain_readings readings are at that
+      level or worse. Until then, amber: never green, so a sensor glitch
+      does not hide a real problem.
+    - High and low readings mixed in the window: amber and check the
+      sensor, because the signal is not reliable.
     """
     need = load_thresholds()[indicator].get("sustain_readings", 1)
     samples = [(m, level_for(indicator, v)) for m in telemetry if (v := _vital(m, indicator)) is not None]
@@ -157,7 +157,7 @@ def _sustained(telemetry: list[dict], indicator: str) -> IndicatorResult:
     flagged = [r for r in window if r.level]
     if len({r.code for r in flagged}) > 1:
         return restate(flagged[-1], 1, "inconsistent readings; check the sensor")
-    worst = max(reversed(window), key=lambda r: r.level)      # si empatan, la más reciente
+    worst = max(reversed(window), key=lambda r: r.level)      # on a tie, the most recent
     if worst.level < 2:
         return latest
     elapsed = (_parse_ts(samples[-1][0]["ts"]) - _parse_ts(samples[0][0]["ts"])).total_seconds()
@@ -173,11 +173,12 @@ def _sustained(telemetry: list[dict], indicator: str) -> IndicatorResult:
 
 
 def _body_temp(telemetry: list[dict]) -> IndicatorResult:
-    """Temperatura corporal: lecturas sostenidas (_sustained) y, además, la
-    baja da como mucho low_max_level (ámbar). El termistor va en la muñeca, y
-    la piel se enfría con la cabina aunque el tripulante esté bien (Polar,
-    ver thresholds.json). Una muñeca fría pide un termómetro, no llamar a
-    Tierra. La alta (fiebre) mantiene sus niveles."""
+    """Body temperature: sustained readings (_sustained) and, in addition, a
+    low reading gives at most low_max_level (amber). The thermistor sits on
+    the wrist, and the skin cools down with the cabin even if the crew
+    member is fine (Polar, see thresholds.json). A cold wrist calls for a
+    thermometer, not for contacting Earth. A high reading (fever) keeps its
+    levels."""
     result = _sustained(telemetry, "body_temp_c")
     spec = load_thresholds()["body_temp_c"]
     if result.code == "BODY_TEMP_LOW" and "low_max_level" in spec:
@@ -186,11 +187,12 @@ def _body_temp(telemetry: list[dict]) -> IndicatorResult:
 
 
 def _heart_rate(telemetry: list[dict], events: list[dict], now: datetime) -> IndicatorResult:
-    """Pulso: lecturas sostenidas (_sustained) y, además, margen tras
-    ejercicio (criterio propio): si el tripulante se está moviendo o hizo
-    flexiones en los últimos exercise_recovery_s, un pulso alto en naranja
-    baja a ámbar, porque subir el pulso con el esfuerzo es normal. El rojo
-    (más de 150 lpm) no se rebaja: eso ya no se explica por unas flexiones.
+    """Pulse: sustained readings (_sustained) and, in addition, a grace margin
+    after exercise (team criterion): if the crew member is moving or did
+    push-ups within the last exercise_recovery_s, a high pulse at orange
+    drops to amber, because a raised pulse from effort is normal. Red
+    (more than 150 bpm) is not downgraded: that is no longer explained by a
+    few push-ups.
     """
     result = _sustained(telemetry, "heart_rate_bpm")
     spec = load_thresholds()["heart_rate_bpm"]
@@ -211,8 +213,9 @@ def _recovering(telemetry, events, now, spec) -> bool:
 
 
 def _check_indicators(today: list[dict], week: list[dict]) -> list[IndicatorResult]:
-    """today: chequeos de las últimas 24 h (dan el valor actual). week: los de
-    7 días (dan la medida anterior de la tensión y la media del ánimo)."""
+    """today: checks from the last 24 h (give the current value). week: those
+    from the last 7 days (give the previous blood pressure reading and the
+    mood average)."""
     bp = lambda c: _obj(c.get("blood_pressure"))
     return [
         _blood_pressure(today, week, "systolic_mmhg", lambda c: as_number(bp(c).get("systolic"))),
@@ -223,10 +226,10 @@ def _check_indicators(today: list[dict], week: list[dict]) -> list[IndicatorResu
 
 
 def _blood_pressure(today: list[dict], week: list[dict], indicator: str, get) -> IndicatorResult:
-    """La guía pide escalar con 140/90 "en dos medidas": el nivel 2 necesita
-    dos medidas seguidas de nivel 2 o más. La última tiene que ser de las
-    últimas 24 h; la anterior puede ser de cualquier día de los últimos 7.
-    El nivel 3 cuenta con una sola."""
+    """The guide says to escalate with 140/90 "on two readings": level 2 needs
+    two consecutive readings at level 2 or worse. The latest must be from
+    the last 24 h; the previous one can be from any of the last 7 days.
+    Level 3 counts with a single reading."""
     if _latest(today, get) is None:
         return level_for(indicator, None)
     values = [get(c) for c in week if get(c) is not None]
@@ -243,9 +246,9 @@ def _blood_pressure(today: list[dict], week: list[dict], indicator: str, get) ->
 
 
 def _mood(today: list[dict], week: list[dict]) -> IndicatorResult:
-    """Ánimo con los cortes fijos y, además, frente a la media del propio
-    tripulante: ámbar si hoy está personal_drop puntos o más por debajo de la
-    media de los chequeos anteriores de 7 días (criterio propio)."""
+    """Mood against the fixed cuts and, in addition, against the crew member's
+    own average: amber if today is personal_drop points or more below the
+    average of the previous checks in the last 7 days (team criterion)."""
     get = lambda c: as_number(c.get("mood"))
     fixed = level_for("mood", _latest(today, get))
     if fixed.value is None or fixed.level:
@@ -266,8 +269,9 @@ def _mood(today: list[dict], week: list[dict]) -> IndicatorResult:
 
 
 def _exercise_indicators(events: list[dict]) -> list[IndicatorResult]:
-    """Caída de flexiones de la última serie frente a la media de las anteriores
-    de los últimos 7 días. Sin series previas no hay basal y no se evalúa."""
+    """Push-up drop of the latest set against the average of the previous ones
+    in the last 7 days. With no previous sets there is no baseline and
+    nothing is evaluated."""
     reps = [
         as_number(_obj(e.get("data")).get("reps"))
         for e in events
@@ -283,7 +287,7 @@ def _exercise_indicators(events: list[dict]) -> list[IndicatorResult]:
     return [level_for("pushup_drop_pct", drop)]
 
 
-# --- utilidades -----------------------------------------------------------------
+# --- utilities -----------------------------------------------------------------
 
 def _latest(messages: list[dict], get):
     for message in reversed(messages):
@@ -294,11 +298,12 @@ def _latest(messages: list[dict], get):
 
 
 def _without_carried_sets(events: list[dict]) -> list[dict]:
-    """Quita las series de flexiones que no son de este tripulante. Si alguien
-    pasa su tarjeta con una serie a medias, la placa manda el resumen justo
-    después del crew_checkin "in", con el crew_id del que acaba de entrar
-    (firmware: resetCrewState). Esa serie es del anterior y estropearía la
-    basal del nuevo, así que se descarta la que llega hasta 3 s después."""
+    """Remove push-up sets that do not belong to this crew member. If someone
+    swipes their card in the middle of a set, the board sends the summary
+    right after the crew_checkin "in", with the crew_id of the person who
+    just arrived (firmware: resetCrewState). That set belongs to the previous
+    person and would spoil the new one's baseline, so a set arriving up to
+    3 s after is dropped."""
     entries = [
         ts for e in events
         if e.get("type") == "crew_checkin" and _obj(e.get("data")).get("action") == "in"
@@ -312,14 +317,14 @@ def _without_carried_sets(events: list[dict]) -> list[dict]:
 
 
 def _obj(value) -> dict:
-    """value si es un dict; si no (None, lista, texto…), un dict vacío."""
+    """value if it is a dict; otherwise (None, list, text...), an empty dict."""
     return value if isinstance(value, dict) else {}
 
 
 def _sorted_recent(messages: list[dict] | None, now: datetime, max_age: timedelta) -> list[dict]:
-    """Mensajes dentro de la ventana, ordenados por ts, sin basura y sin
-    duplicados. Un duplicado es el mismo (device_id, ts, type), como en la
-    placa: si la API guarda dos veces un reintento, cuenta una sola vez."""
+    """Messages within the window, sorted by ts, without garbage and without
+    duplicates. A duplicate is the same (device_id, ts, type), as on the
+    board: if the API stores a retry twice, it counts once."""
     out, seen = [], set()
     for m in messages if isinstance(messages, list) else []:
         if not isinstance(m, dict):
@@ -338,7 +343,7 @@ def _seen(key: tuple, seen: set) -> bool:
         if key in seen:
             return True
         seen.add(key)
-    except TypeError:          # device_id o type que no se pueden comparar: no se deduplica
+    except TypeError:          # device_id or type that cannot be compared: not deduplicated
         pass
     return False
 
@@ -348,7 +353,7 @@ def _parse_ts(value) -> datetime | None:
         return None
     try:
         return _aware(datetime.fromisoformat(value.replace("Z", "+00:00")))
-    except ValueError:
+    except (ValueError, OverflowError):
         return None
 
 

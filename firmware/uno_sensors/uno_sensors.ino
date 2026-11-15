@@ -1,26 +1,26 @@
-// AstroMed - firmware del Arduino UNO
+// AstroMed - Arduino UNO firmware
 //
-// Mide al tripulante (RFID, pulso, temperatura, movimiento, flexiones)
-// y la cabina (DHT11), y manda por el puerto serie (115200) una linea JSON por mensaje:
+// Measures the crew member (RFID, pulse, temperature, motion, push-ups)
+// and the cabin (DHT11), and sends one JSON line per message over serial (115200):
 //
-//   {"t":"tel", ...}   telemetria cada 2 s
-//   {"t":"evt", ...}   eventos: crew_checkin, inactivity, exercise_summary
+//   {"t":"tel", ...}   telemetry every 2 s
+//   {"t":"evt", ...}   events: crew_checkin, inactivity, exercise_summary
 //
-// El ESP32 lee esas lineas, les pone device_id y ts (hora NTP) y las manda al backend.
-// Las lineas que empiezan por '#' son de depuracion y el ESP32 las ignora.
+// The ESP32 reads those lines, adds device_id and ts (NTP time) and sends them to the backend.
+// Lines starting with '#' are debug output and the ESP32 ignores them.
 //
-// Libreria necesaria: MFRC522 (GithubCommunity). El DHT11 y el RTC DS1307 se leen
-// directamente, sin librerias.
+// Required library: MFRC522 (GithubCommunity). The DHT11 and the DS1307 RTC are read
+// directly, without libraries.
 //
-// El HC-SR04 va en el suelo bajo el pecho y solo cuenta flexiones. La respiracion no
-// se mide: resp_rate_bpm va siempre a null para no romper el formato del JSON.
+// The HC-SR04 sits on the floor under the chest and only counts push-ups. Breathing is not
+// measured: resp_rate_bpm is always null so the JSON format is not broken.
 //
-// Pulsador (D7, opcional): si se mantiene pulsado al encender, se reinicia el tiempo
-// de mision (met_s = 0).
+// Button (D7, optional): if held down at power-on, the mission time is reset
+// (met_s = 0).
 //
-// NOTA: el TX del UNO (D1) va al ESP32 y tambien al USB, asi que en el Monitor serie
-// ves exactamente lo que recibe el ESP32. Se puede subir el sketch sin desconectar
-// el ESP32 porque solo esta conectado el TX.
+// NOTE: the UNO TX (D1) goes to the ESP32 and also to USB, so in the Serial Monitor
+// you see exactly what the ESP32 receives. You can upload the sketch without
+// disconnecting the ESP32 because only TX is connected.
 
 #include <SPI.h>
 #include <Wire.h>
@@ -31,10 +31,10 @@
 MFRC522 rfid(PIN_RFID_SS, PIN_RFID_RST);
 
 // ============================================================================
-// Utilidades
+// Utilities
 // ============================================================================
 
-// Anillo de marcas de tiempo (latidos)
+// Ring buffer of timestamps (beats)
 struct TimeRing {
   static const uint8_t N = 20;
   uint32_t t[N];
@@ -45,7 +45,7 @@ struct TimeRing {
     head = (head + 1) % N;
     if (count < N) count++;
   }
-  uint32_t get(uint8_t i) const { return t[(head + N - count + i) % N]; }  // 0 = el mas antiguo
+  uint32_t get(uint8_t i) const { return t[(head + N - count + i) % N]; }  // 0 = the oldest
 };
 
 static inline bool due(uint32_t now, uint32_t &next, uint32_t period) {
@@ -55,19 +55,19 @@ static inline bool due(uint32_t now, uint32_t &next, uint32_t period) {
 }
 
 // ============================================================================
-// Estado general
+// General state
 // ============================================================================
 
-char crewId[21] = "";               // UID en hexadecimal; "" = nadie
+char crewId[21] = "";               // UID in hexadecimal; "" = nobody
 
 // ============================================================================
-// RTC DS1307 (tiempo de mision). Sin libreria: I2C directo.
+// DS1307 RTC (mission time). No library: direct I2C.
 // ============================================================================
 
 const uint8_t DS1307_ADDR = 0x68;
-const uint8_t NVRAM_MAGIC = 0x5A;   // en la NVRAM del DS1307 (0x08): magic + 4 bytes de inicio
+const uint8_t NVRAM_MAGIC = 0x5A;   // in the DS1307 NVRAM (0x08): magic + 4 start bytes
 bool rtcOk = false;
-uint32_t missionStart = 0;          // segundos desde 2000-01-01 (solo importa la diferencia)
+uint32_t missionStart = 0;          // seconds since 2000-01-01 (only the difference matters)
 
 static uint8_t bcd2bin(uint8_t v) { return (v >> 4) * 10 + (v & 0x0F); }
 
@@ -100,7 +100,7 @@ bool rtcNow(uint32_t &secs) {
   if (!rtcReadRegs(0x00, r, 7)) return false;
   uint8_t s = bcd2bin(r[0] & 0x7F), mi = bcd2bin(r[1] & 0x7F);
   uint8_t h;
-  if (r[2] & 0x40) {  // modo 12 h
+  if (r[2] & 0x40) {  // 12 h mode
     h = bcd2bin(r[2] & 0x1F) % 12;
     if (r[2] & 0x20) h += 12;
   } else {
@@ -118,15 +118,15 @@ void rtcSetup(bool resetMission) {
   uint8_t sec;
   if (!rtcReadRegs(0x00, &sec, 1)) {
     rtcOk = false;
-    Serial.println(F("# RTC DS1307 no detectado: met_s sale de millis()"));
+    Serial.println(F("# DS1307 RTC not detected: met_s comes from millis()"));
     return;
   }
   rtcOk = true;
-  if (sec & 0x80) {  // oscilador parado (pila nueva o sin pila): arrancarlo en 2000-01-01
+  if (sec & 0x80) {  // oscillator stopped (new battery or no battery): start it at 2000-01-01
     const uint8_t zero[7] = {0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x00};
     rtcWriteRegs(0x00, zero, 7);
     resetMission = true;
-    Serial.println(F("# RTC parado: lo arranco"));
+    Serial.println(F("# RTC stopped: starting it"));
   }
   uint8_t nv[5];
   bool haveNv = rtcReadRegs(0x08, nv, 5) && nv[0] == NVRAM_MAGIC;
@@ -137,7 +137,7 @@ void rtcSetup(bool resetMission) {
     nv[0] = NVRAM_MAGIC;
     nv[1] = now >> 24; nv[2] = now >> 16; nv[3] = now >> 8; nv[4] = now;
     rtcWriteRegs(0x08, nv, 5);
-    Serial.println(F("# Mision reiniciada: met_s = 0"));
+    Serial.println(F("# Mission reset: met_s = 0"));
   } else {
     missionStart = ((uint32_t)nv[1] << 24) | ((uint32_t)nv[2] << 16) | ((uint32_t)nv[3] << 8) | nv[4];
   }
@@ -156,7 +156,7 @@ uint32_t missionSeconds() {
 char lastUid[21] = "";
 uint32_t lastUidMs = 0, nextRfidPoll = 0, nextRfidCheck = 0;
 
-void resetCrewState(uint32_t now);  // mas abajo
+void resetCrewState(uint32_t now);  // defined below
 void printCrew(const char *id);
 
 void sendCheckin(const char *id, const char *action) {
@@ -178,7 +178,7 @@ void rfidSetup() {
 }
 
 void pollRfid(uint32_t now) {
-  // El RC522 a veces se cuelga: si deja de responder, se reinicia
+  // The RC522 sometimes hangs: if it stops responding, reinitialize it
   if (due(now, nextRfidCheck, 30000)) {
     byte v = rfid.PCD_ReadRegister(MFRC522::VersionReg);
     if (v == 0x00 || v == 0xFF) {
@@ -200,15 +200,15 @@ void pollRfid(uint32_t now) {
   rfid.PICC_HaltA();
   rfid.PCD_StopCrypto1();
 
-  if (strcmp(uid, lastUid) == 0 && now - lastUidMs < 2000) return;  // misma tarjeta, rebote
+  if (strcmp(uid, lastUid) == 0 && now - lastUidMs < 2000) return;  // same card, bounce
   strcpy(lastUid, uid);
   lastUidMs = now;
 
   if (crewId[0] && strcmp(uid, crewId) == 0) {
-    sendCheckin(crewId, "out");       // la misma tarjeta otra vez: sale
+    sendCheckin(crewId, "out");       // same card again: check out
     crewId[0] = '\0';
   } else {
-    if (crewId[0]) sendCheckin(crewId, "out");  // habia otro: sale el anterior
+    if (crewId[0]) sendCheckin(crewId, "out");  // there was another: the previous one checks out
     strcpy(crewId, uid);
     sendCheckin(crewId, "in");
   }
@@ -216,7 +216,7 @@ void pollRfid(uint32_t now) {
 }
 
 // ============================================================================
-// Pulso: LED rojo + fotorresistencia (A1), 50 Hz, deteccion de picos en vivo
+// Pulse: red LED + photoresistor (A1), 50 Hz, live peak detection
 // ============================================================================
 
 TimeRing beats;
@@ -236,11 +236,11 @@ void samplePulse(uint32_t now) {
   if (!due(now, pNextSample, PULSE_SAMPLE_MS)) return;
   int raw = analogRead(PIN_PULSE_LDR);
   if (!pInit) { pDc = raw; pLp = 0; pInit = true; }
-  pDc += (raw - pDc) * 0.03f;           // quita la componente continua (~0,7 s)
+  pDc += (raw - pDc) * 0.03f;           // removes the DC component (~0.7 s)
   float ac = raw - pDc;
-  pLp += (ac - pLp) * 0.35f;            // filtro paso bajo (~3 Hz)
+  pLp += (ac - pLp) * 0.35f;            // low-pass filter (~3 Hz)
   float a = fabs(pLp);
-  pAmp = (a > pAmp) ? a : pAmp * 0.995f; // envolvente
+  pAmp = (a > pAmp) ? a : pAmp * 0.995f; // envelope
   float thr = pAmp * 0.5f;
   if (pLp < 0) pArmed = true;
   if (pArmed && pAmp >= PULSE_MIN_AMP && pLp > thr && now - pLastBeat > PULSE_MIN_IBI_MS) {
@@ -250,7 +250,7 @@ void samplePulse(uint32_t now) {
   }
 }
 
-// bpm = -1 si no hay medida. quality de 0 a 1.
+// bpm = -1 if there is no measurement. quality from 0 to 1.
 void computePulse(uint32_t now, int &bpm, float &quality) {
   bpm = -1;
   quality = 0;
@@ -269,7 +269,7 @@ void computePulse(uint32_t now, int &bpm, float &quality) {
   for (uint8_t i = 0; i < n; i++) var += (iv[i] - mean) * (iv[i] - mean);
   float cv = sqrt(var / n) / mean;
 
-  for (uint8_t i = 1; i < n; i++) {     // mediana (ordenacion por insercion)
+  for (uint8_t i = 1; i < n; i++) {     // median (insertion sort)
     uint16_t k = iv[i];
     int8_t j = i - 1;
     while (j >= 0 && iv[j] > k) { iv[j + 1] = iv[j]; j--; }
@@ -279,17 +279,17 @@ void computePulse(uint32_t now, int &bpm, float &quality) {
   float b = 60000.0f / med;
   if (b < 35 || b > 200) return;
 
-  float expected = (PULSE_WINDOW_MS / 1000.0f) * b / 60.0f - 1.0f;   // intervalos esperados
+  float expected = (PULSE_WINDOW_MS / 1000.0f) * b / 60.0f - 1.0f;   // expected intervals
   if (expected < 1) expected = 1;
-  float qReg = constrain(1.0f - cv * 3.0f, 0.0f, 1.0f);              // regularidad
-  float qCount = constrain(n / expected, 0.0f, 1.0f);                // latidos perdidos
-  float qAmp = constrain(pAmp / (2.0f * PULSE_MIN_AMP), 0.0f, 1.0f); // fuerza de la senal
+  float qReg = constrain(1.0f - cv * 3.0f, 0.0f, 1.0f);              // regularity
+  float qCount = constrain(n / expected, 0.0f, 1.0f);                // missed beats
+  float qAmp = constrain(pAmp / (2.0f * PULSE_MIN_AMP), 0.0f, 1.0f); // signal strength
   quality = qReg * qCount * qAmp;
   bpm = (int)(b + 0.5f);
 }
 
 // ============================================================================
-// HC-SR04 en el suelo: flexiones
+// HC-SR04 on the floor: push-ups
 // ============================================================================
 
 uint32_t usNext = 0;
@@ -302,11 +302,11 @@ float readDistanceCm() {
   delayMicroseconds(10);
   digitalWrite(PIN_US_TRIG, LOW);
   unsigned long us = pulseIn(PIN_US_ECHO, HIGH, US_TIMEOUT_US);
-  if (us == 0) return -1;   // sin eco
+  if (us == 0) return -1;   // no echo
   return us / 58.0f;
 }
 
-// --- Flexiones ---
+// --- Push-ups ---
 bool puDown = false, puActive = false;
 uint8_t puCnt = 0;
 uint16_t puReps = 0;
@@ -336,7 +336,7 @@ void pushupReset() {
 }
 
 void samplePushup(uint32_t now, float d) {
-  float dd = (d < 0) ? 999 : d;   // sin eco = no hay nada encima = arriba
+  float dd = (d < 0) ? 999 : d;   // no echo = nothing above = up
   if (!puDown) {
     if (dd < PUSHUP_DOWN_CM) {
       if (++puCnt >= 2) {
@@ -353,8 +353,8 @@ void samplePushup(uint32_t now, float d) {
         if (!puActive) { puActive = true; puStart = now; puReps = 0; }
         puReps++;
         puLastRep = now;
-#if PRUEBA_RFID_US
-        Serial.print(F("#   + flexion "));
+#if TEST_RFID_US
+        Serial.print(F("#   + push-up "));
         Serial.println(puReps);
 #endif
       }
@@ -365,7 +365,7 @@ void samplePushup(uint32_t now, float d) {
 void checkPushupEnd(uint32_t now) {
   if (!puActive) return;
   if (puReps > 0 && now - puLastRep > PUSHUP_END_MS) sendExerciseSummary();
-  else if (puReps == 0 && now - puStart > 30000) puActive = false;  // bajo y nunca subio
+  else if (puReps == 0 && now - puStart > 30000) puActive = false;  // went down and never came up
 }
 
 void sampleUltrasonic(uint32_t now) {
@@ -376,7 +376,7 @@ void sampleUltrasonic(uint32_t now) {
 }
 
 // ============================================================================
-// Movimiento: interruptor de inclinacion (lo lleva el tripulante), e inactividad
+// Motion: tilt switch (worn by the crew member) and inactivity
 // ============================================================================
 
 uint32_t lastMotionMs = 0;
@@ -412,7 +412,7 @@ void checkInactivity(uint32_t now) {
 }
 
 // ============================================================================
-// Temperatura corporal: termistor NTC (A0). 5V -> NTC -> A0 -> 10k -> GND
+// Body temperature: NTC thermistor (A0). 5V -> NTC -> A0 -> 10k -> GND
 // ============================================================================
 
 float bodyTemp = 0, lastNtcAdc = 0;
@@ -423,7 +423,7 @@ void sampleBodyTemp() {
   for (uint8_t i = 0; i < 8; i++) sum += analogRead(PIN_NTC);
   float adc = sum / 8.0f;
   lastNtcAdc = adc;
-  if (adc < 5 || adc > 1018) { bodyTempOk = false; bodyInit = false; return; }  // cable suelto
+  if (adc < 5 || adc > 1018) { bodyTempOk = false; bodyInit = false; return; }  // loose wire
   float r = NTC_R_FIXED * (1023.0f / adc - 1.0f);
   float lnR = log(r);
   float tC = 1.0f / (NTC_SH_A + NTC_SH_B * lnR + NTC_SH_C * lnR * lnR * lnR) - 273.15f + BODY_TEMP_OFFSET_C;
@@ -433,16 +433,15 @@ void sampleBodyTemp() {
 }
 
 // ============================================================================
-// Cabina: DHT11 (D4). Lectura directa del protocolo, sin libreria.
+// Cabin: DHT11 (D4). Direct protocol read, no library.
 // ============================================================================
 
 float cabinT = 0, cabinH = 0;
 bool cabinOk = false;
 uint8_t dhtFails = 0;
 
-// Cuenta ciclos mientras el pin esta en 'level'. 0 = se paso del tiempo.
 static const uint16_t DHT_TIMEOUT = 0xFFFF;
-// Cuenta ciclos mientras el pin esta en 'level' (0 es valido). DHT_TIMEOUT = se paso del tiempo.
+// Counts cycles while the pin is at 'level' (0 is valid). DHT_TIMEOUT = timed out.
 static uint16_t dhtPulse(uint8_t level) {
   uint16_t c = 0;
   while (digitalRead(PIN_DHT) == level) {
@@ -455,15 +454,15 @@ bool readDHT11(float &t, float &h) {
   uint8_t d[5] = {0, 0, 0, 0, 0};
   pinMode(PIN_DHT, OUTPUT);
   digitalWrite(PIN_DHT, LOW);
-  delay(20);                       // senal de inicio: >18 ms a nivel bajo
+  delay(20);                       // start signal: >18 ms low
   pinMode(PIN_DHT, INPUT_PULLUP);
   delayMicroseconds(40);
   bool ok = true;
   noInterrupts();
-  // espera a que el sensor responda (bajo ~80 us, alto ~80 us)
+  // wait for the sensor to respond (low ~80 us, high ~80 us)
   if (dhtPulse(HIGH) == DHT_TIMEOUT || dhtPulse(LOW) == DHT_TIMEOUT || dhtPulse(HIGH) == DHT_TIMEOUT) ok = false;
   for (uint8_t i = 0; ok && i < 40; i++) {
-    uint16_t lo = dhtPulse(LOW);   // ~50 us siempre
+    uint16_t lo = dhtPulse(LOW);   // always ~50 us
     uint16_t hi = dhtPulse(HIGH);  // ~27 us = 0, ~70 us = 1
     if (lo == DHT_TIMEOUT || hi == DHT_TIMEOUT) { ok = false; break; }
     d[i / 8] <<= 1;
@@ -498,27 +497,27 @@ float dewPointC(float T, float RH) {
 
 float heatIndexC(float T, float RH) {
   float F = T * 1.8f + 32;
-  if (F < 80 || RH < 40) return T;   // fuera del rango de Rothfusz
+  if (F < 80 || RH < 40) return T;   // outside the Rothfusz range
   float HI = -42.379f + 2.04901523f * F + 10.14333127f * RH - 0.22475541f * F * RH
              - 0.00683783f * F * F - 0.05481717f * RH * RH + 0.00122874f * F * F * RH
              + 0.00085282f * F * RH * RH - 0.00000199f * F * F * RH * RH;
   return (HI - 32) / 1.8f;
 }
 
-#if PRUEBA_RFID_US
+#if TEST_RFID_US
 void printTest(uint32_t now) {
-  Serial.print(F("# tripulante="));
-  Serial.print(crewId[0] ? crewId : "ninguno");
+  Serial.print(F("# crew="));
+  Serial.print(crewId[0] ? crewId : "none");
   Serial.print(F("  dist="));
-  if (lastDistCm < 0) Serial.print(F("sin eco"));
+  if (lastDistCm < 0) Serial.print(F("no echo"));
   else { Serial.print(lastDistCm, 1); Serial.print(F(" cm")); }
-  Serial.print(F("  pecho="));
-  Serial.print(puDown ? F("ABAJO") : F("arriba"));
+  Serial.print(F("  chest="));
+  Serial.print(puDown ? F("DOWN") : F("up"));
   Serial.print(F("  reps="));
   Serial.print(puReps);
   if (puActive && puReps > 0) {
     uint32_t left = PUSHUP_END_MS - (now - puLastRep);
-    Serial.print(F("  (resumen en "));
+    Serial.print(F("  (summary in "));
     Serial.print(left / 1000 + 1);
     Serial.print(F(" s)"));
   }
@@ -527,7 +526,7 @@ void printTest(uint32_t now) {
 #endif
 
 // ============================================================================
-// Telemetria
+// Telemetry
 // ============================================================================
 
 void printCrew(const char *id) {
@@ -544,7 +543,7 @@ void resetCrewState(uint32_t now) {
   pulseReset();
   if (puActive && puReps > 0) sendExerciseSummary();
   pushupReset();
-  lastMotionMs = now;   // acaba de pasar la tarjeta: se ha movido
+  lastMotionMs = now;   // the card was just scanned: they moved
   inactivitySent = false;
 }
 
@@ -582,7 +581,7 @@ void sendTelemetry(uint32_t now) {
   if (hrOk) Serial.print(bpm); else Serial.print(F("null"));
   Serial.print(F(",\"hr_quality\":"));
   Serial.print(q, 2);
-  Serial.print(F(",\"resp_rate_bpm\":null,\"body_temp_c\":"));   // la respiracion no se mide
+  Serial.print(F(",\"resp_rate_bpm\":null,\"body_temp_c\":"));   // breathing is not measured
   if (bodyTempOk) Serial.print(bodyTemp, 1); else Serial.print(F("null"));
 
   Serial.print(F("},\"motion\":{\"activity\":\""));
@@ -654,9 +653,9 @@ void setup() {
   pinMode(PIN_US_ECHO, INPUT);
   pinMode(PIN_PULSE_LED, OUTPUT);
   pinMode(PIN_DHT, INPUT_PULLUP);
-  digitalWrite(PIN_PULSE_LED, HIGH);   // el LED del pulso va siempre encendido
+  digitalWrite(PIN_PULSE_LED, HIGH);   // the pulse LED is always on
 
-  Serial.println(F("# AstroMed UNO arrancando"));
+  Serial.println(F("# AstroMed UNO starting"));
   delay(50);
   bool resetMission = digitalRead(PIN_BUTTON) == LOW;
   rtcSetup(resetMission);
@@ -665,11 +664,11 @@ void setup() {
   lastTilt = digitalRead(PIN_TILT);
   uint32_t now = millis();
   lastMotionMs = now;
-  nextDht = now + 1500;                 // el DHT11 necesita ~1 s tras encenderse
+  nextDht = now + 1500;                 // the DHT11 needs ~1 s after power-up
   nextTelemetry = now + TELEMETRY_PERIOD_MS;
-  Serial.println(F("# listo. Pasa una tarjeta para empezar."));
-#if PRUEBA_RFID_US
-  Serial.println(F("# PRUEBA: solo RC522 + HC-SR04 (flexiones)."));
+  Serial.println(F("# ready. Scan a card to start."));
+#if TEST_RFID_US
+  Serial.println(F("# TEST: RC522 + HC-SR04 only (push-ups)."));
 #endif
 }
 
@@ -680,7 +679,7 @@ void loop() {
   pollRfid(now);
   checkPushupEnd(now);
 
-#if PRUEBA_RFID_US
+#if TEST_RFID_US
   if (due(now, nextSecond, 1000)) printTest(now);
   return;
 #endif

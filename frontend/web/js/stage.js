@@ -1,6 +1,6 @@
-// Bucle de dibujo común a los dos lienzos 3D (planeta y cuerpo).
-// Ajusta el tamaño a la pantalla, se para cuando el lienzo no se ve y
-// dibuja un solo fotograma si el usuario pide menos movimiento.
+// Shared draw loop for the two 3D canvases (planet and body).
+// Resizes to the screen, pauses when the canvas is not visible, and
+// draws a single frame if the user asks for reduced motion.
 
 export function stage(canvas, draw) {
   const ctx = canvas.getContext("2d");

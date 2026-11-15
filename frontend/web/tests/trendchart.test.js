@@ -20,7 +20,7 @@ test('sensor trends use seconds', () => {
     slope: 1, intercept: 108, horizon: 60, projected: 168, threshold: 120, threshold_level: 2, crosses_in: 12 };
   assert.equal(crossText(t), 'in 12 s');
   const html = trendChart(t, { levelName: () => 'Alert' });
-  assert.match(html, /−60 S/);           // eje fijo: el último minuto
+  assert.match(html, /−60 S/);           // fixed axis: the last minute
   assert.match(html, /\+60 S/);
   assert.match(html, /IN 60 S/);
 });
