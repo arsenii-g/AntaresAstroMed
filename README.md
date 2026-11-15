@@ -163,6 +163,19 @@ AstroMed builds on the following third-party software, data, and standards.
 - **Hardware design:** [KiCad](https://www.kicad.org/).
 - **Frontend:** [Google Fonts](https://fonts.google.com/): Sora, Inter, and JetBrains Mono.
 - **Standards and guidelines behind `risk/thresholds.json`:** NASA-STD-3001 (vols. 1 and 2), American Heart Association (AHA/ACC) blood pressure and heart rate guidance, American Diabetes Association (ADA) Standards of Care, and NOAA/NWS heat index tables.
+- **Thermistor calibration:** the Steinhart-Hart coefficients in `firmware/tests/thermistor_test/` come from the Elegoo sensor kit tutorial.
+
+## Use of AI (Super Intelligence tools)
+
+As allowed by the NASA Space Apps rules, Team Antares used AI assistants, including Anthropic's Claude, during the hackathon. We disclose that use here.
+
+- **Code:** AI-assisted. Parts of the API, risk engine, simulator, web console, firmware and tests were written, debugged or reviewed with AI help. The team designed the system, built and wired the hardware, and ran and checked the code against the real sensor station and the test suite.
+- **Writing and translation:** AI-assisted. The documentation was drafted, edited and translated from Spanish to English with AI help.
+- **Presentation and video:** AI-assisted. The motion graphics in the demo video were generated with AI-written code. The video carries a visible "SI-generated" watermark. Its footage of the breadboard and its voice-over are the team's own.
+- **Hardware design files:** AI-assisted. The KiCad schematic and PCB files were prepared with AI help and checked with KiCad's electrical and design rule checks.
+- **Not AI-generated:** the physical prototype, its wiring and the sensor readings recorded from it.
+
+No NASA logos or other NASA branding were generated or modified.
 
 ## Limitations
 
